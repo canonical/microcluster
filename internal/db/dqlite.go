@@ -33,7 +33,7 @@ type DB struct {
 	serverCert  *shared.CertInfo // Cluster certificate for dqlite authentication.
 
 	dbName string // This is db.bin.
-	dir    string // This is <state-dir>/database.
+	os     *sys.OS
 
 	db       *sql.DB
 	dqlite   *dqlite.App
@@ -50,12 +50,11 @@ func (db *DB) Accept(conn net.Conn) {
 }
 
 // NewDB creates an empty db struct with no dqlite connection.
-func NewDB(serverCert *shared.CertInfo, dbPath string) *DB {
-	dir, file := filepath.Split(dbPath)
+func NewDB(serverCert *shared.CertInfo, os *sys.OS) *DB {
 	return &DB{
 		serverCert:    serverCert,
-		dbName:        file,
-		dir:           dir,
+		dbName:        filepath.Base(os.DatabasePath()),
+		os:            os,
 		acceptCh:      make(chan net.Conn),
 		ctx:           context.Background(),
 		openCanceller: cancel.New(context.Background()),
@@ -66,7 +65,7 @@ func NewDB(serverCert *shared.CertInfo, dbPath string) *DB {
 func (db *DB) Bootstrap(clusterCert *shared.CertInfo, listenAddr api.URL) error {
 	var err error
 	db.clusterCert = clusterCert
-	db.dqlite, err = dqlite.New(db.dir,
+	db.dqlite, err = dqlite.New(db.os.DatabaseDir,
 		dqlite.WithAddress(listenAddr.URL.Host),
 		dqlite.WithExternalConn(db.dialFunc(), db.acceptCh),
 		dqlite.WithUnixSocket(os.Getenv(sys.DqliteSocket)))
@@ -81,7 +80,7 @@ func (db *DB) Bootstrap(clusterCert *shared.CertInfo, listenAddr api.URL) error 
 func (db *DB) Join(clusterCert *shared.CertInfo, listenAddr api.URL, joinAddresses ...string) error {
 	var err error
 	db.clusterCert = clusterCert
-	db.dqlite, err = dqlite.New(db.dir,
+	db.dqlite, err = dqlite.New(db.os.DatabaseDir,
 		dqlite.WithCluster(joinAddresses),
 		dqlite.WithAddress(listenAddr.URL.Host),
 		dqlite.WithExternalConn(db.dialFunc(), db.acceptCh),
@@ -102,7 +101,7 @@ func (db *DB) StartWithCluster(clusterMembers map[string]types.AddrPort, cluster
 
 	var err error
 	db.clusterCert = clusterCert
-	db.dqlite, err = dqlite.New(db.dir,
+	db.dqlite, err = dqlite.New(db.os.DatabaseDir,
 		dqlite.WithAddress(listenAddr.URL.Host),
 		dqlite.WithCluster(allClusterAddrs),
 		dqlite.WithExternalConn(db.dialFunc(), db.acceptCh),

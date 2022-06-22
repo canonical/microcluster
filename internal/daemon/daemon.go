@@ -97,7 +97,7 @@ func (d *Daemon) init() error {
 		return fmt.Errorf("Failed to initialize trust store: %w", err)
 	}
 
-	d.db = db.NewDB(d.serverCert, d.os.DatabasePath())
+	d.db = db.NewDB(d.serverCert, d.os)
 
 	ctlServer := d.initServer(resources.ControlEndpoints)
 	ctl := endpoints.NewSocket(d.ShutdownCtx, ctlServer, d.os.ControlSocket(), "") // TODO: add socket group.

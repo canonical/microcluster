@@ -89,7 +89,8 @@ func unixHTTPClient(path string) (*http.Client, error) {
 
 	// Define the http transport
 	transport := &http.Transport{
-		DialContext: unixDial,
+		DialContext:       unixDial,
+		DisableKeepAlives: true,
 	}
 
 	// Define the http client
@@ -152,8 +153,9 @@ func tlsHTTPClient(clientCert *shared.CertInfo, remoteCert *x509.Certificate, pr
 	}
 
 	transport := &http.Transport{
-		DialTLSContext: tlsDialContext,
-		Proxy:          proxy,
+		DisableKeepAlives: true,
+		DialTLSContext:    tlsDialContext,
+		Proxy:             proxy,
 	}
 
 	// Define the http client

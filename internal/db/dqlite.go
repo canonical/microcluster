@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	dqlite "github.com/canonical/go-dqlite/app"
@@ -42,6 +43,8 @@ type DB struct {
 	openCanceller *cancel.Canceller
 
 	ctx context.Context
+
+	heartbeatLock sync.Mutex
 }
 
 // Accept sends the outbound connection through the acceptCh channel to be received by dqlite.
@@ -150,8 +153,53 @@ func (db *DB) dialFunc() dqliteClient.DialFunc {
 			return nil, fmt.Errorf("Failed to dial https socket: %w", err)
 		}
 
+		go db.heartbeat(db.ctx)
+
 		return conn, nil
 	}
+}
+
+func (db *DB) heartbeat(ctx context.Context) {
+	if !db.IsOpen() {
+		logger.Warn("Database is not yet open, aborting heartbeat")
+		return
+	}
+
+	// Use the heartbeat lock to prevent another heartbeat attempt if we are currently initiating one.
+	db.heartbeatLock.Lock()
+	defer db.heartbeatLock.Unlock()
+
+	leaderClient, err := db.dqlite.Leader(ctx)
+	if err != nil {
+		logger.Error("Failed to get dqlite leader", logger.Ctx{"error": err})
+		return
+	}
+
+	leaderInfo, err := leaderClient.Leader(ctx)
+	if err != nil {
+		logger.Error("Failed to get dqlite leader info", logger.Ctx{"error": err})
+		return
+	}
+
+	// Only send heartbeats from the leader.
+	if leaderInfo.Address != db.dqlite.Address() {
+		return
+	}
+
+	client, err := client.New(db.os.ControlSocket(), nil, nil, false)
+	if err != nil {
+		logger.Error("Failed to get local client", logger.Ctx{"error": err})
+		return
+	}
+
+	// Initiate a heartbeat from this node.
+	err = client.Heartbeat(ctx, types.HeartbeatInfo{BeginRound: true})
+	if err != nil {
+		logger.Error("Failed to initiate heartbeat round", logger.Ctx{"error": err})
+		return
+	}
+
+	return
 }
 
 // dqliteNetworkDial creates a connection to the internal database endpoint.

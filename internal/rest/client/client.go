@@ -289,3 +289,8 @@ func (c *Client) QueryStruct(ctx context.Context, method string, endpointType En
 	// TODO: Log.pretty.
 	return nil
 }
+
+// URL returns the address used for the client.
+func (c *Client) URL() api.URL {
+	return c.url
+}

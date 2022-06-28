@@ -51,7 +51,8 @@ type State struct {
 	ReadOnly bool
 }
 
-// Cluster returns a client for every member of a cluster.
+// Cluster returns a client for every member of a cluster, except
+// this one, with the UserAgentNotifier header set.
 func (s *State) Cluster(r *http.Request) (client.Cluster, error) {
 	r.Header.Set("User-Agent", request.UserAgentNotifier)
 
@@ -77,7 +78,7 @@ func (s *State) Cluster(r *http.Request) (client.Cluster, error) {
 		}
 
 		url := api.NewURL().Scheme("https").Host(clusterMember.Address.String())
-		client, err := client.New(*url, s.ClusterCert(), publicKey, true)
+		client, err := client.New(*url, s.ServerCert(), publicKey, true)
 		if err != nil {
 			return nil, err
 		}
@@ -86,4 +87,30 @@ func (s *State) Cluster(r *http.Request) (client.Cluster, error) {
 	}
 
 	return clients, nil
+}
+
+// Leader returns a client connected to the dqlite leader.
+func (s *State) Leader() (*client.Client, error) {
+	leaderClient, err := s.Database.Leader()
+	if err != nil {
+		return nil, err
+	}
+
+	leaderInfo, err := leaderClient.Leader(s.Context)
+	if err != nil {
+		return nil, err
+	}
+
+	publicKey, err := s.ClusterCert().PublicKeyX509()
+	if err != nil {
+		return nil, err
+	}
+
+	url := api.NewURL().Scheme("https").Host(leaderInfo.Address)
+	client, err := client.New(*url, s.ServerCert(), publicKey, false)
+	if err != nil {
+		return nil, err
+	}
+
+	return client, nil
 }

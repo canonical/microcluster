@@ -2,6 +2,8 @@ package cluster
 
 import "time"
 
+const SchemaVersion int = 0
+
 // CreateSchema is the default schema applied when bootstrapping the database.
 const CreateSchema = `
 CREATE TABLE internal_schemas (
@@ -28,13 +30,16 @@ CREATE TABLE internal_token_records (
   UNIQUE       (token)
 );
 
-CREATE TABLE internal_cluster (
-  id                   INTEGER  PRIMARY  KEY    AUTOINCREMENT  NOT  NULL,
-  schema               INTEGER  NOT      NULL,
-  state                INTEGER  NOT      NULL   DEFAULT        0,
-  name                 TEXT     NOT      NULL,
-  certificate          TEXT     NOT      NULL,
+CREATE TABLE internal_cluster_members (
+  id                   INTEGER   PRIMARY  KEY    AUTOINCREMENT  NOT  NULL,
+  name                 TEXT      NOT      NULL,
+  address              TEXT      NOT      NULL,
+  certificate          TEXT      NOT      NULL,
+  schema               INTEGER   NOT      NULL,
+  heartbeat            DATETIME  NOT      NULL,
+  role                 TEXT      NOT      NULL,
   UNIQUE(name),
+  UNIQUE(address),
   UNIQUE(certificate)
 );
 `

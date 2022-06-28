@@ -1,16 +1,18 @@
 package types
 
+import "time"
+
 // ClusterMember represents information about a dqlite cluster member.
 type ClusterMember struct {
-	Name        string          `json:"name" yaml:"name"`
-	Address     AddrPort        `json:"address" yaml:"address"`
-	Role        string          `json:"role" yaml:"role"`
-	Certificate X509Certificate `json:"certificate" yaml:"certificate"`
-	Status      MemberStatus    `json:"status" yaml:"status"`
+	ClusterMemberLocal
+	Role          string       `json:"role" yaml:"role"`
+	SchemaVersion int          `json:"schema_version" yaml:"schema_version"`
+	LastHeartbeat time.Time    `json:"last_heartbeat" yaml:"last_heartbeat"`
+	Status        MemberStatus `json:"status" yaml:"status"`
 }
 
-// ClusterMemberPost represents information about a new cluster member.
-type ClusterMemberPost struct {
+// ClusterMemberLocal represents local information about a new cluster member.
+type ClusterMemberLocal struct {
 	Name        string          `json:"name" yaml:"name"`
 	Address     AddrPort        `json:"address" yaml:"address"`
 	Certificate X509Certificate `json:"certificate" yaml:"certificate"`

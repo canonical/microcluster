@@ -61,7 +61,7 @@ func (c Cluster) Query(ctx context.Context, concurrent bool, query func(context.
 }
 
 // AddClusterMember records a new cluster member in the trust store of each current cluster member.
-func (c *Client) AddClusterMember(ctx context.Context, args types.ClusterMemberPost) error {
+func (c *Client) AddClusterMember(ctx context.Context, args types.ClusterMember) error {
 	queryCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 

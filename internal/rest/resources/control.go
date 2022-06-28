@@ -11,6 +11,7 @@ import (
 	"github.com/lxc/lxd/lxd/util"
 	"github.com/lxc/lxd/shared/api"
 
+	"github.com/canonical/microcluster/internal/db/cluster"
 	"github.com/canonical/microcluster/internal/rest"
 	"github.com/canonical/microcluster/internal/rest/access"
 	"github.com/canonical/microcluster/internal/rest/client"
@@ -107,11 +108,14 @@ func joinWithToken(state *state.State, req *types.Control) response.Response {
 		return response.SmartError(err)
 	}
 
-	// Prepare the cluster for the incoming dqlite request by creating trust store entries.
-	newClusterMember := types.ClusterMemberPost{
-		Name:        localClusterMember.Name,
-		Address:     localClusterMember.Address,
-		Certificate: localClusterMember.Certificate,
+	// Prepare the cluster for the incoming dqlite request by creating a database entry.
+	newClusterMember := types.ClusterMember{
+		ClusterMemberLocal: types.ClusterMemberLocal{
+			Name:        localClusterMember.Name,
+			Address:     localClusterMember.Address,
+			Certificate: localClusterMember.Certificate,
+		},
+		SchemaVersion: cluster.SchemaVersion,
 	}
 
 	err = d.AddClusterMember(context.Background(), newClusterMember)

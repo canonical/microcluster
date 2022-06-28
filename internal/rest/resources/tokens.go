@@ -142,9 +142,9 @@ func tokenPost(state *state.State, r *http.Request) response.Response {
 	}
 
 	remotes := state.Remotes()
-	clusterMembers := make([]types.ClusterMember, 0, len(remotes))
+	clusterMembers := make([]types.ClusterMemberLocal, 0, len(remotes))
 	for _, clusterMember := range remotes {
-		clusterMember := types.ClusterMember{
+		clusterMember := types.ClusterMemberLocal{
 			Name:        clusterMember.Name,
 			Address:     clusterMember.Address,
 			Certificate: clusterMember.Certificate,

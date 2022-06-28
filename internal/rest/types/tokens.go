@@ -15,7 +15,7 @@ type TokenRecord struct {
 type TokenResponse struct {
 	ClusterCert    X509Certificate `json:"cluster_cert" yaml:"cluster_cert"`
 	ClusterKey     string          `json:"cluster_key" yaml:"cluster_key"`
-	ClusterMembers []ClusterMember `json:"cluster_members" yaml:"cluster_members"`
+	ClusterMembers []ClusterMemberLocal `json:"cluster_members" yaml:"cluster_members"`
 }
 
 // Token holds the information that is presented to the joining node when requesting a token.

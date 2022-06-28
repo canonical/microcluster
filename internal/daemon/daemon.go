@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/lxc/lxd/lxd/request"
@@ -17,6 +18,7 @@ import (
 	"github.com/lxc/lxd/shared/validate"
 
 	"github.com/canonical/microcluster/internal/db"
+	"github.com/canonical/microcluster/internal/db/cluster"
 	"github.com/canonical/microcluster/internal/endpoints"
 	"github.com/canonical/microcluster/internal/rest"
 	"github.com/canonical/microcluster/internal/rest/resources"
@@ -270,6 +272,24 @@ func (d *Daemon) StartAPI(bootstrap bool, joinAddresses ...string) error {
 		}
 
 		err = d.trustStore.Refresh()
+		if err != nil {
+			return err
+		}
+
+		err = d.db.Transaction(d.ShutdownCtx, func(ctx context.Context, tx *db.Tx) error {
+			clusterMember := cluster.ClusterMember{
+				Name:        localNode.Name,
+				Address:     localNode.Address.String(),
+				Certificate: localNode.Certificate.String(),
+				Schema:      0,
+				Heartbeat:   time.Time{},
+				Role:        cluster.Pending,
+			}
+
+			_, err := cluster.CreateClusterMember(ctx, tx, clusterMember)
+
+			return err
+		})
 		if err != nil {
 			return err
 		}

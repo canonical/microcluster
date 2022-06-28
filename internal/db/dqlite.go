@@ -198,7 +198,7 @@ func dqliteNetworkDial(ctx context.Context, addr string, db *DB) (net.Conn, erro
 
 	revert.Add(func() { conn.Close() })
 	logCtx := logger.AddContext(nil, logger.Ctx{"local": conn.LocalAddr().String(), "remote": conn.RemoteAddr().String()})
-	logCtx.Info("Dqlite connected outbound")
+	logCtx.Debug("Dqlite connected outbound")
 
 	// Set outbound timeouts.
 	remoteTCP, err := tcp.ExtractConn(conn)
@@ -220,6 +220,8 @@ func dqliteNetworkDial(ctx context.Context, addr string, db *DB) (net.Conn, erro
 	if err != nil {
 		return nil, fmt.Errorf("Failed to read response: %w", err)
 	}
+
+	defer response.Body.Close()
 
 	// If the remote server has detected that we are out of date, let's
 	// trigger an upgrade.

@@ -113,6 +113,11 @@ func (db *DB) StartWithCluster(clusterMembers map[string]types.AddrPort, cluster
 	return db.Open(false)
 }
 
+// Leader returns a client connected to the leader of the dqlite cluster.
+func (db *DB) Leader() (*dqliteClient.Client, error) {
+	return db.dqlite.Leader(db.ctx)
+}
+
 // Cluster returns information about dqlite cluster members.
 func (db *DB) Cluster() ([]dqliteClient.NodeInfo, error) {
 	leader, err := db.dqlite.Leader(db.ctx)

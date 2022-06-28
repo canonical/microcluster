@@ -66,7 +66,7 @@ func (r Remotes) Add(dir string, remotes ...Remote) error {
 		}
 		bytes, err := yaml.Marshal(remote)
 		if err != nil {
-			return fmt.Errorf("Failed to parse migrated addresses to yaml: %w", err)
+			return fmt.Errorf("Failed to parse remote %q to yaml: %w", remote.Name, err)
 		}
 
 		path := filepath.Join(dir, fmt.Sprintf("%s.yaml", remote.Name))
@@ -86,6 +86,36 @@ func (r Remotes) Add(dir string, remotes ...Remote) error {
 
 		// Add the remote manually so we can use it right away without waiting for inotify.
 		r[remote.Name] = remote
+	}
+
+	return nil
+}
+
+// Replace replaces the in-memory and locally stored remotes with the given list from the database.
+func (r Remotes) Replace(dir string, newRemotes ...types.ClusterMember) error {
+	for _, remote := range r {
+		remotePath := filepath.Join(dir, fmt.Sprintf("%s.yaml", remote.Name))
+		err := os.Remove(remotePath)
+		if err != nil {
+			return err
+		}
+	}
+
+	r = map[string]Remote{}
+	for _, remote := range newRemotes {
+		newRemote := Remote{Name: remote.Name, Address: remote.Address, Certificate: remote.Certificate}
+		bytes, err := yaml.Marshal(newRemote)
+		if err != nil {
+			return fmt.Errorf("Failed to parse remote %q to yaml: %w", remote.Name, err)
+		}
+
+		remotePath := filepath.Join(dir, fmt.Sprintf("%s.yaml", remote.Name))
+		err = os.WriteFile(remotePath, bytes, 0644)
+		if err != nil {
+			return fmt.Errorf("Failed to write %q: %w", remotePath, err)
+		}
+
+		r[remote.Name] = newRemote
 	}
 
 	return nil

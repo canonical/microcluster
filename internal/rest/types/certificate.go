@@ -12,6 +12,20 @@ type X509Certificate struct {
 	*x509.Certificate
 }
 
+func ParseX509Certificate(certStr string) (*X509Certificate, error) {
+	block, _ := pem.Decode([]byte(certStr))
+	if block == nil {
+		return nil, fmt.Errorf("Failed to decode certificate")
+	}
+
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return nil, err
+	}
+
+	return &X509Certificate{Certificate: cert}, nil
+}
+
 // String returns the x509.Certificate as a PEM encoded string.
 func (c X509Certificate) String() string {
 	if c.Certificate == nil {

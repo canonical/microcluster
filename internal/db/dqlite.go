@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/tls"
 	"database/sql"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -16,6 +17,7 @@ import (
 
 	dqlite "github.com/canonical/go-dqlite/app"
 	dqliteClient "github.com/canonical/go-dqlite/client"
+	"github.com/lxc/lxd/lxd/db/schema"
 	"github.com/lxc/lxd/lxd/revert"
 	"github.com/lxc/lxd/shared"
 	"github.com/lxc/lxd/shared/api"
@@ -37,9 +39,10 @@ type DB struct {
 	dbName string // This is db.bin.
 	os     *sys.OS
 
-	db       *sql.DB
-	dqlite   *dqlite.App
-	acceptCh chan net.Conn
+	db        *sql.DB
+	dqlite    *dqlite.App
+	acceptCh  chan net.Conn
+	upgradeCh chan struct{}
 
 	openCanceller *cancel.Canceller
 
@@ -61,6 +64,7 @@ func NewDB(serverCert *shared.CertInfo, os *sys.OS, listenAddr api.URL) *DB {
 		dbName:        filepath.Base(os.DatabasePath()),
 		os:            os,
 		acceptCh:      make(chan net.Conn),
+		upgradeCh:     make(chan struct{}),
 		ctx:           context.Background(),
 		openCanceller: cancel.New(context.Background()),
 	}
@@ -83,18 +87,38 @@ func (db *DB) Bootstrap(clusterCert *shared.CertInfo) error {
 
 // Join a dqlite cluster with the address of a member.
 func (db *DB) Join(clusterCert *shared.CertInfo, joinAddresses ...string) error {
-	var err error
-	db.clusterCert = clusterCert
-	db.dqlite, err = dqlite.New(db.os.DatabaseDir,
-		dqlite.WithCluster(joinAddresses),
-		dqlite.WithAddress(db.listenAddr.URL.Host),
-		dqlite.WithExternalConn(db.dialFunc(), db.acceptCh),
-		dqlite.WithUnixSocket(os.Getenv(sys.DqliteSocket)))
-	if err != nil {
-		return fmt.Errorf("Failed to join dqlite cluster %w", err)
+	for {
+		var err error
+		db.clusterCert = clusterCert
+		db.dqlite, err = dqlite.New(db.os.DatabaseDir,
+			dqlite.WithCluster(joinAddresses),
+			dqlite.WithAddress(db.listenAddr.URL.Host),
+			dqlite.WithExternalConn(db.dialFunc(), db.acceptCh),
+			dqlite.WithUnixSocket(os.Getenv(sys.DqliteSocket)))
+		if err != nil {
+			return fmt.Errorf("Failed to join dqlite cluster %w", err)
+		}
+
+		err = db.Open(false)
+		if err == nil {
+			break
+		}
+
+		// If this is a graceful abort, then we should loop back and try to start the database again.
+		if errors.Is(err, schema.ErrGracefulAbort) {
+			logger.Debug("Closing database after upgrade notification", logger.Ctx{"address": db.listenAddr})
+			err = db.db.Close()
+			if err != nil {
+				logger.Error("Failed to close database", logger.Ctx{"address": db.listenAddr, "error": err})
+			}
+
+			continue
+		}
+
+		return err
 	}
 
-	return db.Open(false)
+	return nil
 }
 
 // StartWithCluster starts up dqlite and joins the cluster.
@@ -104,18 +128,7 @@ func (db *DB) StartWithCluster(clusterMembers map[string]types.AddrPort, cluster
 		allClusterAddrs = append(allClusterAddrs, clusterMemberAddrs.String())
 	}
 
-	var err error
-	db.clusterCert = clusterCert
-	db.dqlite, err = dqlite.New(db.os.DatabaseDir,
-		dqlite.WithAddress(db.listenAddr.URL.Host),
-		dqlite.WithCluster(allClusterAddrs),
-		dqlite.WithExternalConn(db.dialFunc(), db.acceptCh),
-		dqlite.WithUnixSocket(os.Getenv(sys.DqliteSocket)))
-	if err != nil {
-		return fmt.Errorf("Failed to bootstrap dqlite: %w", err)
-	}
-
-	return db.Open(false)
+	return db.Join(clusterCert, allClusterAddrs...)
 }
 
 // Leader returns a client connected to the leader of the dqlite cluster.

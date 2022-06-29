@@ -31,7 +31,8 @@ import (
 // DB holds all information internal to the dqlite database.
 type DB struct {
 	clusterCert *shared.CertInfo // Cluster certificate for dqlite authentication.
-	serverCert  *shared.CertInfo // Cluster certificate for dqlite authentication.
+	serverCert  *shared.CertInfo // Server certificate for dqlite authentication.
+	listenAddr  api.URL          // Listen address for this dqlite node.
 
 	dbName string // This is db.bin.
 	os     *sys.OS
@@ -53,9 +54,10 @@ func (db *DB) Accept(conn net.Conn) {
 }
 
 // NewDB creates an empty db struct with no dqlite connection.
-func NewDB(serverCert *shared.CertInfo, os *sys.OS) *DB {
+func NewDB(serverCert *shared.CertInfo, os *sys.OS, listenAddr api.URL) *DB {
 	return &DB{
 		serverCert:    serverCert,
+		listenAddr:    listenAddr,
 		dbName:        filepath.Base(os.DatabasePath()),
 		os:            os,
 		acceptCh:      make(chan net.Conn),
@@ -65,11 +67,11 @@ func NewDB(serverCert *shared.CertInfo, os *sys.OS) *DB {
 }
 
 // Bootstrap dqlite.
-func (db *DB) Bootstrap(clusterCert *shared.CertInfo, listenAddr api.URL) error {
+func (db *DB) Bootstrap(clusterCert *shared.CertInfo) error {
 	var err error
 	db.clusterCert = clusterCert
 	db.dqlite, err = dqlite.New(db.os.DatabaseDir,
-		dqlite.WithAddress(listenAddr.URL.Host),
+		dqlite.WithAddress(db.listenAddr.URL.Host),
 		dqlite.WithExternalConn(db.dialFunc(), db.acceptCh),
 		dqlite.WithUnixSocket(os.Getenv(sys.DqliteSocket)))
 	if err != nil {
@@ -80,12 +82,12 @@ func (db *DB) Bootstrap(clusterCert *shared.CertInfo, listenAddr api.URL) error 
 }
 
 // Join a dqlite cluster with the address of a member.
-func (db *DB) Join(clusterCert *shared.CertInfo, listenAddr api.URL, joinAddresses ...string) error {
+func (db *DB) Join(clusterCert *shared.CertInfo, joinAddresses ...string) error {
 	var err error
 	db.clusterCert = clusterCert
 	db.dqlite, err = dqlite.New(db.os.DatabaseDir,
 		dqlite.WithCluster(joinAddresses),
-		dqlite.WithAddress(listenAddr.URL.Host),
+		dqlite.WithAddress(db.listenAddr.URL.Host),
 		dqlite.WithExternalConn(db.dialFunc(), db.acceptCh),
 		dqlite.WithUnixSocket(os.Getenv(sys.DqliteSocket)))
 	if err != nil {
@@ -96,7 +98,7 @@ func (db *DB) Join(clusterCert *shared.CertInfo, listenAddr api.URL, joinAddress
 }
 
 // StartWithCluster starts up dqlite and joins the cluster.
-func (db *DB) StartWithCluster(clusterMembers map[string]types.AddrPort, clusterCert *shared.CertInfo, listenAddr api.URL) error {
+func (db *DB) StartWithCluster(clusterMembers map[string]types.AddrPort, clusterCert *shared.CertInfo) error {
 	allClusterAddrs := []string{}
 	for _, clusterMemberAddrs := range clusterMembers {
 		allClusterAddrs = append(allClusterAddrs, clusterMemberAddrs.String())
@@ -105,7 +107,7 @@ func (db *DB) StartWithCluster(clusterMembers map[string]types.AddrPort, cluster
 	var err error
 	db.clusterCert = clusterCert
 	db.dqlite, err = dqlite.New(db.os.DatabaseDir,
-		dqlite.WithAddress(listenAddr.URL.Host),
+		dqlite.WithAddress(db.listenAddr.URL.Host),
 		dqlite.WithCluster(allClusterAddrs),
 		dqlite.WithExternalConn(db.dialFunc(), db.acceptCh),
 		dqlite.WithUnixSocket(os.Getenv(sys.DqliteSocket)))

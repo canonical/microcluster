@@ -100,7 +100,7 @@ func (d *Daemon) init() error {
 		return fmt.Errorf("Failed to initialize trust store: %w", err)
 	}
 
-	d.db = db.NewDB(d.serverCert, d.os)
+	d.db = db.NewDB(d.serverCert, d.os, d.Address)
 
 	ctlServer := d.initServer(resources.ControlEndpoints)
 	ctl := endpoints.NewSocket(d.ShutdownCtx, ctlServer, d.os.ControlSocket(), "") // TODO: add socket group.
@@ -139,7 +139,7 @@ func (d *Daemon) reloadIfBootstrapped() error {
 		return err
 	}
 
-	err = d.db.StartWithCluster(d.trustStore.Remotes().Addresses(), d.clusterCert, d.Address)
+	err = d.db.StartWithCluster(d.trustStore.Remotes().Addresses(), d.clusterCert)
 	return err
 }
 
@@ -267,7 +267,7 @@ func (d *Daemon) StartAPI(bootstrap bool, joinAddresses ...string) error {
 
 	// If opening the db, refresh the truststore.
 	if bootstrap {
-		err = d.db.Bootstrap(d.ClusterCert(), d.Address)
+		err = d.db.Bootstrap(d.ClusterCert())
 		if err != nil {
 			return err
 		}
@@ -295,7 +295,7 @@ func (d *Daemon) StartAPI(bootstrap bool, joinAddresses ...string) error {
 			return err
 		}
 	} else if len(joinAddresses) != 0 {
-		err = d.db.Join(d.ClusterCert(), d.Address, joinAddresses...)
+		err = d.db.Join(d.ClusterCert(), joinAddresses...)
 		if err != nil {
 			return err
 		}

@@ -200,8 +200,13 @@ func (c *Client) rawQuery(ctx context.Context, method string, url *api.URL, data
 	var req *http.Request
 	var err error
 
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
+	// Assign a context timeout if we don't already have one.
+	_, ok := ctx.Deadline()
+	if !ok {
+		timeoutCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		ctx = timeoutCtx
+		defer cancel()
+	}
 
 	// Get a new HTTP request setup
 	if data != nil {

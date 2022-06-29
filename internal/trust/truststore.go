@@ -12,7 +12,7 @@ import (
 // Store represents a directory of remotes watched by the fsnotify Watcher.
 type Store struct {
 	remotesMu sync.RWMutex // Mutex for coordinating manual and fsnotify access to remotes.
-	remotes   Remotes      // Should never be called directly, instead use Remotes().
+	remotes   *Remotes     // Should never be called directly, instead use Remotes().
 
 	refresh func(path string) error
 }
@@ -47,6 +47,9 @@ func Init(watcher *sys.Watcher, onUpdate func(oldRemotes, newRemotes Remotes) er
 
 	// Watch on the truststore directory for yaml updates.
 	watcher.Watch(dir, "yaml", func(path string, event fsnotify.Op) error {
+		ts.remotes.updateMu.Lock()
+		defer ts.remotes.updateMu.Unlock()
+
 		return ts.refresh(path)
 	})
 
@@ -54,7 +57,7 @@ func Init(watcher *sys.Watcher, onUpdate func(oldRemotes, newRemotes Remotes) er
 }
 
 // Remotes returns a thread-safe list of the remotes in the truststore, as watched by fsnotify.
-func (ts *Store) Remotes() Remotes {
+func (ts *Store) Remotes() *Remotes {
 	ts.remotesMu.RLock()
 	defer ts.remotesMu.RUnlock()
 

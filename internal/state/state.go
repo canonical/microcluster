@@ -42,7 +42,7 @@ type State struct {
 	Database *db.DB
 
 	// Remotes.
-	Remotes func() trust.Remotes
+	Remotes func() *trust.Remotes
 
 	// Initialize APIs and bootstrap/join database.
 	StartAPI func(bootstrap bool, joinAddresses ...string) error

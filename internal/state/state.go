@@ -52,9 +52,11 @@ type State struct {
 }
 
 // Cluster returns a client for every member of a cluster, except
-// this one, with the UserAgentNotifier header set.
+// this one, with the UserAgentNotifier header set if a request is given.
 func (s *State) Cluster(r *http.Request) (client.Cluster, error) {
-	r.Header.Set("User-Agent", request.UserAgentNotifier)
+	if r != nil {
+		r.Header.Set("User-Agent", request.UserAgentNotifier)
+	}
 
 	d, err := client.New(s.OS.ControlSocket(), nil, nil, false)
 	if err != nil {

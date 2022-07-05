@@ -160,6 +160,14 @@ func (db *DB) IsOpen() bool {
 	return db.openCanceller.Err() != nil
 }
 
+// NotifyUpgraded sends a notification that we can stop waiting for a cluster member to be upgraded.
+func (db *DB) NotifyUpgraded() {
+	select {
+	case db.upgradeCh <- struct{}{}:
+	default:
+	}
+}
+
 // dialFunc to be passed to dqlite.
 func (db *DB) dialFunc() dqliteClient.DialFunc {
 	return func(ctx context.Context, address string) (net.Conn, error) {

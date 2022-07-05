@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -22,6 +23,7 @@ import (
 	"github.com/canonical/microcluster/internal/db/update"
 	"github.com/canonical/microcluster/internal/endpoints"
 	"github.com/canonical/microcluster/internal/rest"
+	"github.com/canonical/microcluster/internal/rest/client"
 	"github.com/canonical/microcluster/internal/rest/resources"
 	"github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/internal/state"
@@ -134,13 +136,12 @@ func (d *Daemon) reloadIfBootstrapped() error {
 		return err
 	}
 
-	err = d.StartAPI(false, "")
+	err = d.StartAPI(false)
 	if err != nil {
 		return err
 	}
 
-	err = d.db.StartWithCluster(d.trustStore.Remotes().Addresses(), d.clusterCert)
-	return err
+	return nil
 }
 
 func (d *Daemon) initStore() error {
@@ -265,7 +266,7 @@ func (d *Daemon) StartAPI(bootstrap bool, joinAddresses ...string) error {
 		return err
 	}
 
-	// If opening the db, refresh the truststore.
+	// If bootstrapping the first node, just open the database and create an entry for ourselves.
 	if bootstrap {
 		err = d.db.Bootstrap(d.ClusterCert())
 		if err != nil {
@@ -291,22 +292,75 @@ func (d *Daemon) StartAPI(bootstrap bool, joinAddresses ...string) error {
 
 			return err
 		})
-		if err != nil {
-			return err
-		}
-	} else if len(joinAddresses) != 0 {
+
+		return err
+	}
+
+	if len(joinAddresses) != 0 {
 		err = d.db.Join(d.ClusterCert(), joinAddresses...)
 		if err != nil {
-			return err
+			return fmt.Errorf("Failed to join cluster: %w", err)
 		}
-
-		err = d.trustStore.Refresh()
+	} else {
+		err = d.db.StartWithCluster(d.trustStore.Remotes().Addresses(), d.clusterCert)
 		if err != nil {
-			return err
+			return fmt.Errorf("Failed to re-establish cluster connection: %w", err)
 		}
 	}
 
-	return nil
+	err = d.trustStore.Refresh()
+	if err != nil {
+		return err
+	}
+
+	// Get a client for every other cluster member in the newly refreshed local store.
+	cluster := make(client.Cluster, 0, d.trustStore.Remotes().Count()-1)
+	for _, addr := range d.trustStore.Remotes().Addresses() {
+		if d.Address.URL.Host == addr.String() {
+			continue
+		}
+
+		publicKey, err := d.ClusterCert().PublicKeyX509()
+		if err != nil {
+			return err
+		}
+
+		url := api.NewURL().Scheme("https").Host(addr.String())
+		client, err := client.New(*url, d.ServerCert(), publicKey, true)
+		if err != nil {
+			return err
+		}
+
+		cluster = append(cluster, *client)
+	}
+
+	// Send notification that this node is upgraded to all other cluster members.
+	err = cluster.Query(d.ShutdownCtx, true, func(ctx context.Context, c *client.Client) error {
+		path := c.URL()
+		parts := strings.Split(string(client.InternalEndpoint), "/")
+		parts = append(parts, "database")
+		path = *path.Path(parts...)
+		upgradeRequest, err := http.NewRequest("PATCH", path.String(), nil)
+		if err != nil {
+			return err
+		}
+
+		upgradeRequest.Header.Set("X-Dqlite-Version", fmt.Sprintf("%d", 1))
+		upgradeRequest = upgradeRequest.WithContext(ctx)
+
+		resp, err := c.Client.Do(upgradeRequest)
+		if err != nil {
+			return fmt.Errorf("Failed to send database upgrade request: %w", err)
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("Database upgrade notification failed: %s", resp.Status)
+		}
+
+		return nil
+	})
+
+	return err
 }
 
 // ClusterCert ensures both the daemon and state have the same cluster cert.

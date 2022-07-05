@@ -106,10 +106,10 @@ func (db *DB) Join(clusterCert *shared.CertInfo, joinAddresses ...string) error 
 
 		// If this is a graceful abort, then we should loop back and try to start the database again.
 		if errors.Is(err, schema.ErrGracefulAbort) {
-			logger.Debug("Closing database after upgrade notification", logger.Ctx{"address": db.listenAddr})
+			logger.Debug("Closing database after upgrade notification", logger.Ctx{"address": db.listenAddr.String()})
 			err = db.db.Close()
 			if err != nil {
-				logger.Error("Failed to close database", logger.Ctx{"address": db.listenAddr, "error": err})
+				logger.Error("Failed to close database", logger.Ctx{"address": db.listenAddr.String(), "error": err})
 			}
 
 			continue
@@ -184,7 +184,7 @@ func (db *DB) dialFunc() dqliteClient.DialFunc {
 
 func (db *DB) heartbeat(ctx context.Context) {
 	if !db.IsOpen() {
-		logger.Warn("Database is not yet open, aborting heartbeat")
+		logger.Debug("Database is not yet open, aborting heartbeat", logger.Ctx{"address": db.listenAddr.String()})
 		return
 	}
 
@@ -194,13 +194,13 @@ func (db *DB) heartbeat(ctx context.Context) {
 
 	leaderClient, err := db.dqlite.Leader(ctx)
 	if err != nil {
-		logger.Error("Failed to get dqlite leader", logger.Ctx{"error": err})
+		logger.Error("Failed to get dqlite leader", logger.Ctx{"address": db.listenAddr.String(), "error": err})
 		return
 	}
 
 	leaderInfo, err := leaderClient.Leader(ctx)
 	if err != nil {
-		logger.Error("Failed to get dqlite leader info", logger.Ctx{"error": err})
+		logger.Error("Failed to get dqlite leader info", logger.Ctx{"address": db.listenAddr.String(), "error": err})
 		return
 	}
 
@@ -211,14 +211,14 @@ func (db *DB) heartbeat(ctx context.Context) {
 
 	client, err := client.New(db.os.ControlSocket(), nil, nil, false)
 	if err != nil {
-		logger.Error("Failed to get local client", logger.Ctx{"error": err})
+		logger.Error("Failed to get local client", logger.Ctx{"address": db.listenAddr.String(), "error": err})
 		return
 	}
 
 	// Initiate a heartbeat from this node.
 	err = client.Heartbeat(ctx, types.HeartbeatInfo{BeginRound: true})
 	if err != nil {
-		logger.Error("Failed to initiate heartbeat round", logger.Ctx{"error": err})
+		logger.Error("Failed to initiate heartbeat round", logger.Ctx{"address": db.dqlite.Address(), "error": err})
 		return
 	}
 

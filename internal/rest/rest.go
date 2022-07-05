@@ -99,17 +99,21 @@ func handleDatabaseRequest(action EndpointAction, state *state.State, w http.Res
 		return response.NotImplemented(nil)
 	}
 
-	hijacker, ok := w.(http.Hijacker)
-	if !ok {
-		return response.InternalError(fmt.Errorf("Webserver does not support hijacking"))
+	// If the request is a POST, then it is likely from the dqlite dial function, so hijack the connection.
+	if r.Method == "POST" {
+		hijacker, ok := w.(http.Hijacker)
+		if !ok {
+			return response.InternalError(fmt.Errorf("Webserver does not support hijacking"))
+		}
+
+		conn, _, err := hijacker.Hijack()
+		if err != nil {
+			return response.InternalError(fmt.Errorf("Failed to hijack connection: %w", err))
+		}
+
+		state.Database.Accept(conn)
 	}
 
-	conn, _, err := hijacker.Hijack()
-	if err != nil {
-		return response.InternalError(fmt.Errorf("Failed to hijack connection: %w", err))
-	}
-
-	state.Database.Accept(conn)
 	return action.Handler(state, r)
 }
 

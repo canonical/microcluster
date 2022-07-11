@@ -14,7 +14,8 @@ import (
 	"github.com/lxc/lxd/shared/api"
 	"gopkg.in/yaml.v2"
 
-	"github.com/canonical/microcluster/internal/rest/types"
+	internalTypes "github.com/canonical/microcluster/internal/rest/types"
+	"github.com/canonical/microcluster/rest/types"
 )
 
 // Remotes is a convenient alias as we will often deal with groups of yaml files.
@@ -99,7 +100,7 @@ func (r *Remotes) Add(dir string, remotes ...Remote) error {
 }
 
 // Replace replaces the in-memory and locally stored remotes with the given list from the database.
-func (r *Remotes) Replace(dir string, newRemotes ...types.ClusterMember) error {
+func (r *Remotes) Replace(dir string, newRemotes ...internalTypes.ClusterMember) error {
 	r.updateMu.Lock()
 	defer r.updateMu.Unlock()
 

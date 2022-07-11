@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/lxc/lxd/shared"
 	"github.com/lxc/lxd/shared/api"
 )
 
@@ -13,14 +14,22 @@ type OS struct {
 	StateDir    string
 	DatabaseDir string
 	TrustDir    string
+	LogFile     string
 }
 
 // DefaultOS returns a fresh uninitialized OS instance with default values.
 func DefaultOS(stateDir string, createDir bool) (*OS, error) {
+	if stateDir == "" {
+		stateDir = os.Getenv(StateDir)
+	}
+
+	// TODO: Configurable log file path.
+
 	os := &OS{
 		StateDir:    stateDir,
 		DatabaseDir: filepath.Join(stateDir, "database"),
 		TrustDir:    filepath.Join(stateDir, "truststore"),
+		LogFile:     "",
 	}
 
 	err := os.init(createDir)
@@ -76,4 +85,32 @@ func (s *OS) ControlSocket() api.URL {
 // DatabasePath returns the path of the database file managed by dqlite.
 func (s *OS) DatabasePath() string {
 	return filepath.Join(s.DatabaseDir, "db.bin")
+}
+
+// ServerCert gets the local server certificate from the state directory.
+func (s *OS) ServerCert() (*shared.CertInfo, error) {
+	if !shared.PathExists(filepath.Join(s.StateDir, "server.crt")) {
+		return nil, fmt.Errorf("Failed to get server.crt from directory %q", s.StateDir)
+	}
+
+	cert, err := shared.KeyPairAndCA(s.StateDir, "server", shared.CertServer, true)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load TLS certificate: %w", err)
+	}
+
+	return cert, nil
+}
+
+// ClusterCert gets the local cluster certificate from the state directory.
+func (s *OS) ClusterCert() (*shared.CertInfo, error) {
+	if !shared.PathExists(filepath.Join(s.StateDir, "cluster.crt")) {
+		return nil, fmt.Errorf("Failed to get cluster.crt from directory %q", s.StateDir)
+	}
+
+	cert, err := shared.KeyPairAndCA(s.StateDir, "cluster", shared.CertServer, true)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load TLS certificate: %w", err)
+	}
+
+	return cert, nil
 }

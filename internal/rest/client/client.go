@@ -37,11 +37,11 @@ const (
 	// InternalEndpoint - all endpoints restricted to trusted servers.
 	InternalEndpoint EndpointType = "cluster/internal"
 
-	// ControlEndpoint - to be used by the command line tools.
+	// ControlEndpoint - all endpoints available on the local unix socket.
 	ControlEndpoint EndpointType = "cluster/control"
 )
 
-// Client is a rest client for the daemons.
+// Client is a rest client for the daemon.
 type Client struct {
 	*http.Client
 	url api.URL

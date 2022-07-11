@@ -8,14 +8,15 @@ import (
 	"time"
 
 	"github.com/lxc/lxd/lxd/response"
+	"github.com/lxc/lxd/shared/logger"
 
+	"github.com/canonical/microcluster/client"
+	"github.com/canonical/microcluster/cluster"
 	"github.com/canonical/microcluster/internal/db"
-	"github.com/canonical/microcluster/internal/db/cluster"
-	"github.com/canonical/microcluster/internal/logger"
-	"github.com/canonical/microcluster/internal/rest"
-	"github.com/canonical/microcluster/internal/rest/client"
+	internalClient "github.com/canonical/microcluster/internal/rest/client"
 	"github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/internal/state"
+	"github.com/canonical/microcluster/rest"
 )
 
 var heartbeatCmd = rest.Endpoint{
@@ -73,7 +74,7 @@ func beginHeartbeat(state *state.State, r *http.Request) response.Response {
 	// Get the database record of cluster members.
 	var clusterMembers []types.ClusterMember
 	err = state.Database.Transaction(state.Context, func(ctx context.Context, tx *db.Tx) error {
-		dbClusterMembers, err := cluster.GetClusterMembers(ctx, tx, cluster.ClusterMemberFilter{})
+		dbClusterMembers, err := cluster.GetInternalClusterMembers(ctx, tx, cluster.InternalClusterMemberFilter{})
 		if err != nil {
 			return err
 		}
@@ -122,10 +123,10 @@ func beginHeartbeat(state *state.State, r *http.Request) response.Response {
 	// If we sent out a heartbeat within double the request timeout,
 	// then wait the up to half the request timeout before exiting to prevent sending more unsuccessful attempts.
 	leaderEntry := clusterMap[state.Address.URL.Host]
-	heartbeatInterval := time.Duration(time.Second * client.HeartbeatTimeout * 2)
+	heartbeatInterval := time.Duration(time.Second * internalClient.HeartbeatTimeout * 2)
 	timeSinceLast := time.Since(leaderEntry.LastHeartbeat)
 	if timeSinceLast < heartbeatInterval {
-		sleepInterval := time.Duration(time.Second * client.HeartbeatTimeout / 2)
+		sleepInterval := time.Duration(time.Second * internalClient.HeartbeatTimeout / 2)
 		if timeSinceLast < sleepInterval {
 			sleepInterval = sleepInterval - timeSinceLast
 		}
@@ -168,7 +169,7 @@ func beginHeartbeat(state *state.State, r *http.Request) response.Response {
 		}
 
 		timeSinceLast := time.Since(currentMember.LastHeartbeat)
-		if timeSinceLast < time.Duration(time.Second*client.HeartbeatTimeout*2) {
+		if timeSinceLast < time.Duration(time.Second*internalClient.HeartbeatTimeout*2) {
 			logger.Warnf("Skipping heartbeat, one was sent %q ago", timeSinceLast.String())
 			return nil
 		}
@@ -190,7 +191,7 @@ func beginHeartbeat(state *state.State, r *http.Request) response.Response {
 
 	// Having sent a heartbeat to each valid cluster member, update the database record of members.
 	err = state.Database.Transaction(state.Context, func(ctx context.Context, tx *db.Tx) error {
-		dbClusterMembers, err := cluster.GetClusterMembers(ctx, tx, cluster.ClusterMemberFilter{})
+		dbClusterMembers, err := cluster.GetInternalClusterMembers(ctx, tx, cluster.InternalClusterMemberFilter{})
 		if err != nil {
 			return err
 		}
@@ -203,7 +204,7 @@ func beginHeartbeat(state *state.State, r *http.Request) response.Response {
 
 			clusterMember.Heartbeat = heartbeatInfo.LastHeartbeat
 			clusterMember.Role = cluster.Role(heartbeatInfo.Role)
-			err = cluster.UpdateClusterMember(ctx, tx, clusterMember.Address, clusterMember)
+			err = cluster.UpdateInternalClusterMember(ctx, tx, clusterMember.Address, clusterMember)
 			if err != nil {
 				return err
 			}

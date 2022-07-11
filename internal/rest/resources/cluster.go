@@ -11,14 +11,14 @@ import (
 	"github.com/lxc/lxd/shared/api"
 	"github.com/lxc/lxd/shared/logger"
 
+	"github.com/canonical/microcluster/cluster"
 	"github.com/canonical/microcluster/internal/db"
-	"github.com/canonical/microcluster/internal/db/cluster"
-	"github.com/canonical/microcluster/internal/rest"
 	"github.com/canonical/microcluster/internal/rest/access"
 	"github.com/canonical/microcluster/internal/rest/client"
 	"github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/internal/state"
 	"github.com/canonical/microcluster/internal/trust"
+	"github.com/canonical/microcluster/rest"
 )
 
 var clusterCmd = rest.Endpoint{
@@ -81,7 +81,7 @@ func clusterPost(state *state.State, r *http.Request) response.Response {
 	}
 
 	err = state.Database.Transaction(state.Context, func(ctx context.Context, tx *db.Tx) error {
-		dbClusterMember := cluster.ClusterMember{
+		dbClusterMember := cluster.InternalClusterMember{
 			Name:        req.Name,
 			Address:     req.Address.String(),
 			Certificate: req.Certificate.String(),
@@ -90,7 +90,7 @@ func clusterPost(state *state.State, r *http.Request) response.Response {
 			Role:        cluster.Pending,
 		}
 
-		_, err = cluster.CreateClusterMember(ctx, tx, dbClusterMember)
+		_, err = cluster.CreateInternalClusterMember(ctx, tx, dbClusterMember)
 
 		return err
 	})
@@ -110,7 +110,7 @@ func clusterPost(state *state.State, r *http.Request) response.Response {
 func clusterGet(state *state.State, r *http.Request) response.Response {
 	var apiClusterMembers []types.ClusterMember
 	err := state.Database.Transaction(state.Context, func(ctx context.Context, tx *db.Tx) error {
-		clusterMembers, err := cluster.GetClusterMembers(ctx, tx, cluster.ClusterMemberFilter{})
+		clusterMembers, err := cluster.GetInternalClusterMembers(ctx, tx, cluster.InternalClusterMemberFilter{})
 		if err != nil {
 			return err
 		}

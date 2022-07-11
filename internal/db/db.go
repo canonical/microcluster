@@ -11,7 +11,7 @@ import (
 	"github.com/lxc/lxd/lxd/db/schema"
 	"github.com/lxc/lxd/shared/logger"
 
-	"github.com/canonical/microcluster/internal/db/cluster"
+	"github.com/canonical/microcluster/cluster"
 	"github.com/canonical/microcluster/internal/db/update"
 )
 

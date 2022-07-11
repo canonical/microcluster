@@ -144,7 +144,7 @@ func clusterGet(state *state.State, r *http.Request) response.Response {
 			return response.SmartError(fmt.Errorf("Failed to create HTTPS client for cluster member with address %q: %w", addr.String(), err))
 		}
 
-		err = d.QueryStruct(state.Context, "GET", client.InternalEndpoint, api.NewURL().Path("ready"), nil, nil)
+    err = d.CheckReady(state.Context)
 		if err == nil {
 			apiClusterMembers[i].Status = types.MemberOnline
 		} else {

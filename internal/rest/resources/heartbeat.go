@@ -157,11 +157,20 @@ func beginHeartbeat(state *state.State, r *http.Request) response.Response {
 	timeSinceLast := time.Since(leaderEntry.LastHeartbeat)
 	if timeSinceLast < heartbeatInterval {
 		sleepInterval := time.Duration(time.Second * internalClient.HeartbeatTimeout / 2)
-		if timeSinceLast < sleepInterval {
-			sleepInterval = sleepInterval - timeSinceLast
+		timeUntilNext := time.Until(leaderEntry.LastHeartbeat.Add(heartbeatInterval))
+
+		// If we can send out a heartbeat sooner than the sleep timeout, sleep just long enough.
+		if timeUntilNext < sleepInterval {
+			sleepInterval = timeUntilNext
+		}
+
+		// Sleep at least 2 seconds to sync up with other nodes.
+		if sleepInterval < 2*time.Second {
+			sleepInterval = 2 * time.Second
 		}
 
 		<-time.After(sleepInterval)
+
 		return response.EmptySyncResponse
 	}
 

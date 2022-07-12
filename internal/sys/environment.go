@@ -6,4 +6,7 @@ const (
 
 	// StateDir is the location of the daemon state directory.
 	StateDir = "STATE_DIR"
+
+	// SchemaUpdate is the path to the schema update to run.
+	SchemaUpdate = "SCHEMA_UPDATE"
 )

@@ -48,6 +48,28 @@ func heartbeatPost(state *state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
+	var schemaVersion int
+	err = state.Database.Transaction(state.Context, func(ctx context.Context, tx *db.Tx) error {
+		localClusterMember, err := cluster.GetInternalClusterMember(ctx, tx, state.Address.URL.Host)
+		if err != nil {
+			return err
+		}
+
+		schemaVersion = localClusterMember.Schema
+
+		return nil
+	})
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	if schemaVersion != hbInfo.MaxSchema {
+		err := state.Database.Update()
+		if err != nil {
+			return response.SmartError(err)
+		}
+	}
+
 	// TODO: If our schema version is behind, we should try to update here.
 
 	return response.EmptySyncResponse

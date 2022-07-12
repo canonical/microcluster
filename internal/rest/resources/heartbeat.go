@@ -78,13 +78,17 @@ func heartbeatPost(state *state.State, r *http.Request) response.Response {
 // beginHeartbeat initiates a heartbeat from the leader node to all other cluster members, if we haven't sent one out
 // recently.
 func beginHeartbeat(state *state.State, r *http.Request) response.Response {
+	// Set a 5 second timeout in case dqlite locks up.
+	ctx, cancel := context.WithTimeout(state.Context, time.Second*5)
+	defer cancel()
+
 	// Only a leader can begin a heartbeat round.
-	leader, err := state.Database.Leader()
+	leader, err := state.Database.Leader(ctx)
 	if err != nil {
 		return response.SmartError(err)
 	}
 
-	leaderInfo, err := leader.Leader(state.Context)
+	leaderInfo, err := leader.Leader(ctx)
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -117,8 +121,12 @@ func beginHeartbeat(state *state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
+	// Set a 5 second timeout in case dqlite locks up.
+	ctx, cancel = context.WithTimeout(state.Context, time.Second*5)
+	defer cancel()
+
 	// Get dqlite record of cluster members.
-	dqliteCluster, err := state.Database.Cluster()
+	dqliteCluster, err := state.Database.Cluster(ctx)
 	if err != nil {
 		return response.SmartError(err)
 	}

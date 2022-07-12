@@ -144,18 +144,18 @@ func (db *DB) StartWithCluster(clusterMembers map[string]types.AddrPort, cluster
 }
 
 // Leader returns a client connected to the leader of the dqlite cluster.
-func (db *DB) Leader() (*dqliteClient.Client, error) {
-	return db.dqlite.Leader(db.ctx)
+func (db *DB) Leader(ctx context.Context) (*dqliteClient.Client, error) {
+	return db.dqlite.Leader(ctx)
 }
 
 // Cluster returns information about dqlite cluster members.
-func (db *DB) Cluster() ([]dqliteClient.NodeInfo, error) {
-	leader, err := db.dqlite.Leader(db.ctx)
+func (db *DB) Cluster(ctx context.Context) ([]dqliteClient.NodeInfo, error) {
+	leader, err := db.dqlite.Leader(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get dqlite leader: %w", err)
 	}
 
-	members, err := leader.Cluster(db.ctx)
+	members, err := leader.Cluster(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get dqlite cluster information: %w", err)
 	}
@@ -210,13 +210,17 @@ func (db *DB) heartbeat(ctx context.Context) {
 	db.heartbeatLock.Lock()
 	defer db.heartbeatLock.Unlock()
 
-	leaderClient, err := db.dqlite.Leader(ctx)
+	// Use a 5 second timeout in case dqlite locks up.
+	dqliteCtx, cancel := context.WithTimeout(db.ctx, time.Second*5)
+	defer cancel()
+
+	leaderClient, err := db.dqlite.Leader(dqliteCtx)
 	if err != nil {
 		logger.Error("Failed to get dqlite leader", logger.Ctx{"address": db.listenAddr.String(), "error": err})
 		return
 	}
 
-	leaderInfo, err := leaderClient.Leader(ctx)
+	leaderInfo, err := leaderClient.Leader(dqliteCtx)
 	if err != nil {
 		logger.Error("Failed to get dqlite leader info", logger.Ctx{"address": db.listenAddr.String(), "error": err})
 		return

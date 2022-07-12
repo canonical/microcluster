@@ -37,12 +37,16 @@ func clusterPost(state *state.State, r *http.Request) response.Response {
 		return response.BadRequest(err)
 	}
 
-	leaderClient, err := state.Database.Leader()
+	// Set a 5 second timeout in case dqlite locks up.
+	ctx, cancel := context.WithTimeout(state.Context, time.Second*5)
+	defer cancel()
+
+	leaderClient, err := state.Database.Leader(ctx)
 	if err != nil {
 		return response.SmartError(err)
 	}
 
-	leaderInfo, err := leaderClient.Leader(state.Context)
+	leaderInfo, err := leaderClient.Leader(ctx)
 	if err != nil {
 		return response.SmartError(err)
 	}

@@ -3,6 +3,7 @@ package state
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/lxc/lxd/lxd/cluster/request"
 	"github.com/lxc/lxd/shared"
@@ -94,12 +95,15 @@ func (s *State) Cluster(r *http.Request) (client.Cluster, error) {
 
 // Leader returns a client connected to the dqlite leader.
 func (s *State) Leader() (*client.Client, error) {
-	leaderClient, err := s.Database.Leader()
+	ctx, cancel := context.WithTimeout(s.Context, time.Second*5)
+	defer cancel()
+
+	leaderClient, err := s.Database.Leader(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	leaderInfo, err := leaderClient.Leader(s.Context)
+	leaderInfo, err := leaderClient.Leader(ctx)
 	if err != nil {
 		return nil, err
 	}

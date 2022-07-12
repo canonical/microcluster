@@ -45,3 +45,9 @@ var InternalEndpoints = &Resources{
 		heartbeatCmd,
 	},
 }
+
+// ExtendedEndpoints holds all the endpoints added by external usage of MicroCluster.
+var ExtendedEndpoints = &Resources{
+	Path:      client.ExtendedEndpoint,
+	Endpoints: []rest.Endpoint{},
+}

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/lxc/lxd/lxd/db/schema"
 	"github.com/lxc/lxd/lxd/request"
 	"github.com/lxc/lxd/lxd/response"
 	"github.com/lxc/lxd/lxd/util"
@@ -65,7 +66,7 @@ func NewDaemon(ctx context.Context) *Daemon {
 }
 
 // Init initializes the Daemon with the given configuration, and starts the database.
-func (d *Daemon) Init(addr string, stateDir string) error {
+func (d *Daemon) Init(addr string, stateDir string, extendedEndpoints []rest.Endpoint, schemaExtensions map[int]schema.Update) error {
 	if stateDir == "" {
 		stateDir = os.Getenv(sys.StateDir)
 	}
@@ -82,7 +83,7 @@ func (d *Daemon) Init(addr string, stateDir string) error {
 		return fmt.Errorf("Failed to initialize directory structure: %w", err)
 	}
 
-	err = d.init()
+	err = d.init(extendedEndpoints, schemaExtensions)
 	if err != nil {
 		return fmt.Errorf("Daemon failed to start: %w", err)
 	}
@@ -92,7 +93,7 @@ func (d *Daemon) Init(addr string, stateDir string) error {
 	return nil
 }
 
-func (d *Daemon) init() error {
+func (d *Daemon) init(extendedEndpoints []rest.Endpoint, schemaExtensions map[int]schema.Update) error {
 	var err error
 	d.serverCert, err = util.LoadServerCert(d.os.StateDir)
 	if err != nil {
@@ -113,6 +114,10 @@ func (d *Daemon) init() error {
 	if err != nil {
 		return err
 	}
+
+	// Apply extensions to API/Schema.
+	resources.ExtendedEndpoints.Endpoints = append(resources.ExtendedEndpoints.Endpoints, extendedEndpoints...)
+	update.AppendSchema(schemaExtensions)
 
 	err = d.reloadIfBootstrapped()
 	if err != nil {
@@ -260,7 +265,7 @@ func (d *Daemon) StartAPI(bootstrap bool, joinAddresses ...string) error {
 		return err
 	}
 
-	server := d.initServer(resources.InternalEndpoints)
+	server := d.initServer(resources.InternalEndpoints, resources.PublicEndpoints, resources.ExtendedEndpoints)
 	network := endpoints.NewNetwork(endpoints.EndpointNetwork, server, d.Address, d.clusterCert)
 
 	err = d.endpoints.Add(network)

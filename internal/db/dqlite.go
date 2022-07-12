@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -310,6 +311,10 @@ func dqliteNetworkDial(ctx context.Context, addr string, db *DB) (net.Conn, erro
 	}
 
 	defer response.Body.Close()
+	_, err = io.Copy(io.Discard, response.Body)
+	if err != nil {
+		logger.Error("Failed to read dqlite response body", logger.Ctx{"error": err})
+	}
 
 	// If the remote server has detected that we are out of date, let's
 	// trigger an upgrade.

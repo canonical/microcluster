@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -359,6 +360,12 @@ func (d *Daemon) StartAPI(bootstrap bool, joinAddresses ...string) error {
 		if err != nil {
 			logger.Error("Failed to send database upgrade request", logger.Ctx{"error": err})
 			return nil
+		}
+
+		defer resp.Body.Close()
+		_, err = io.Copy(io.Discard, resp.Body)
+		if err != nil {
+			logger.Error("Failed to read upgrade notification response body", logger.Ctx{"error": err})
 		}
 
 		if resp.StatusCode != http.StatusOK {

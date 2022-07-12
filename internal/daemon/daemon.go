@@ -357,7 +357,8 @@ func (d *Daemon) StartAPI(bootstrap bool, joinAddresses ...string) error {
 
 		resp, err := c.Client.Do(upgradeRequest)
 		if err != nil {
-			return fmt.Errorf("Failed to send database upgrade request: %w", err)
+			logger.Error("Failed to send database upgrade request", logger.Ctx{"error": err})
+			return nil
 		}
 
 		if resp.StatusCode != http.StatusOK {

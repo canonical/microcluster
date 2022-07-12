@@ -299,7 +299,7 @@ func (c *Client) QueryStruct(ctx context.Context, method string, endpointType En
 	}
 
 	// Log the data.
-	logger.Debugf("Got response struct from microcluster daemon")
+	logger.Debug("Got response struct from microcluster daemon", logger.Ctx{"endpoint": localURL.String(), "method": method})
 	// TODO: Log.pretty.
 	return nil
 }

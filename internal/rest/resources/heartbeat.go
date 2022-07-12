@@ -143,6 +143,7 @@ func beginHeartbeat(state *state.State, r *http.Request) response.Response {
 
 		// If a cluster member is pending and dqlite does not have a record for it yet, then skip it this round.
 		if !ok && clusterMember.Role == string(cluster.Pending) {
+			logger.Debug("Skipping heartbeat for pending cluster member", logger.Ctx{"address": clusterMember.Address})
 			continue
 		}
 
@@ -169,10 +170,12 @@ func beginHeartbeat(state *state.State, r *http.Request) response.Response {
 			sleepInterval = 2 * time.Second
 		}
 
+		logger.Debugf("Heartbeat was sent %v ago, sleep %v seconds before retrying", timeSinceLast, sleepInterval)
 		<-time.After(sleepInterval)
 
 		return response.EmptySyncResponse
 	}
+	logger.Debug("Beginning new heartbeat round", logger.Ctx{"address": state.Address.URL.Host})
 
 	// Update local record of cluster members from the database, including any pending nodes for authentication.
 	err = state.Remotes().Replace(state.OS.TrustDir, clusterMembers...)

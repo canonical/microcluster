@@ -84,7 +84,14 @@ func (db *DB) Bootstrap(clusterCert *shared.CertInfo) error {
 		return fmt.Errorf("Failed to bootstrap dqlite: %w", err)
 	}
 
-	return db.Open(true)
+	err = db.Open(true)
+	if err != nil {
+		return err
+	}
+
+	go db.loopHeartbeat()
+
+	return nil
 }
 
 // Join a dqlite cluster with the address of a member.
@@ -119,6 +126,8 @@ func (db *DB) Join(clusterCert *shared.CertInfo, joinAddresses ...string) error 
 
 		return err
 	}
+
+	go db.loopHeartbeat()
 
 	return nil
 }
@@ -178,9 +187,15 @@ func (db *DB) dialFunc() dqliteClient.DialFunc {
 			return nil, fmt.Errorf("Failed to dial https socket: %w", err)
 		}
 
-		go db.heartbeat(db.ctx)
-
 		return conn, nil
+	}
+}
+
+// loopHeartbeat runs the heartbeat command continuously every second.
+func (db *DB) loopHeartbeat() {
+	for {
+		db.heartbeat(db.ctx)
+		time.Sleep(1 * time.Second)
 	}
 }
 

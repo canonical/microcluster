@@ -21,6 +21,7 @@ var ControlEndpoints = &Resources{
 		tokensCmd,
 		tokenCmd,
 		clusterCmd,
+		heartbeatCmd,
 	},
 }
 
@@ -41,5 +42,6 @@ var InternalEndpoints = &Resources{
 		databaseCmd,
 		sqlCmd,
 		tokenCmd,
+		heartbeatCmd,
 	},
 }

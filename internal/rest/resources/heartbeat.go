@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/lxc/lxd/lxd/response"
@@ -200,11 +201,16 @@ func beginHeartbeat(state *state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
+	// Use a lock to handle concurrent access to hbInfo.
+	mapLock := sync.RWMutex{}
 	// Send heartbeat to non-leader members, updating their local member cache and updating the node.
 	// If we sent a heartbeat to this node within double the request timeout, then we can skip the node this round.
 	err = clusterClients.Query(state.Context, true, func(ctx context.Context, c *client.Client) error {
 		addr := c.URL().URL.Host
+
+		mapLock.RLock()
 		currentMember, ok := hbInfo.ClusterMembers[addr]
+		mapLock.RUnlock()
 		if !ok {
 			logger.Warnf("Skipping heartbeat cluster member record with address %v due to pending status", addr)
 			return nil
@@ -223,7 +229,10 @@ func beginHeartbeat(state *state.State, r *http.Request) response.Response {
 		}
 
 		currentMember.LastHeartbeat = time.Now()
+
+		mapLock.Lock()
 		hbInfo.ClusterMembers[addr] = currentMember
+		mapLock.Unlock()
 
 		return nil
 	})

@@ -19,9 +19,9 @@ import (
 	"github.com/lxc/lxd/shared"
 	"github.com/lxc/lxd/shared/api"
 	"github.com/lxc/lxd/shared/cancel"
+	"github.com/lxc/lxd/shared/logger"
 	"github.com/lxc/lxd/shared/tcp"
 
-	"github.com/canonical/microcluster/internal/logger"
 	"github.com/canonical/microcluster/internal/rest/client"
 	"github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/internal/sys"
@@ -193,7 +193,7 @@ func dqliteNetworkDial(ctx context.Context, addr string, db *DB) (net.Conn, erro
 	}
 
 	revert.Add(func() { conn.Close() })
-	logCtx := logger.WithCtx(logger.Ctx{"local": conn.LocalAddr().String(), "remote": conn.RemoteAddr().String()})
+	logCtx := logger.AddContext(nil, logger.Ctx{"local": conn.LocalAddr().String(), "remote": conn.RemoteAddr().String()})
 	logCtx.Info("Dqlite connected outbound")
 
 	// Set outbound timeouts.

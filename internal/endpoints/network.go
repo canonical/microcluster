@@ -10,8 +10,7 @@ import (
 	"github.com/lxc/lxd/lxd/util"
 	"github.com/lxc/lxd/shared"
 	"github.com/lxc/lxd/shared/api"
-
-	"github.com/canonical/microcluster/internal/logger"
+	"github.com/lxc/lxd/shared/logger"
 )
 
 // Network represents an HTTPS listener and its server.

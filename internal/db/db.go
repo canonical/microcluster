@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/lxc/lxd/lxd/db/query"
+	"github.com/lxc/lxd/shared/logger"
 
 	"github.com/canonical/microcluster/internal/db/cluster"
-	"github.com/canonical/microcluster/internal/logger"
 )
 
 // Tx is a convenience so we don't have to import sql.Tx everywhere.

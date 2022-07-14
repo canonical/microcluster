@@ -20,9 +20,8 @@ import (
 	"github.com/lxc/lxd/lxd/request"
 	"github.com/lxc/lxd/shared"
 	"github.com/lxc/lxd/shared/api"
+	"github.com/lxc/lxd/shared/logger"
 	"github.com/lxc/lxd/shared/tcp"
-
-	"github.com/canonical/microcluster/internal/logger"
 )
 
 // EndpointType is a type specifying the endpoint on with the resource exists.

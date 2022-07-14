@@ -12,8 +12,8 @@ import (
 	"github.com/lxc/lxd/lxd/request"
 	"github.com/lxc/lxd/lxd/response"
 	"github.com/lxc/lxd/lxd/util"
+	"github.com/lxc/lxd/shared/logger"
 
-	"github.com/canonical/microcluster/internal/logger"
 	"github.com/canonical/microcluster/internal/rest/access"
 	"github.com/canonical/microcluster/internal/state"
 )

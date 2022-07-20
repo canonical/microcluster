@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	dqlite "github.com/canonical/go-dqlite/app"
@@ -33,7 +34,7 @@ type DB struct {
 	serverCert  *shared.CertInfo // Cluster certificate for dqlite authentication.
 
 	dbName string // This is db.bin.
-	dir    string // This is <state-dir>/database.
+	os     *sys.OS
 
 	db       *sql.DB
 	dqlite   *dqlite.App
@@ -42,6 +43,8 @@ type DB struct {
 	openCanceller *cancel.Canceller
 
 	ctx context.Context
+
+	heartbeatLock sync.Mutex
 }
 
 // Accept sends the outbound connection through the acceptCh channel to be received by dqlite.
@@ -50,12 +53,11 @@ func (db *DB) Accept(conn net.Conn) {
 }
 
 // NewDB creates an empty db struct with no dqlite connection.
-func NewDB(serverCert *shared.CertInfo, dbPath string) *DB {
-	dir, file := filepath.Split(dbPath)
+func NewDB(serverCert *shared.CertInfo, os *sys.OS) *DB {
 	return &DB{
 		serverCert:    serverCert,
-		dbName:        file,
-		dir:           dir,
+		dbName:        filepath.Base(os.DatabasePath()),
+		os:            os,
 		acceptCh:      make(chan net.Conn),
 		ctx:           context.Background(),
 		openCanceller: cancel.New(context.Background()),
@@ -66,7 +68,7 @@ func NewDB(serverCert *shared.CertInfo, dbPath string) *DB {
 func (db *DB) Bootstrap(clusterCert *shared.CertInfo, listenAddr api.URL) error {
 	var err error
 	db.clusterCert = clusterCert
-	db.dqlite, err = dqlite.New(db.dir,
+	db.dqlite, err = dqlite.New(db.os.DatabaseDir,
 		dqlite.WithAddress(listenAddr.URL.Host),
 		dqlite.WithExternalConn(db.dialFunc(), db.acceptCh),
 		dqlite.WithUnixSocket(os.Getenv(sys.DqliteSocket)))
@@ -81,7 +83,7 @@ func (db *DB) Bootstrap(clusterCert *shared.CertInfo, listenAddr api.URL) error 
 func (db *DB) Join(clusterCert *shared.CertInfo, listenAddr api.URL, joinAddresses ...string) error {
 	var err error
 	db.clusterCert = clusterCert
-	db.dqlite, err = dqlite.New(db.dir,
+	db.dqlite, err = dqlite.New(db.os.DatabaseDir,
 		dqlite.WithCluster(joinAddresses),
 		dqlite.WithAddress(listenAddr.URL.Host),
 		dqlite.WithExternalConn(db.dialFunc(), db.acceptCh),
@@ -102,7 +104,7 @@ func (db *DB) StartWithCluster(clusterMembers map[string]types.AddrPort, cluster
 
 	var err error
 	db.clusterCert = clusterCert
-	db.dqlite, err = dqlite.New(db.dir,
+	db.dqlite, err = dqlite.New(db.os.DatabaseDir,
 		dqlite.WithAddress(listenAddr.URL.Host),
 		dqlite.WithCluster(allClusterAddrs),
 		dqlite.WithExternalConn(db.dialFunc(), db.acceptCh),
@@ -112,6 +114,11 @@ func (db *DB) StartWithCluster(clusterMembers map[string]types.AddrPort, cluster
 	}
 
 	return db.Open(false)
+}
+
+// Leader returns a client connected to the leader of the dqlite cluster.
+func (db *DB) Leader() (*dqliteClient.Client, error) {
+	return db.dqlite.Leader(db.ctx)
 }
 
 // Cluster returns information about dqlite cluster members.
@@ -146,8 +153,53 @@ func (db *DB) dialFunc() dqliteClient.DialFunc {
 			return nil, fmt.Errorf("Failed to dial https socket: %w", err)
 		}
 
+		go db.heartbeat(db.ctx)
+
 		return conn, nil
 	}
+}
+
+func (db *DB) heartbeat(ctx context.Context) {
+	if !db.IsOpen() {
+		logger.Warn("Database is not yet open, aborting heartbeat")
+		return
+	}
+
+	// Use the heartbeat lock to prevent another heartbeat attempt if we are currently initiating one.
+	db.heartbeatLock.Lock()
+	defer db.heartbeatLock.Unlock()
+
+	leaderClient, err := db.dqlite.Leader(ctx)
+	if err != nil {
+		logger.Error("Failed to get dqlite leader", logger.Ctx{"error": err})
+		return
+	}
+
+	leaderInfo, err := leaderClient.Leader(ctx)
+	if err != nil {
+		logger.Error("Failed to get dqlite leader info", logger.Ctx{"error": err})
+		return
+	}
+
+	// Only send heartbeats from the leader.
+	if leaderInfo.Address != db.dqlite.Address() {
+		return
+	}
+
+	client, err := client.New(db.os.ControlSocket(), nil, nil, false)
+	if err != nil {
+		logger.Error("Failed to get local client", logger.Ctx{"error": err})
+		return
+	}
+
+	// Initiate a heartbeat from this node.
+	err = client.Heartbeat(ctx, types.HeartbeatInfo{BeginRound: true})
+	if err != nil {
+		logger.Error("Failed to initiate heartbeat round", logger.Ctx{"error": err})
+		return
+	}
+
+	return
 }
 
 // dqliteNetworkDial creates a connection to the internal database endpoint.
@@ -194,7 +246,7 @@ func dqliteNetworkDial(ctx context.Context, addr string, db *DB) (net.Conn, erro
 
 	revert.Add(func() { conn.Close() })
 	logCtx := logger.AddContext(nil, logger.Ctx{"local": conn.LocalAddr().String(), "remote": conn.RemoteAddr().String()})
-	logCtx.Info("Dqlite connected outbound")
+	logCtx.Debug("Dqlite connected outbound")
 
 	// Set outbound timeouts.
 	remoteTCP, err := tcp.ExtractConn(conn)
@@ -216,6 +268,8 @@ func dqliteNetworkDial(ctx context.Context, addr string, db *DB) (net.Conn, erro
 	if err != nil {
 		return nil, fmt.Errorf("Failed to read response: %w", err)
 	}
+
+	defer response.Body.Close()
 
 	// If the remote server has detected that we are out of date, let's
 	// trigger an upgrade.

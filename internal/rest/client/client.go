@@ -89,7 +89,8 @@ func unixHTTPClient(path string) (*http.Client, error) {
 
 	// Define the http transport
 	transport := &http.Transport{
-		DialContext: unixDial,
+		DialContext:       unixDial,
+		DisableKeepAlives: true,
 	}
 
 	// Define the http client
@@ -152,8 +153,9 @@ func tlsHTTPClient(clientCert *shared.CertInfo, remoteCert *x509.Certificate, pr
 	}
 
 	transport := &http.Transport{
-		DialTLSContext: tlsDialContext,
-		Proxy:          proxy,
+		DisableKeepAlives: true,
+		DialTLSContext:    tlsDialContext,
+		Proxy:             proxy,
 	}
 
 	// Define the http client
@@ -198,8 +200,13 @@ func (c *Client) rawQuery(ctx context.Context, method string, url *api.URL, data
 	var req *http.Request
 	var err error
 
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
+	// Assign a context timeout if we don't already have one.
+	_, ok := ctx.Deadline()
+	if !ok {
+		timeoutCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		ctx = timeoutCtx
+		defer cancel()
+	}
 
 	// Get a new HTTP request setup
 	if data != nil {
@@ -286,4 +293,9 @@ func (c *Client) QueryStruct(ctx context.Context, method string, endpointType En
 	logger.Debugf("Got response struct from microcluster daemon")
 	// TODO: Log.pretty.
 	return nil
+}
+
+// URL returns the address used for the client.
+func (c *Client) URL() api.URL {
+	return c.url
 }

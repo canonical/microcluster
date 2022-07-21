@@ -11,7 +11,7 @@ import (
 	"github.com/lxc/lxd/lxd/util"
 	"github.com/lxc/lxd/shared/api"
 
-	"github.com/canonical/microcluster/internal/db/cluster"
+	"github.com/canonical/microcluster/internal/db/update"
 	"github.com/canonical/microcluster/internal/rest"
 	"github.com/canonical/microcluster/internal/rest/access"
 	"github.com/canonical/microcluster/internal/rest/client"
@@ -115,7 +115,7 @@ func joinWithToken(state *state.State, req *types.Control) response.Response {
 			Address:     localClusterMember.Address,
 			Certificate: localClusterMember.Certificate,
 		},
-		SchemaVersion: cluster.SchemaVersion,
+		SchemaVersion: update.Schema().Version(),
 	}
 
 	err = d.AddClusterMember(context.Background(), newClusterMember)

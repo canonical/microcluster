@@ -8,15 +8,18 @@ import (
 	"time"
 
 	"github.com/lxc/lxd/lxd/db/query"
+	"github.com/lxc/lxd/lxd/db/schema"
 	"github.com/lxc/lxd/shared/logger"
 
 	"github.com/canonical/microcluster/internal/db/cluster"
+	"github.com/canonical/microcluster/internal/db/update"
 )
 
 // Tx is a convenience so we don't have to import sql.Tx everywhere.
 type Tx = sql.Tx
 
 // Open opens the dqlite database and loads the schema.
+// Returns true if we need to wait for other nodes to catch up to our version.
 func (db *DB) Open(bootstrap bool) error {
 	ctx, cancel := context.WithTimeout(db.ctx, 10*time.Second)
 	defer cancel()
@@ -31,11 +34,70 @@ func (db *DB) Open(bootstrap bool) error {
 		return err
 	}
 
-	if bootstrap {
-		_, err = db.db.Exec(cluster.CreateSchema)
-		if err != nil {
-			return fmt.Errorf("Failed to bootstrap schema: %w", err)
+	otherNodesBehind := false
+	newSchema := update.Schema()
+	if !bootstrap {
+		checkVersions := func(current int, tx *sql.Tx) error {
+			schemaVersion := newSchema.Version()
+			err = cluster.UpdateClusterMemberSchemaVersion(tx, schemaVersion, db.listenAddr.URL.Host)
+			if err != nil {
+				return fmt.Errorf("Failed to update schema version when joining cluster: %w", err)
+			}
+
+			versions, err := cluster.GetClusterMemberSchemaVersions(tx)
+			if err != nil {
+				return fmt.Errorf("Failed to get other members' schema versions: %w", err)
+			}
+
+			for _, version := range versions {
+				if schemaVersion == version {
+					// Versions are equal, there's hope for the
+					// update. Let's check the next node.
+					continue
+				}
+
+				if schemaVersion > version {
+					// Our version is bigger, we should stop here
+					// and wait for other nodes to be upgraded and
+					// restarted.
+					otherNodesBehind = true
+					return schema.ErrGracefulAbort
+				}
+
+				// Another node has a version greater than ours
+				// and presumeably is waiting for other nodes
+				// to upgrade. Let's error out and shutdown
+				// since we need a greater version.
+				return fmt.Errorf("this node's version is behind, please upgrade")
+			}
+
+			return nil
 		}
+
+		newSchema.Check(checkVersions)
+	}
+
+	err = db.retry(func() error {
+		_, err = newSchema.Ensure(db.db)
+		return err
+	})
+
+	// Check if other nodes are behind before checking the error.
+	if otherNodesBehind {
+		// If we are not bootstrapping, wait for an upgrade notification, or wait a minute before checking again.
+		if !bootstrap {
+			logger.Warn("Waiting for other cluster members to upgrade their versions", logger.Ctx{"address": db.listenAddr.String()})
+			select {
+			case <-db.upgradeCh:
+			case <-time.After(time.Minute):
+			}
+		}
+
+		return err
+	}
+
+	if err != nil {
+		return err
 	}
 
 	err = cluster.PrepareStmts(db.db, false)

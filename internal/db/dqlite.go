@@ -49,7 +49,8 @@ type DB struct {
 
 	openCanceller *cancel.Canceller
 
-	ctx context.Context
+	ctx    context.Context
+	cancel context.CancelFunc
 
 	heartbeatLock sync.Mutex
 }
@@ -60,7 +61,9 @@ func (db *DB) Accept(conn net.Conn) {
 }
 
 // NewDB creates an empty db struct with no dqlite connection.
-func NewDB(serverCert *shared.CertInfo, os *sys.OS, listenAddr api.URL) *DB {
+func NewDB(ctx context.Context, serverCert *shared.CertInfo, os *sys.OS, listenAddr api.URL) *DB {
+	shitdownCtx, shutdownCancel := context.WithCancel(ctx)
+
 	return &DB{
 		serverCert:    serverCert,
 		listenAddr:    listenAddr,
@@ -68,7 +71,8 @@ func NewDB(serverCert *shared.CertInfo, os *sys.OS, listenAddr api.URL) *DB {
 		os:            os,
 		acceptCh:      make(chan net.Conn),
 		upgradeCh:     make(chan struct{}),
-		ctx:           context.Background(),
+		ctx:           shitdownCtx,
+		cancel:        shutdownCancel,
 		openCanceller: cancel.New(context.Background()),
 	}
 }
@@ -337,4 +341,25 @@ func dqliteNetworkDial(ctx context.Context, addr string, db *DB) (net.Conn, erro
 
 	revert.Success()
 	return conn, nil
+}
+
+// Stop closes the database and dqlite connection.
+func (db *DB) Stop() error {
+	db.cancel()
+
+	if db.IsOpen() {
+		err := db.db.Close()
+		if err != nil {
+			return err
+		}
+	}
+
+	if db.dqlite != nil {
+		err := db.dqlite.Close()
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

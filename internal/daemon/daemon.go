@@ -106,7 +106,7 @@ func (d *Daemon) init(extendedEndpoints []rest.Endpoint, schemaExtensions map[in
 		return fmt.Errorf("Failed to initialize trust store: %w", err)
 	}
 
-	d.db = db.NewDB(d.serverCert, d.os, d.Address)
+	d.db = db.NewDB(d.ShutdownCtx, d.serverCert, d.os, d.Address)
 
 	ctlServer := d.initServer(resources.ControlEndpoints)
 	ctl := endpoints.NewSocket(d.ShutdownCtx, ctlServer, d.os.ControlSocket(), "") // TODO: add socket group.

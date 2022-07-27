@@ -15,37 +15,11 @@ import (
 	"github.com/lxc/lxd/shared/logger"
 
 	"github.com/canonical/microcluster/internal/rest/access"
-	"github.com/canonical/microcluster/internal/state"
+	internalState "github.com/canonical/microcluster/internal/state"
+	"github.com/canonical/microcluster/rest"
 )
 
-// EndpointAlias represents an alias URL of and Endpoint in our API.
-type EndpointAlias struct {
-	Name string // Name for this alias.
-	Path string // Path pattern for this alias.
-}
-
-// EndpointAction represents an action on an API endpoint.
-type EndpointAction struct {
-	Handler        func(state *state.State, r *http.Request) response.Response
-	AccessHandler  func(state *state.State, r *http.Request) response.Response
-	AllowUntrusted bool
-}
-
-// Endpoint represents a URL in our API.
-type Endpoint struct {
-	Name    string          // Name for this endpoint.
-	Path    string          // Path pattern for this endpoint.
-	Aliases []EndpointAlias // Any aliases for this endpoint.
-	Get     EndpointAction
-	Put     EndpointAction
-	Post    EndpointAction
-	Delete  EndpointAction
-	Patch   EndpointAction
-
-	AllowedDuringShutdown bool // Whether we should return Unavailable Error (503) if daemon is shutting down.
-}
-
-func handleAPIRequest(action EndpointAction, state *state.State, w http.ResponseWriter, r *http.Request) response.Response {
+func handleAPIRequest(action rest.EndpointAction, state *internalState.State, w http.ResponseWriter, r *http.Request) response.Response {
 	trusted := r.Context().Value(request.CtxAccess)
 	if trusted == nil {
 		return response.Forbidden(nil)
@@ -80,7 +54,7 @@ func handleAPIRequest(action EndpointAction, state *state.State, w http.Response
 	return action.Handler(state, r)
 }
 
-func handleDatabaseRequest(action EndpointAction, state *state.State, w http.ResponseWriter, r *http.Request) response.Response {
+func handleDatabaseRequest(action rest.EndpointAction, state *internalState.State, w http.ResponseWriter, r *http.Request) response.Response {
 	trusted := r.Context().Value(request.CtxAccess)
 	if trusted == nil {
 		return response.Forbidden(nil)
@@ -119,7 +93,7 @@ func handleDatabaseRequest(action EndpointAction, state *state.State, w http.Res
 
 // HandleEndpoint adds the endpoint to the mux router. A function variable is used to implement common logic
 // before calling the endpoint action handler associated with the request method, if it exists.
-func HandleEndpoint(state *state.State, mux *mux.Router, version string, e Endpoint) {
+func HandleEndpoint(state *internalState.State, mux *mux.Router, version string, e rest.Endpoint) {
 	url := "/" + version
 	if e.Path != "" {
 		url = filepath.Join(url, e.Path)
@@ -191,7 +165,7 @@ func HandleEndpoint(state *state.State, mux *mux.Router, version string, e Endpo
 // authenticate ensures the request certificates are trusted before proceeding.
 // - Requests over the unix socket are always allowed.
 // - HTTP requests require our cluster cert, or remote certs.
-func authenticate(state *state.State, r *http.Request) (bool, error) {
+func authenticate(state *internalState.State, r *http.Request) (bool, error) {
 	if r.RemoteAddr == "@" {
 		return true, nil
 	}

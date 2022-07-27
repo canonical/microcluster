@@ -37,6 +37,14 @@ func Schema() *SchemaUpdate {
 	return schema
 }
 
+func AppendSchema(extensions map[int]schema.Update) {
+	currentVersion := len(updates)
+	for _, extension := range extensions {
+		updates[currentVersion+1] = extension
+		currentVersion = len(updates)
+	}
+}
+
 func SchemaDotGo() error {
 	// Apply all the updates that we have on a pristine database and dump
 	// the resulting schema.

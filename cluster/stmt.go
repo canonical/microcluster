@@ -43,3 +43,8 @@ func stmt(tx *sql.Tx, code int) *sql.Stmt {
 
 	return tx.Stmt(stmt)
 }
+
+// Stmt exports the stmt helper so it can be called externally.
+func Stmt(tx *sql.Tx, code int) *sql.Stmt {
+	return stmt(tx, code)
+}

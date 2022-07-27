@@ -1,8 +1,8 @@
 package resources
 
 import (
-	"github.com/canonical/microcluster/internal/rest"
 	"github.com/canonical/microcluster/internal/rest/client"
+	"github.com/canonical/microcluster/rest"
 )
 
 // Resources represents all the resources served over the same path.
@@ -44,4 +44,10 @@ var InternalEndpoints = &Resources{
 		tokenCmd,
 		heartbeatCmd,
 	},
+}
+
+// ExtendedEndpoints holds all the endpoints added by external usage of MicroCluster.
+var ExtendedEndpoints = &Resources{
+	Path:      client.ExtendedEndpoint,
+	Endpoints: []rest.Endpoint{},
 }

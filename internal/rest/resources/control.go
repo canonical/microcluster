@@ -12,12 +12,13 @@ import (
 	"github.com/lxc/lxd/shared/api"
 
 	"github.com/canonical/microcluster/internal/db/update"
-	"github.com/canonical/microcluster/internal/rest"
 	"github.com/canonical/microcluster/internal/rest/access"
 	"github.com/canonical/microcluster/internal/rest/client"
-	"github.com/canonical/microcluster/internal/rest/types"
+	internalTypes "github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/internal/state"
 	"github.com/canonical/microcluster/internal/trust"
+	"github.com/canonical/microcluster/rest"
+	"github.com/canonical/microcluster/rest/types"
 )
 
 var controlCmd = rest.Endpoint{
@@ -25,7 +26,7 @@ var controlCmd = rest.Endpoint{
 }
 
 func controlPost(state *state.State, r *http.Request) response.Response {
-	req := &types.Control{}
+	req := &internalTypes.Control{}
 	// Parse the request.
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
@@ -48,8 +49,8 @@ func controlPost(state *state.State, r *http.Request) response.Response {
 	return response.EmptySyncResponse
 }
 
-func joinWithToken(state *state.State, req *types.Control) response.Response {
-	token, err := types.DecodeToken(req.JoinToken)
+func joinWithToken(state *state.State, req *internalTypes.Control) response.Response {
+	token, err := internalTypes.DecodeToken(req.JoinToken)
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -109,8 +110,8 @@ func joinWithToken(state *state.State, req *types.Control) response.Response {
 	}
 
 	// Prepare the cluster for the incoming dqlite request by creating a database entry.
-	newClusterMember := types.ClusterMember{
-		ClusterMemberLocal: types.ClusterMemberLocal{
+	newClusterMember := internalTypes.ClusterMember{
+		ClusterMemberLocal: internalTypes.ClusterMemberLocal{
 			Name:        localClusterMember.Name,
 			Address:     localClusterMember.Address,
 			Certificate: localClusterMember.Certificate,

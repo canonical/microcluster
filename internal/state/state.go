@@ -8,9 +8,10 @@ import (
 	"github.com/lxc/lxd/shared"
 	"github.com/lxc/lxd/shared/api"
 
+	"github.com/canonical/microcluster/client"
 	"github.com/canonical/microcluster/internal/db"
 	"github.com/canonical/microcluster/internal/endpoints"
-	"github.com/canonical/microcluster/internal/rest/client"
+	internalClient "github.com/canonical/microcluster/internal/rest/client"
 	"github.com/canonical/microcluster/internal/sys"
 	"github.com/canonical/microcluster/internal/trust"
 )
@@ -58,12 +59,12 @@ func (s *State) Cluster(r *http.Request) (client.Cluster, error) {
 		r.Header.Set("User-Agent", request.UserAgentNotifier)
 	}
 
-	d, err := client.New(s.OS.ControlSocket(), nil, nil, false)
+	c, err := s.Leader()
 	if err != nil {
 		return nil, err
 	}
 
-	clusterMembers, err := d.GetClusterMembers(s.Context)
+	clusterMembers, err := c.GetClusterMembers(s.Context)
 	if err != nil {
 		return nil, err
 	}
@@ -80,12 +81,12 @@ func (s *State) Cluster(r *http.Request) (client.Cluster, error) {
 		}
 
 		url := api.NewURL().Scheme("https").Host(clusterMember.Address.String())
-		client, err := client.New(*url, s.ServerCert(), publicKey, true)
+		c, err := internalClient.New(*url, s.ServerCert(), publicKey, true)
 		if err != nil {
 			return nil, err
 		}
 
-		clients = append(clients, *client)
+		clients = append(clients, client.Client{Client: *c})
 	}
 
 	return clients, nil
@@ -109,10 +110,10 @@ func (s *State) Leader() (*client.Client, error) {
 	}
 
 	url := api.NewURL().Scheme("https").Host(leaderInfo.Address)
-	client, err := client.New(*url, s.ServerCert(), publicKey, false)
+	c, err := internalClient.New(*url, s.ServerCert(), publicKey, false)
 	if err != nil {
 		return nil, err
 	}
 
-	return client, nil
+	return &client.Client{Client: *c}, nil
 }

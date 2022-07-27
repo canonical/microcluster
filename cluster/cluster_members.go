@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/canonical/microcluster/internal/rest/types"
 	"github.com/lxc/lxd/lxd/db/query"
+
+	internalTypes "github.com/canonical/microcluster/internal/rest/types"
+	"github.com/canonical/microcluster/rest/types"
 )
 
 //go:generate -command mapper lxd-generate db mapper -t cluster_members.mapper.go
@@ -51,7 +53,7 @@ type InternalClusterMemberFilter struct {
 
 // ToAPI returns the api struct for a ClusterMember database entity.
 // The cluster member's status will be reported as unreachable by default.
-func (c InternalClusterMember) ToAPI() (*types.ClusterMember, error) {
+func (c InternalClusterMember) ToAPI() (*internalTypes.ClusterMember, error) {
 	address, err := types.ParseAddrPort(c.Address)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to parse address %q of database cluster member: %w", c.Address, err)
@@ -62,8 +64,8 @@ func (c InternalClusterMember) ToAPI() (*types.ClusterMember, error) {
 		return nil, fmt.Errorf("Failed to parse certificate of database cluster member with address %q: %w", c.Address, err)
 	}
 
-	return &types.ClusterMember{
-		ClusterMemberLocal: types.ClusterMemberLocal{
+	return &internalTypes.ClusterMember{
+		ClusterMemberLocal: internalTypes.ClusterMemberLocal{
 			Name:        c.Name,
 			Address:     address,
 			Certificate: *certificate,
@@ -71,7 +73,7 @@ func (c InternalClusterMember) ToAPI() (*types.ClusterMember, error) {
 		Role:          string(c.Role),
 		SchemaVersion: c.Schema,
 		LastHeartbeat: c.Heartbeat,
-		Status:        types.MemberUnreachable,
+		Status:        internalTypes.MemberUnreachable,
 	}, nil
 }
 
@@ -89,7 +91,7 @@ func UpdateClusterMemberSchemaVersion(tx *sql.Tx, version int, address string) e
 		return err
 	}
 	if n != 1 {
-		return fmt.Errorf("updated %d rows instead of 1", n)
+		return fmt.Errorf("Updated %d rows instead of 1", n)
 	}
 
 	return nil

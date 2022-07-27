@@ -3,6 +3,8 @@ package types
 import (
 	"encoding/base64"
 	"encoding/json"
+
+	"github.com/canonical/microcluster/rest/types"
 )
 
 // TokenRecord holds information for requesting a join token.
@@ -13,16 +15,16 @@ type TokenRecord struct {
 
 // TokenResponse holds the information for connecting to a cluster by a node with a valid join token.
 type TokenResponse struct {
-	ClusterCert    X509Certificate `json:"cluster_cert" yaml:"cluster_cert"`
-	ClusterKey     string          `json:"cluster_key" yaml:"cluster_key"`
-	ClusterMembers []ClusterMemberLocal `json:"cluster_members" yaml:"cluster_members"`
+	ClusterCert    types.X509Certificate `json:"cluster_cert" yaml:"cluster_cert"`
+	ClusterKey     string                `json:"cluster_key" yaml:"cluster_key"`
+	ClusterMembers []ClusterMemberLocal  `json:"cluster_members" yaml:"cluster_members"`
 }
 
 // Token holds the information that is presented to the joining node when requesting a token.
 type Token struct {
-	Token       string          `json:"token" yaml:"token"`
-	ClusterCert X509Certificate `json:"cluster_cert" yaml:"cluster_cert"`
-	JoinAddress AddrPort        `json:"join_address" yaml:"join_address"`
+	Token       string                `json:"token" yaml:"token"`
+	ClusterCert types.X509Certificate `json:"cluster_cert" yaml:"cluster_cert"`
+	JoinAddress types.AddrPort        `json:"join_address" yaml:"join_address"`
 }
 
 func (t Token) String() (string, error) {

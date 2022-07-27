@@ -142,7 +142,7 @@ func (s *SchemaUpdate) Dump(db *sql.DB) (string, error) {
 
 		current := versions[len(versions)-1]
 		if current != len(s.updates) {
-			return fmt.Errorf("update level is %d, expected %d", current, len(s.updates))
+			return fmt.Errorf("Update level is %d, expected %d", current, len(s.updates))
 		}
 
 		statements, err = selectTablesSQL(tx)
@@ -321,7 +321,7 @@ func NewFromMap(versionsToUpdates map[int]schema.Update) *SchemaUpdate {
 	for i, version := range versions {
 		// Assert that we start from 1 and there are no gaps.
 		if version != i+1 {
-			panic(fmt.Sprintf("updates map misses version %d", i+1))
+			panic(fmt.Sprintf("Updates map misses version %d", i+1))
 		}
 
 		updates = append(updates, versionsToUpdates[version])

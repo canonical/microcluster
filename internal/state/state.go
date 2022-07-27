@@ -25,6 +25,9 @@ type State struct {
 	// Ready channel.
 	ReadyCh chan struct{}
 
+	// ShutdownDoneCh receives the result of the d.Stop() function and tells the daemon to end.
+	ShutdownDoneCh chan error
+
 	// File structure.
 	OS *sys.OS
 
@@ -49,8 +52,8 @@ type State struct {
 	// Initialize APIs and bootstrap/join database.
 	StartAPI func(bootstrap bool, joinAddresses ...string) error
 
-	// When set, the consumer API will only allow GET requests.
-	ReadOnly bool
+	// Stop fully stops the daemon, its database, and all listeners.
+	Stop func() error
 }
 
 // Cluster returns a client for every member of a cluster, except

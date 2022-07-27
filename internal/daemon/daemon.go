@@ -391,24 +391,31 @@ func (d *Daemon) ServerCert() *shared.CertInfo {
 // State creates a State instance with the daemon's stateful components.
 func (d *Daemon) State() *state.State {
 	state := &state.State{
-		Context:     d.ShutdownCtx,
-		ReadyCh:     d.ReadyChan,
-		OS:          d.os,
-		Address:     d.Address,
-		Endpoints:   d.endpoints,
-		ServerCert:  d.ServerCert,
-		ClusterCert: d.ClusterCert,
-		Database:    d.db,
-		Remotes:     d.trustStore.Remotes,
-		StartAPI:    d.StartAPI,
+		Context:        d.ShutdownCtx,
+		ReadyCh:        d.ReadyChan,
+		ShutdownDoneCh: d.ShutdownDoneCh,
+		OS:             d.os,
+		Address:        d.Address,
+		Endpoints:      d.endpoints,
+		ServerCert:     d.ServerCert,
+		ClusterCert:    d.ClusterCert,
+		Database:       d.db,
+		Remotes:        d.trustStore.Remotes,
+		StartAPI:       d.StartAPI,
+		Stop:           d.Stop,
 	}
 
 	return state
 }
 
 // Stop stops the Daemon via its shutdown channel.
-func (d *Daemon) Stop(ctx context.Context, sig os.Signal) error {
+func (d *Daemon) Stop() error {
 	d.ShutdownCancel()
+
+	err := d.db.Stop()
+	if err != nil {
+		return fmt.Errorf("Failed shutting down database: %w", err)
+	}
 
 	return d.endpoints.Down()
 }

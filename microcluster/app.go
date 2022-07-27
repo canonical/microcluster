@@ -82,7 +82,7 @@ func (m *MicroCluster) Start(listenAddr string, apiEndpoints []rest.Endpoint, sc
 				logCtx.Warn("Ignoring signal, shutdown already in progress")
 			} else {
 				go func() {
-					d.ShutdownDoneCh <- d.Stop(context.Background(), sig)
+					d.ShutdownDoneCh <- d.Stop()
 				}()
 			}
 

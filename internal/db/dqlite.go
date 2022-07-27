@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -48,7 +49,8 @@ type DB struct {
 
 	openCanceller *cancel.Canceller
 
-	ctx context.Context
+	ctx    context.Context
+	cancel context.CancelFunc
 
 	heartbeatLock sync.Mutex
 }
@@ -59,7 +61,9 @@ func (db *DB) Accept(conn net.Conn) {
 }
 
 // NewDB creates an empty db struct with no dqlite connection.
-func NewDB(serverCert *shared.CertInfo, os *sys.OS, listenAddr api.URL) *DB {
+func NewDB(ctx context.Context, serverCert *shared.CertInfo, os *sys.OS, listenAddr api.URL) *DB {
+	shitdownCtx, shutdownCancel := context.WithCancel(ctx)
+
 	return &DB{
 		serverCert:    serverCert,
 		listenAddr:    listenAddr,
@@ -67,7 +71,8 @@ func NewDB(serverCert *shared.CertInfo, os *sys.OS, listenAddr api.URL) *DB {
 		os:            os,
 		acceptCh:      make(chan net.Conn),
 		upgradeCh:     make(chan struct{}),
-		ctx:           context.Background(),
+		ctx:           shitdownCtx,
+		cancel:        shutdownCancel,
 		openCanceller: cancel.New(context.Background()),
 	}
 }
@@ -84,7 +89,14 @@ func (db *DB) Bootstrap(clusterCert *shared.CertInfo) error {
 		return fmt.Errorf("Failed to bootstrap dqlite: %w", err)
 	}
 
-	return db.Open(true)
+	err = db.Open(true)
+	if err != nil {
+		return err
+	}
+
+	go db.loopHeartbeat()
+
+	return nil
 }
 
 // Join a dqlite cluster with the address of a member.
@@ -120,6 +132,8 @@ func (db *DB) Join(clusterCert *shared.CertInfo, joinAddresses ...string) error 
 		return err
 	}
 
+	go db.loopHeartbeat()
+
 	return nil
 }
 
@@ -134,18 +148,18 @@ func (db *DB) StartWithCluster(clusterMembers map[string]types.AddrPort, cluster
 }
 
 // Leader returns a client connected to the leader of the dqlite cluster.
-func (db *DB) Leader() (*dqliteClient.Client, error) {
-	return db.dqlite.Leader(db.ctx)
+func (db *DB) Leader(ctx context.Context) (*dqliteClient.Client, error) {
+	return db.dqlite.Leader(ctx)
 }
 
 // Cluster returns information about dqlite cluster members.
-func (db *DB) Cluster() ([]dqliteClient.NodeInfo, error) {
-	leader, err := db.dqlite.Leader(db.ctx)
+func (db *DB) Cluster(ctx context.Context) ([]dqliteClient.NodeInfo, error) {
+	leader, err := db.dqlite.Leader(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get dqlite leader: %w", err)
 	}
 
-	members, err := leader.Cluster(db.ctx)
+	members, err := leader.Cluster(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get dqlite cluster information: %w", err)
 	}
@@ -178,9 +192,15 @@ func (db *DB) dialFunc() dqliteClient.DialFunc {
 			return nil, fmt.Errorf("Failed to dial https socket: %w", err)
 		}
 
-		go db.heartbeat(db.ctx)
-
 		return conn, nil
+	}
+}
+
+// loopHeartbeat runs the heartbeat command continuously every second.
+func (db *DB) loopHeartbeat() {
+	for {
+		db.heartbeat(db.ctx)
+		time.Sleep(1 * time.Second)
 	}
 }
 
@@ -194,13 +214,17 @@ func (db *DB) heartbeat(ctx context.Context) {
 	db.heartbeatLock.Lock()
 	defer db.heartbeatLock.Unlock()
 
-	leaderClient, err := db.dqlite.Leader(ctx)
+	// Use a 5 second timeout in case dqlite locks up.
+	dqliteCtx, cancel := context.WithTimeout(db.ctx, time.Second*5)
+	defer cancel()
+
+	leaderClient, err := db.dqlite.Leader(dqliteCtx)
 	if err != nil {
 		logger.Error("Failed to get dqlite leader", logger.Ctx{"address": db.listenAddr.String(), "error": err})
 		return
 	}
 
-	leaderInfo, err := leaderClient.Leader(ctx)
+	leaderInfo, err := leaderClient.Leader(dqliteCtx)
 	if err != nil {
 		logger.Error("Failed to get dqlite leader info", logger.Ctx{"address": db.listenAddr.String(), "error": err})
 		return
@@ -295,6 +319,10 @@ func dqliteNetworkDial(ctx context.Context, addr string, db *DB) (net.Conn, erro
 	}
 
 	defer response.Body.Close()
+	_, err = io.Copy(io.Discard, response.Body)
+	if err != nil {
+		logger.Error("Failed to read dqlite response body", logger.Ctx{"error": err})
+	}
 
 	// If the remote server has detected that we are out of date, let's
 	// trigger an upgrade.
@@ -313,4 +341,25 @@ func dqliteNetworkDial(ctx context.Context, addr string, db *DB) (net.Conn, erro
 
 	revert.Success()
 	return conn, nil
+}
+
+// Stop closes the database and dqlite connection.
+func (db *DB) Stop() error {
+	db.cancel()
+
+	if db.IsOpen() {
+		err := db.db.Close()
+		if err != nil {
+			return err
+		}
+	}
+
+	if db.dqlite != nil {
+		err := db.dqlite.Close()
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

@@ -5,14 +5,18 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math/rand"
+	"os"
 	"time"
 
 	"github.com/lxc/lxd/lxd/db/query"
 	"github.com/lxc/lxd/lxd/db/schema"
+	"github.com/lxc/lxd/shared"
 	"github.com/lxc/lxd/shared/logger"
 
 	"github.com/canonical/microcluster/cluster"
 	"github.com/canonical/microcluster/internal/db/update"
+	"github.com/canonical/microcluster/internal/sys"
 )
 
 // Tx is a convenience so we don't have to import sql.Tx everywhere.
@@ -132,4 +136,33 @@ func (db *DB) retry(f func() error) error {
 	}
 
 	return query.Retry(f)
+}
+
+// Update attempts to update the database with the executable at the path specified by the SCHEMA_UPDATE variable.
+func (db *DB) Update() error {
+	if !db.IsOpen() {
+		return fmt.Errorf("Failed to update, database is not yet open")
+	}
+
+	updateExec := os.Getenv(sys.SchemaUpdate)
+	if updateExec == "" {
+		logger.Warn("No SCHEMA_UPDATE variable set, skipping auto-update")
+		return nil
+	}
+
+	// Wait a random amount of seconds (up to 30) to space out the update.
+	wait := time.Duration(rand.Intn(30)) * time.Second
+	logger.Info("Triggering cluster auto-update soon", logger.Ctx{"wait": wait, "updateExecutable": updateExec})
+	time.Sleep(wait)
+
+	logger.Info("Triggering cluster auto-update now")
+	_, err := shared.RunCommand(updateExec)
+	if err != nil {
+		logger.Error("Triggering cluster update failed", logger.Ctx{"err": err})
+		return err
+	}
+
+	logger.Info("Triggering cluster auto-update succeeded")
+
+	return nil
 }

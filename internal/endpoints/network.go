@@ -1,6 +1,7 @@
 package endpoints
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/http"
@@ -21,16 +22,19 @@ type Network struct {
 
 	listener net.Listener
 	server   *http.Server
+
+	ctx context.Context
 }
 
 // NewNetwork assigns an address, certificate, and server to the Network.
-func NewNetwork(endpointType EndpointType, server *http.Server, address api.URL, cert *shared.CertInfo) *Network {
+func NewNetwork(ctx context.Context, endpointType EndpointType, server *http.Server, address api.URL, cert *shared.CertInfo) *Network {
 	return &Network{
 		address:     address,
 		cert:        cert,
 		networkType: endpointType,
 
 		server: server,
+		ctx:    ctx,
 	}
 }
 
@@ -72,10 +76,22 @@ func (n *Network) Serve() {
 	ctx := logger.Ctx{"network": n.listener.Addr()}
 	logger.Info(" - binding https socket", ctx)
 
-	err := n.server.Serve(n.listener)
-	if err != nil {
-		logger.Error("Failed to start server", logger.Ctx{"err": err})
-	}
+	go func() {
+		select {
+		case <-n.ctx.Done():
+			logger.Infof("Received shutdown signal - aborting https socket server startup")
+		default:
+			err := n.server.Serve(n.listener)
+			if err != nil {
+				select {
+				case <-n.ctx.Done():
+					logger.Infof("Received shutdown signal - aborting https socket server startup")
+				default:
+					logger.Error("Failed to start server", logger.Ctx{"err": err})
+				}
+			}
+		}
+	}()
 }
 
 // Close the listener.

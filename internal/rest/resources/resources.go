@@ -22,6 +22,7 @@ var ControlEndpoints = &Resources{
 		tokenCmd,
 		clusterCmd,
 		heartbeatCmd,
+    shutdownCmd,
 	},
 }
 

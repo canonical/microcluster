@@ -88,7 +88,12 @@ func (s *Socket) Serve() {
 		default:
 			err := s.server.Serve(s.listener)
 			if err != nil {
-				logger.Error("Failed to start server", logger.Ctx{"err": err})
+				select {
+				case <-s.ctx.Done():
+					logger.Infof("Received shutdown signal - aborting unix socket server startup")
+				default:
+					logger.Error("Failed to start server", logger.Ctx{"err": err})
+				}
 			}
 		}
 	}()

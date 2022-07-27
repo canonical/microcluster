@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -105,7 +106,7 @@ func (d *Daemon) init(extendedEndpoints []rest.Endpoint, schemaExtensions map[in
 		return fmt.Errorf("Failed to initialize trust store: %w", err)
 	}
 
-	d.db = db.NewDB(d.serverCert, d.os, d.Address)
+	d.db = db.NewDB(d.ShutdownCtx, d.serverCert, d.os, d.Address)
 
 	ctlServer := d.initServer(resources.ControlEndpoints)
 	ctl := endpoints.NewSocket(d.ShutdownCtx, ctlServer, d.os.ControlSocket(), "") // TODO: add socket group.
@@ -266,7 +267,7 @@ func (d *Daemon) StartAPI(bootstrap bool, joinAddresses ...string) error {
 	}
 
 	server := d.initServer(resources.InternalEndpoints, resources.PublicEndpoints, resources.ExtendedEndpoints)
-	network := endpoints.NewNetwork(endpoints.EndpointNetwork, server, d.Address, d.clusterCert)
+	network := endpoints.NewNetwork(d.ShutdownCtx, endpoints.EndpointNetwork, server, d.Address, d.clusterCert)
 
 	err = d.endpoints.Add(network)
 	if err != nil {
@@ -357,7 +358,14 @@ func (d *Daemon) StartAPI(bootstrap bool, joinAddresses ...string) error {
 
 		resp, err := c.Client.Do(upgradeRequest)
 		if err != nil {
-			return fmt.Errorf("Failed to send database upgrade request: %w", err)
+			logger.Error("Failed to send database upgrade request", logger.Ctx{"error": err})
+			return nil
+		}
+
+		defer resp.Body.Close()
+		_, err = io.Copy(io.Discard, resp.Body)
+		if err != nil {
+			logger.Error("Failed to read upgrade notification response body", logger.Ctx{"error": err})
 		}
 
 		if resp.StatusCode != http.StatusOK {
@@ -383,24 +391,31 @@ func (d *Daemon) ServerCert() *shared.CertInfo {
 // State creates a State instance with the daemon's stateful components.
 func (d *Daemon) State() *state.State {
 	state := &state.State{
-		Context:     d.ShutdownCtx,
-		ReadyCh:     d.ReadyChan,
-		OS:          d.os,
-		Address:     d.Address,
-		Endpoints:   d.endpoints,
-		ServerCert:  d.ServerCert,
-		ClusterCert: d.ClusterCert,
-		Database:    d.db,
-		Remotes:     d.trustStore.Remotes,
-		StartAPI:    d.StartAPI,
+		Context:        d.ShutdownCtx,
+		ReadyCh:        d.ReadyChan,
+		ShutdownDoneCh: d.ShutdownDoneCh,
+		OS:             d.os,
+		Address:        d.Address,
+		Endpoints:      d.endpoints,
+		ServerCert:     d.ServerCert,
+		ClusterCert:    d.ClusterCert,
+		Database:       d.db,
+		Remotes:        d.trustStore.Remotes,
+		StartAPI:       d.StartAPI,
+		Stop:           d.Stop,
 	}
 
 	return state
 }
 
 // Stop stops the Daemon via its shutdown channel.
-func (d *Daemon) Stop(ctx context.Context, sig os.Signal) error {
+func (d *Daemon) Stop() error {
 	d.ShutdownCancel()
+
+	err := d.db.Stop()
+	if err != nil {
+		return fmt.Errorf("Failed shutting down database: %w", err)
+	}
 
 	return d.endpoints.Down()
 }

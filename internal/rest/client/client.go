@@ -255,9 +255,18 @@ func (c *Client) rawQuery(ctx context.Context, method string, url *api.URL, data
 		return nil, err
 	}
 
-	defer resp.Body.Close()
+	parsedResponse, err := parseResponse(resp)
+	if err != nil {
+		return nil, err
+	}
 
-	return parseResponse(resp)
+	defer resp.Body.Close()
+	_, err = io.Copy(io.Discard, resp.Body)
+	if err != nil {
+		logger.Error("Failed to read response body", logger.Ctx{"error": err})
+	}
+
+	return parsedResponse, nil
 }
 
 // QueryStruct sends a request of the specified method to the provided endpoint (optional) on the API matching the endpointType.
@@ -290,7 +299,7 @@ func (c *Client) QueryStruct(ctx context.Context, method string, endpointType En
 	}
 
 	// Log the data.
-	logger.Debugf("Got response struct from microcluster daemon")
+	logger.Debug("Got response struct from microcluster daemon", logger.Ctx{"endpoint": localURL.String(), "method": method})
 	// TODO: Log.pretty.
 	return nil
 }

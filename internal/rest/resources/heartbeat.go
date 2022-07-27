@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/lxc/lxd/lxd/response"
@@ -48,6 +49,28 @@ func heartbeatPost(state *state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
+	var schemaVersion int
+	err = state.Database.Transaction(state.Context, func(ctx context.Context, tx *db.Tx) error {
+		localClusterMember, err := cluster.GetInternalClusterMember(ctx, tx, state.Address.URL.Host)
+		if err != nil {
+			return err
+		}
+
+		schemaVersion = localClusterMember.Schema
+
+		return nil
+	})
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	if schemaVersion != hbInfo.MaxSchema {
+		err := state.Database.Update()
+		if err != nil {
+			return response.SmartError(err)
+		}
+	}
+
 	// TODO: If our schema version is behind, we should try to update here.
 
 	return response.EmptySyncResponse
@@ -56,13 +79,17 @@ func heartbeatPost(state *state.State, r *http.Request) response.Response {
 // beginHeartbeat initiates a heartbeat from the leader node to all other cluster members, if we haven't sent one out
 // recently.
 func beginHeartbeat(state *state.State, r *http.Request) response.Response {
+	// Set a 5 second timeout in case dqlite locks up.
+	ctx, cancel := context.WithTimeout(state.Context, time.Second*5)
+	defer cancel()
+
 	// Only a leader can begin a heartbeat round.
-	leader, err := state.Database.Leader()
+	leader, err := state.Database.Leader(ctx)
 	if err != nil {
 		return response.SmartError(err)
 	}
 
-	leaderInfo, err := leader.Leader(state.Context)
+	leaderInfo, err := leader.Leader(ctx)
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -95,8 +122,12 @@ func beginHeartbeat(state *state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
+	// Set a 5 second timeout in case dqlite locks up.
+	ctx, cancel = context.WithTimeout(state.Context, time.Second*5)
+	defer cancel()
+
 	// Get dqlite record of cluster members.
-	dqliteCluster, err := state.Database.Cluster()
+	dqliteCluster, err := state.Database.Cluster(ctx)
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -113,6 +144,7 @@ func beginHeartbeat(state *state.State, r *http.Request) response.Response {
 
 		// If a cluster member is pending and dqlite does not have a record for it yet, then skip it this round.
 		if !ok && clusterMember.Role == string(cluster.Pending) {
+			logger.Debug("Skipping heartbeat for pending cluster member", logger.Ctx{"address": clusterMember.Address})
 			continue
 		}
 
@@ -127,13 +159,24 @@ func beginHeartbeat(state *state.State, r *http.Request) response.Response {
 	timeSinceLast := time.Since(leaderEntry.LastHeartbeat)
 	if timeSinceLast < heartbeatInterval {
 		sleepInterval := time.Duration(time.Second * internalClient.HeartbeatTimeout / 2)
-		if timeSinceLast < sleepInterval {
-			sleepInterval = sleepInterval - timeSinceLast
+		timeUntilNext := time.Until(leaderEntry.LastHeartbeat.Add(heartbeatInterval))
+
+		// If we can send out a heartbeat sooner than the sleep timeout, sleep just long enough.
+		if timeUntilNext < sleepInterval {
+			sleepInterval = timeUntilNext
 		}
 
+		// Sleep at least 2 seconds to sync up with other nodes.
+		if sleepInterval < 2*time.Second {
+			sleepInterval = 2 * time.Second
+		}
+
+		logger.Debugf("Heartbeat was sent %v ago, sleep %v seconds before retrying", timeSinceLast, sleepInterval)
 		<-time.After(sleepInterval)
+
 		return response.EmptySyncResponse
 	}
+	logger.Debug("Beginning new heartbeat round", logger.Ctx{"address": state.Address.URL.Host})
 
 	// Update local record of cluster members from the database, including any pending nodes for authentication.
 	err = state.Remotes().Replace(state.OS.TrustDir, clusterMembers...)
@@ -158,11 +201,16 @@ func beginHeartbeat(state *state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
+	// Use a lock to handle concurrent access to hbInfo.
+	mapLock := sync.RWMutex{}
 	// Send heartbeat to non-leader members, updating their local member cache and updating the node.
 	// If we sent a heartbeat to this node within double the request timeout, then we can skip the node this round.
 	err = clusterClients.Query(state.Context, true, func(ctx context.Context, c *client.Client) error {
 		addr := c.URL().URL.Host
+
+		mapLock.RLock()
 		currentMember, ok := hbInfo.ClusterMembers[addr]
+		mapLock.RUnlock()
 		if !ok {
 			logger.Warnf("Skipping heartbeat cluster member record with address %v due to pending status", addr)
 			return nil
@@ -181,7 +229,10 @@ func beginHeartbeat(state *state.State, r *http.Request) response.Response {
 		}
 
 		currentMember.LastHeartbeat = time.Now()
+
+		mapLock.Lock()
 		hbInfo.ClusterMembers[addr] = currentMember
+		mapLock.Unlock()
 
 		return nil
 	})

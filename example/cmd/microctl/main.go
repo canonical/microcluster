@@ -46,11 +46,8 @@ func main() {
 	var cmdPeers = cmdClusterMembers{common: &commonCmd}
 	app.AddCommand(cmdPeers.Command())
 
-	//var cmdReload = cmdReload{common: &commonCmd}
-	//app.AddCommand(cmdReload.Command())
-
-	//var cmdShutdown = cmdShutdown{common: &commonCmd}
-	//app.AddCommand(cmdShutdown.Command())
+	var cmdShutdown = cmdShutdown{common: &commonCmd}
+	app.AddCommand(cmdShutdown.Command())
 
 	var cmdSQL = cmdSQL{common: &commonCmd}
 	app.AddCommand(cmdSQL.Command())

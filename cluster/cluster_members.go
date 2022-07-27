@@ -91,7 +91,7 @@ func UpdateClusterMemberSchemaVersion(tx *sql.Tx, version int, address string) e
 		return err
 	}
 	if n != 1 {
-		return fmt.Errorf("updated %d rows instead of 1", n)
+		return fmt.Errorf("Updated %d rows instead of 1", n)
 	}
 
 	return nil

@@ -38,4 +38,22 @@ type InternalTokenRecordFilter struct {
 	Token *string
 	Name  *string
 }
+
+// ToAPI converts the InternalTokenRecord to a full token and returns an API compatible struct.
+func (t *InternalTokenRecord) ToAPI(clusterCert *x509.Certificate, joinAddresses []types.AddrPort) (*internalTypes.TokenRecord, error) {
+	token := internalTypes.Token{
+		Token:         t.Token,
+		ClusterCert:   types.X509Certificate{Certificate: clusterCert},
+		JoinAddresses: joinAddresses,
+	}
+
+	tokenString, err := token.String()
+	if err != nil {
+		return nil, err
+	}
+
+	return &internalTypes.TokenRecord{
+		Token: tokenString,
+		Name:  t.Name,
+	}, nil
 }

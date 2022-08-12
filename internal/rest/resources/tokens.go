@@ -55,16 +55,16 @@ func tokensPost(state *state.State, r *http.Request) response.Response {
 		return response.InternalError(err)
 	}
 
-	joinAddress, err := types.ParseAddrPort(state.Address.URL.Host)
-	if err != nil {
-		return response.InternalError(err)
+	joinAddresses := []types.AddrPort{}
+	for _, addr := range state.Remotes().Addresses() {
+		joinAddresses = append(joinAddresses, addr)
 	}
 
 	token := internalTypes.Token{
-		Name:        req.Name,
-		Token:       tokenKey,
-		ClusterCert: types.X509Certificate{Certificate: clusterCert},
-		JoinAddress: joinAddress,
+		Name:          req.Name,
+		Token:         tokenKey,
+		ClusterCert:   types.X509Certificate{Certificate: clusterCert},
+		JoinAddresses: joinAddresses,
 	}
 
 	tokenString, err := token.String()
@@ -84,12 +84,35 @@ func tokensPost(state *state.State, r *http.Request) response.Response {
 }
 
 func tokensGet(state *state.State, r *http.Request) response.Response {
-	var records []cluster.InternalTokenRecord
-	err := state.Database.Transaction(state.Context, func(ctx context.Context, tx *db.Tx) error {
-		var err error
-		records, err = cluster.GetInternalTokenRecords(ctx, tx, cluster.InternalTokenRecordFilter{})
+	clusterCert, err := state.ClusterCert().PublicKeyX509()
+	if err != nil {
+		return response.InternalError(err)
+	}
 
-		return err
+	joinAddresses := []types.AddrPort{}
+	for _, addr := range state.Remotes().Addresses() {
+		joinAddresses = append(joinAddresses, addr)
+	}
+
+	var records []internalTypes.TokenRecord
+	err = state.Database.Transaction(state.Context, func(ctx context.Context, tx *db.Tx) error {
+		var err error
+		tokens, err := cluster.GetInternalTokenRecords(ctx, tx, cluster.InternalTokenRecordFilter{})
+		if err != nil {
+			return err
+		}
+
+		records = make([]internalTypes.TokenRecord, 0, len(tokens))
+		for _, token := range tokens {
+			apiToken, err := token.ToAPI(clusterCert, joinAddresses)
+			if err != nil {
+				return err
+			}
+
+			records = append(records, *apiToken)
+		}
+
+		return nil
 	})
 	if err != nil {
 		return response.SmartError(err)

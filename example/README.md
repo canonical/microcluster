@@ -28,12 +28,12 @@ microctl --state-dir /path/to/state/dir1 waitready
 microctl --state-dir /path/to/state/dir1 init --bootstrap
 
 # Get some join tokens from the new cluster. These are deleted after use.
-token_node2=$(microctl --state-dir /path/to/state/dir1 secrets /path/to/state/dir2/server.crt)
-token_node3=$(microctl --state-dir /path/to/state/dir1 secrets /path/to/state/dir3/server.crt)
+token_node2=$(microctl --state-dir /path/to/state/dir1 tokens add "dir2")
+token_node3=$(microctl --state-dir /path/to/state/dir1 tokens add "dir3")
 
 # Join the dqlite cluster.
-microctl --state-dir /path/to/state/dir2 init --token ${token_node2}
-microctl --state-dir /path/to/state/dir3 init --token ${token_node3}
+microctl --state-dir /path/to/state/dir2 init "dir2" --token ${token_node2}
+microctl --state-dir /path/to/state/dir3 init "dir3"" --token ${token_node3}
 
 # The cluster is now up and running!
 ```

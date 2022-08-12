@@ -13,7 +13,7 @@ import (
 //go:generate mapper reset
 //
 //go:generate mapper stmt -e internal_token_record objects table=internal_token_records version=2
-//go:generate mapper stmt -e internal_token_record objects-by-Name table=internal_token_records version=2
+//go:generate mapper stmt -e internal_token_record objects-by-Token table=internal_token_records version=2
 //go:generate mapper stmt -e internal_token_record id table=internal_token_records version=2
 //go:generate mapper stmt -e internal_token_record create table=internal_token_records version=2
 //go:generate mapper stmt -e internal_token_record delete-by-Name table=internal_token_records version=2

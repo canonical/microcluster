@@ -20,10 +20,10 @@ SELECT internal_token_records.id, internal_token_records.token, internal_token_r
   ORDER BY internal_token_records.name
 `)
 
-var internalTokenRecordObjectsByName = RegisterStmt(`
+var internalTokenRecordObjectsByToken = RegisterStmt(`
 SELECT internal_token_records.id, internal_token_records.token, internal_token_records.name
   FROM internal_token_records
-  WHERE internal_token_records.name = ? ORDER BY internal_token_records.name
+  WHERE internal_token_records.token = ? ORDER BY internal_token_records.name
 `)
 
 var internalTokenRecordID = RegisterStmt(`
@@ -91,9 +91,9 @@ func InternalTokenRecordExists(ctx context.Context, tx *sql.Tx, name string) (bo
 
 // GetInternalTokenRecord returns the internal_token_record with the given key.
 // generator: internal_token_record GetOne
-func GetInternalTokenRecord(ctx context.Context, tx *sql.Tx, name string) (*InternalTokenRecord, error) {
+func GetInternalTokenRecord(ctx context.Context, tx *sql.Tx, token string) (*InternalTokenRecord, error) {
 	filter := InternalTokenRecordFilter{}
-	filter.Name = &name
+	filter.Token = &token
 
 	objects, err := GetInternalTokenRecords(ctx, tx, filter)
 	if err != nil {
@@ -122,10 +122,10 @@ func GetInternalTokenRecords(ctx context.Context, tx *sql.Tx, filter InternalTok
 	var sqlStmt *sql.Stmt
 	var args []any
 
-	if filter.Name != nil && filter.ID == nil && filter.Token == nil {
-		sqlStmt = stmt(tx, internalTokenRecordObjectsByName)
+	if filter.Name == nil && filter.ID == nil && filter.Token != nil {
+		sqlStmt = stmt(tx, internalTokenRecordObjectsByToken)
 		args = []any{
-			filter.Name,
+			filter.Token,
 		}
 	} else if filter.ID == nil && filter.Token == nil && filter.Name == nil {
 		sqlStmt = stmt(tx, internalTokenRecordObjects)

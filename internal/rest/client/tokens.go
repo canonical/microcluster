@@ -26,18 +26,6 @@ func (c *Client) RequestToken(ctx context.Context, name string) (string, error) 
 	return token, err
 }
 
-// SubmitToken authenticates a token and returns information necessary to join the cluster.
-func (c *Client) SubmitToken(ctx context.Context, name string, token string) (types.TokenResponse, error) {
-	queryCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
-	var tokenResponse types.TokenResponse
-	tokenRecord := types.TokenRecord{Token: token}
-	err := c.QueryStruct(queryCtx, "POST", InternalEndpoint, api.NewURL().Path("tokens", name), tokenRecord, &tokenResponse)
-
-	return tokenResponse, err
-}
-
 // DeleteTokenRecord deletes the toekn record.
 func (c *Client) DeleteTokenRecord(ctx context.Context, name string) error {
 	endpoint := InternalEndpoint

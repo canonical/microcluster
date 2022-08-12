@@ -3,7 +3,6 @@ package resources
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/url"
 
@@ -30,7 +29,6 @@ var tokensCmd = rest.Endpoint{
 var tokenCmd = rest.Endpoint{
 	Path: "tokens/{name}",
 
-	Post:   rest.EndpointAction{Handler: tokenPost, AllowUntrusted: true},
 	Delete: rest.EndpointAction{Handler: tokenDelete, AccessHandler: access.AllowAuthenticated},
 }
 
@@ -119,64 +117,6 @@ func tokensGet(state *state.State, r *http.Request) response.Response {
 	}
 
 	return response.SyncResponse(true, records)
-}
-
-func tokenPost(state *state.State, r *http.Request) response.Response {
-	name, err := url.PathUnescape(mux.Vars(r)["name"])
-	if err != nil {
-		return response.SmartError(err)
-	}
-
-	// Parse the request.
-	req := internalTypes.TokenRecord{}
-	err = json.NewDecoder(r.Body).Decode(&req)
-	if err != nil {
-		return response.BadRequest(err)
-	}
-
-	var record *cluster.InternalTokenRecord
-	err = state.Database.Transaction(state.Context, func(ctx context.Context, tx *db.Tx) error {
-		var err error
-		record, err = cluster.GetInternalTokenRecord(ctx, tx, name)
-		if err != nil {
-			return err
-		}
-
-		if record.Token != req.Token {
-			return fmt.Errorf("Received invalid token for the given name")
-		}
-
-		return cluster.DeleteInternalTokenRecord(ctx, tx, name)
-	})
-	if err != nil {
-		return response.SmartError(err)
-	}
-
-	clusterCert, err := state.ClusterCert().PublicKeyX509()
-	if err != nil {
-		return response.SmartError(err)
-	}
-
-	remotes := state.Remotes()
-	clusterMembers := make([]internalTypes.ClusterMemberLocal, 0, remotes.Count())
-	for _, clusterMember := range remotes.RemotesByName() {
-		clusterMember := internalTypes.ClusterMemberLocal{
-			Name:        clusterMember.Name,
-			Address:     clusterMember.Address,
-			Certificate: clusterMember.Certificate,
-		}
-
-		clusterMembers = append(clusterMembers, clusterMember)
-	}
-
-	tokenResponse := internalTypes.TokenResponse{
-		ClusterCert: types.X509Certificate{Certificate: clusterCert},
-		ClusterKey:  string(state.ClusterCert().PrivateKey()),
-
-		ClusterMembers: clusterMembers,
-	}
-
-	return response.SyncResponse(true, tokenResponse)
 }
 
 func tokenDelete(state *state.State, r *http.Request) response.Response {

@@ -194,6 +194,36 @@ func (m *MicroCluster) NewJoinToken(name string) (string, error) {
 	return secret, nil
 }
 
+// ListJoinTokens lists all the join tokens currently available for use.
+func (m *MicroCluster) ListJoinTokens() ([]types.TokenRecord, error) {
+	c, err := internalClient.New(m.FileSystem.ControlSocket(), nil, nil, false)
+	if err != nil {
+		return nil, err
+	}
+
+	records, err := c.GetTokenRecords(m.ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return records, nil
+}
+
+// RevokeJoinToken revokes the token record stored under the given name.
+func (m *MicroCluster) RevokeJoinToken(name string) error {
+	c, err := internalClient.New(m.FileSystem.ControlSocket(), nil, nil, false)
+	if err != nil {
+		return err
+	}
+
+	err = c.DeleteTokenRecord(m.ctx, name)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // LocalClient returns a client connected to the local control socket.
 func (m *MicroCluster) LocalClient() (*client.Client, error) {
 	c, err := internalClient.New(m.FileSystem.ControlSocket(), nil, nil, false)

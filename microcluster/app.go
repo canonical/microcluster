@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/lxc/lxd/lxd/db/schema"
-	"github.com/lxc/lxd/shared"
 	"github.com/lxc/lxd/shared/api"
 	"github.com/lxc/lxd/shared/logger"
 	"golang.org/x/sys/unix"
@@ -181,18 +180,13 @@ func (m *MicroCluster) JoinCluster(token string) error {
 // NewJoinToken creates and records a new join token containing all the necessary credentials for joining a cluster.
 // Join tokens are tied to the server certificate of the joining node, and will be deleted once the node has joined the
 // cluster.
-func (m *MicroCluster) NewJoinToken(joinerCert string) (string, error) {
-	cert, err := shared.ReadCert(joinerCert)
-	if err != nil {
-		return "", fmt.Errorf("Failed to read server certificate: %w", err)
-	}
-
+func (m *MicroCluster) NewJoinToken(name string) (string, error) {
 	c, err := internalClient.New(m.FileSystem.ControlSocket(), nil, nil, false)
 	if err != nil {
 		return "", err
 	}
 
-	secret, err := c.RequestToken(m.ctx, shared.CertFingerprint(cert))
+	secret, err := c.RequestToken(m.ctx, name)
 	if err != nil {
 		return "", err
 	}

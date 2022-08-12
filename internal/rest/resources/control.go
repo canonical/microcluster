@@ -63,7 +63,7 @@ func joinWithToken(state *state.State, req *internalTypes.Control) response.Resp
 	}
 
 	// Submit the token string to obtain cluster credentials.
-	tokenResponse, err := d.SubmitToken(context.Background(), state.ServerCert().Fingerprint(), token.Token)
+	tokenResponse, err := d.SubmitToken(context.Background(), token.Name, token.Token)
 	if err != nil {
 		return response.SmartError(err)
 	}

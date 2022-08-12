@@ -28,7 +28,7 @@ var tokensCmd = rest.Endpoint{
 }
 
 var tokenCmd = rest.Endpoint{
-	Path: "tokens/{joinerCert}",
+	Path: "tokens/{name}",
 
 	Post:   rest.EndpointAction{Handler: tokenPost, AllowUntrusted: true},
 	Delete: rest.EndpointAction{Handler: tokenDelete, AccessHandler: access.AllowAuthenticated},
@@ -61,6 +61,7 @@ func tokensPost(state *state.State, r *http.Request) response.Response {
 	}
 
 	token := internalTypes.Token{
+		Name:        req.Name,
 		Token:       tokenKey,
 		ClusterCert: types.X509Certificate{Certificate: clusterCert},
 		JoinAddress: joinAddress,
@@ -72,16 +73,7 @@ func tokensPost(state *state.State, r *http.Request) response.Response {
 	}
 
 	err = state.Database.Transaction(state.Context, func(ctx context.Context, tx *db.Tx) error {
-		exists, err := cluster.InternalTokenRecordExists(ctx, tx, req.JoinerCert)
-		if err != nil {
-			return err
-		}
-
-		if exists {
-			return fmt.Errorf("A join token already exists for the name %q", req.JoinerCert)
-		}
-
-		_, err = cluster.CreateInternalTokenRecord(ctx, tx, cluster.InternalTokenRecord{JoinerCert: req.JoinerCert, Token: tokenKey})
+		_, err = cluster.CreateInternalTokenRecord(ctx, tx, cluster.InternalTokenRecord{Name: req.Name, Token: tokenKey})
 		return err
 	})
 	if err != nil {
@@ -107,7 +99,7 @@ func tokensGet(state *state.State, r *http.Request) response.Response {
 }
 
 func tokenPost(state *state.State, r *http.Request) response.Response {
-	joinerCert, err := url.PathUnescape(mux.Vars(r)["joinerCert"])
+	name, err := url.PathUnescape(mux.Vars(r)["name"])
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -122,16 +114,16 @@ func tokenPost(state *state.State, r *http.Request) response.Response {
 	var record *cluster.InternalTokenRecord
 	err = state.Database.Transaction(state.Context, func(ctx context.Context, tx *db.Tx) error {
 		var err error
-		record, err = cluster.GetInternalTokenRecord(ctx, tx, joinerCert)
+		record, err = cluster.GetInternalTokenRecord(ctx, tx, name)
 		if err != nil {
 			return err
 		}
 
 		if record.Token != req.Token {
-			return fmt.Errorf("Received invalid token for the given joiner certificate")
+			return fmt.Errorf("Received invalid token for the given name")
 		}
 
-		return cluster.DeleteInternalTokenRecord(ctx, tx, joinerCert)
+		return cluster.DeleteInternalTokenRecord(ctx, tx, name)
 	})
 	if err != nil {
 		return response.SmartError(err)
@@ -165,13 +157,13 @@ func tokenPost(state *state.State, r *http.Request) response.Response {
 }
 
 func tokenDelete(state *state.State, r *http.Request) response.Response {
-	joinerCert, err := url.PathUnescape(mux.Vars(r)["joinerCert"])
+	name, err := url.PathUnescape(mux.Vars(r)["name"])
 	if err != nil {
 		return response.SmartError(err)
 	}
 
 	err = state.Database.Transaction(state.Context, func(ctx context.Context, tx *db.Tx) error {
-		return cluster.DeleteInternalTokenRecord(ctx, tx, joinerCert)
+		return cluster.DeleteInternalTokenRecord(ctx, tx, name)
 	})
 	if err != nil {
 		return response.SmartError(err)

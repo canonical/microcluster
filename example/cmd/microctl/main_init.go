@@ -30,7 +30,7 @@ func (c *cmdInit) Command() *cobra.Command {
 }
 
 func (c *cmdInit) Run(cmd *cobra.Command, args []string) error {
-	if len(args) > 0 {
+	if len(args) != 0 {
 		return cmd.Help()
 	}
 
@@ -44,6 +44,10 @@ func (c *cmdInit) Run(cmd *cobra.Command, args []string) error {
 	}
 
 	if c.flagBootstrap {
+		if len(args) != 0 {
+			return fmt.Errorf("Name can only be specified with a join token")
+		}
+
 		return m.NewCluster()
 	}
 

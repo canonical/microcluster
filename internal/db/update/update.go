@@ -92,9 +92,9 @@ func updateFromV0(tx *sql.Tx) error {
 
 CREATE TABLE internal_token_records (
   id           INTEGER         PRIMARY  KEY    AUTOINCREMENT  NOT  NULL,
-  joiner_cert  TEXT            NOT      NULL,
+  name         TEXT            NOT      NULL,
   token        TEXT            NOT      NULL,
-  UNIQUE       (joiner_cert),
+  UNIQUE       (name),
   UNIQUE       (token)
 );
 

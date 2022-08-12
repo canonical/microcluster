@@ -9,8 +9,8 @@ import (
 
 // TokenRecord holds information for requesting a join token.
 type TokenRecord struct {
-	JoinerCert string `json:"joiner_cert" yaml:"joiner_cert"`
-	Token      string `json:"token" yaml:"token"`
+	Name  string `json:"name" yaml:"name"`
+	Token string `json:"token" yaml:"token"`
 }
 
 // TokenResponse holds the information for connecting to a cluster by a node with a valid join token.
@@ -22,6 +22,7 @@ type TokenResponse struct {
 
 // Token holds the information that is presented to the joining node when requesting a token.
 type Token struct {
+	Name        string                `json:"name" yaml:"name"`
 	Token       string                `json:"token" yaml:"token"`
 	ClusterCert types.X509Certificate `json:"cluster_cert" yaml:"cluster_cert"`
 	JoinAddress types.AddrPort        `json:"join_address" yaml:"join_address"`

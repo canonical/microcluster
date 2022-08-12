@@ -15,36 +15,36 @@ import (
 var _ = api.ServerEnvironment{}
 
 var internalTokenRecordObjects = RegisterStmt(`
-SELECT internal_token_records.id, internal_token_records.token, internal_token_records.joiner_cert
+SELECT internal_token_records.id, internal_token_records.token, internal_token_records.name
   FROM internal_token_records
-  ORDER BY internal_token_records.joiner_cert
+  ORDER BY internal_token_records.name
 `)
 
-var internalTokenRecordObjectsByJoinerCert = RegisterStmt(`
-SELECT internal_token_records.id, internal_token_records.token, internal_token_records.joiner_cert
+var internalTokenRecordObjectsByName = RegisterStmt(`
+SELECT internal_token_records.id, internal_token_records.token, internal_token_records.name
   FROM internal_token_records
-  WHERE internal_token_records.joiner_cert = ? ORDER BY internal_token_records.joiner_cert
+  WHERE internal_token_records.name = ? ORDER BY internal_token_records.name
 `)
 
 var internalTokenRecordID = RegisterStmt(`
 SELECT internal_token_records.id FROM internal_token_records
-  WHERE internal_token_records.joiner_cert = ?
+  WHERE internal_token_records.name = ?
 `)
 
 var internalTokenRecordCreate = RegisterStmt(`
-INSERT INTO internal_token_records (token, joiner_cert)
+INSERT INTO internal_token_records (token, name)
   VALUES (?, ?)
 `)
 
-var internalTokenRecordDeleteByJoinerCert = RegisterStmt(`
-DELETE FROM internal_token_records WHERE joiner_cert = ?
+var internalTokenRecordDeleteByName = RegisterStmt(`
+DELETE FROM internal_token_records WHERE name = ?
 `)
 
 // GetInternalTokenRecordID return the ID of the internal_token_record with the given key.
 // generator: internal_token_record ID
-func GetInternalTokenRecordID(ctx context.Context, tx *sql.Tx, joinerCert string) (int64, error) {
+func GetInternalTokenRecordID(ctx context.Context, tx *sql.Tx, name string) (int64, error) {
 	stmt := stmt(tx, internalTokenRecordID)
-	rows, err := stmt.Query(joinerCert)
+	rows, err := stmt.Query(name)
 	if err != nil {
 		return -1, fmt.Errorf("Failed to get \"internals_tokens_records\" ID: %w", err)
 	}
@@ -76,8 +76,8 @@ func GetInternalTokenRecordID(ctx context.Context, tx *sql.Tx, joinerCert string
 
 // InternalTokenRecordExists checks if a internal_token_record with the given key exists.
 // generator: internal_token_record Exists
-func InternalTokenRecordExists(ctx context.Context, tx *sql.Tx, joinerCert string) (bool, error) {
-	_, err := GetInternalTokenRecordID(ctx, tx, joinerCert)
+func InternalTokenRecordExists(ctx context.Context, tx *sql.Tx, name string) (bool, error) {
+	_, err := GetInternalTokenRecordID(ctx, tx, name)
 	if err != nil {
 		if api.StatusErrorCheck(err, http.StatusNotFound) {
 			return false, nil
@@ -91,9 +91,9 @@ func InternalTokenRecordExists(ctx context.Context, tx *sql.Tx, joinerCert strin
 
 // GetInternalTokenRecord returns the internal_token_record with the given key.
 // generator: internal_token_record GetOne
-func GetInternalTokenRecord(ctx context.Context, tx *sql.Tx, joinerCert string) (*InternalTokenRecord, error) {
+func GetInternalTokenRecord(ctx context.Context, tx *sql.Tx, name string) (*InternalTokenRecord, error) {
 	filter := InternalTokenRecordFilter{}
-	filter.JoinerCert = &joinerCert
+	filter.Name = &name
 
 	objects, err := GetInternalTokenRecords(ctx, tx, filter)
 	if err != nil {
@@ -122,12 +122,12 @@ func GetInternalTokenRecords(ctx context.Context, tx *sql.Tx, filter InternalTok
 	var sqlStmt *sql.Stmt
 	var args []any
 
-	if filter.JoinerCert != nil && filter.ID == nil && filter.Token == nil {
-		sqlStmt = stmt(tx, internalTokenRecordObjectsByJoinerCert)
+	if filter.Name != nil && filter.ID == nil && filter.Token == nil {
+		sqlStmt = stmt(tx, internalTokenRecordObjectsByName)
 		args = []any{
-			filter.JoinerCert,
+			filter.Name,
 		}
-	} else if filter.ID == nil && filter.Token == nil && filter.JoinerCert == nil {
+	} else if filter.ID == nil && filter.Token == nil && filter.Name == nil {
 		sqlStmt = stmt(tx, internalTokenRecordObjects)
 		args = []any{}
 	} else {
@@ -140,7 +140,7 @@ func GetInternalTokenRecords(ctx context.Context, tx *sql.Tx, filter InternalTok
 		return []any{
 			&objects[i].ID,
 			&objects[i].Token,
-			&objects[i].JoinerCert,
+			&objects[i].Name,
 		}
 	}
 
@@ -157,7 +157,7 @@ func GetInternalTokenRecords(ctx context.Context, tx *sql.Tx, filter InternalTok
 // generator: internal_token_record Create
 func CreateInternalTokenRecord(ctx context.Context, tx *sql.Tx, object InternalTokenRecord) (int64, error) {
 	// Check if a internal_token_record with the same key exists.
-	exists, err := InternalTokenRecordExists(ctx, tx, object.JoinerCert)
+	exists, err := InternalTokenRecordExists(ctx, tx, object.Name)
 	if err != nil {
 		return -1, fmt.Errorf("Failed to check for duplicates: %w", err)
 	}
@@ -170,7 +170,7 @@ func CreateInternalTokenRecord(ctx context.Context, tx *sql.Tx, object InternalT
 
 	// Populate the statement arguments.
 	args[0] = object.Token
-	args[1] = object.JoinerCert
+	args[1] = object.Name
 
 	// Prepared statement to use.
 	stmt := stmt(tx, internalTokenRecordCreate)
@@ -190,10 +190,10 @@ func CreateInternalTokenRecord(ctx context.Context, tx *sql.Tx, object InternalT
 }
 
 // DeleteInternalTokenRecord deletes the internal_token_record matching the given key parameters.
-// generator: internal_token_record DeleteOne-by-JoinerCert
-func DeleteInternalTokenRecord(ctx context.Context, tx *sql.Tx, joinerCert string) error {
-	stmt := stmt(tx, internalTokenRecordDeleteByJoinerCert)
-	result, err := stmt.Exec(joinerCert)
+// generator: internal_token_record DeleteOne-by-Name
+func DeleteInternalTokenRecord(ctx context.Context, tx *sql.Tx, name string) error {
+	stmt := stmt(tx, internalTokenRecordDeleteByName)
+	result, err := stmt.Exec(name)
 	if err != nil {
 		return fmt.Errorf("Delete \"internals_tokens_records\": %w", err)
 	}

@@ -3,7 +3,6 @@ package resources
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/url"
 
@@ -28,9 +27,8 @@ var tokensCmd = rest.Endpoint{
 }
 
 var tokenCmd = rest.Endpoint{
-	Path: "tokens/{joinerCert}",
+	Path: "tokens/{name}",
 
-	Post:   rest.EndpointAction{Handler: tokenPost, AllowUntrusted: true},
 	Delete: rest.EndpointAction{Handler: tokenDelete, AccessHandler: access.AllowAuthenticated},
 }
 
@@ -55,15 +53,16 @@ func tokensPost(state *state.State, r *http.Request) response.Response {
 		return response.InternalError(err)
 	}
 
-	joinAddress, err := types.ParseAddrPort(state.Address.URL.Host)
-	if err != nil {
-		return response.InternalError(err)
+	joinAddresses := []types.AddrPort{}
+	for _, addr := range state.Remotes().Addresses() {
+		joinAddresses = append(joinAddresses, addr)
 	}
 
 	token := internalTypes.Token{
-		Token:       tokenKey,
-		ClusterCert: types.X509Certificate{Certificate: clusterCert},
-		JoinAddress: joinAddress,
+		Name:          req.Name,
+		Token:         tokenKey,
+		ClusterCert:   types.X509Certificate{Certificate: clusterCert},
+		JoinAddresses: joinAddresses,
 	}
 
 	tokenString, err := token.String()
@@ -72,16 +71,7 @@ func tokensPost(state *state.State, r *http.Request) response.Response {
 	}
 
 	err = state.Database.Transaction(state.Context, func(ctx context.Context, tx *db.Tx) error {
-		exists, err := cluster.InternalTokenRecordExists(ctx, tx, req.JoinerCert)
-		if err != nil {
-			return err
-		}
-
-		if exists {
-			return fmt.Errorf("A join token already exists for the name %q", req.JoinerCert)
-		}
-
-		_, err = cluster.CreateInternalTokenRecord(ctx, tx, cluster.InternalTokenRecord{JoinerCert: req.JoinerCert, Token: tokenKey})
+		_, err = cluster.CreateInternalTokenRecord(ctx, tx, cluster.InternalTokenRecord{Name: req.Name, Token: tokenKey})
 		return err
 	})
 	if err != nil {
@@ -92,12 +82,35 @@ func tokensPost(state *state.State, r *http.Request) response.Response {
 }
 
 func tokensGet(state *state.State, r *http.Request) response.Response {
-	var records []cluster.InternalTokenRecord
-	err := state.Database.Transaction(state.Context, func(ctx context.Context, tx *db.Tx) error {
-		var err error
-		records, err = cluster.GetInternalTokenRecords(ctx, tx, cluster.InternalTokenRecordFilter{})
+	clusterCert, err := state.ClusterCert().PublicKeyX509()
+	if err != nil {
+		return response.InternalError(err)
+	}
 
-		return err
+	joinAddresses := []types.AddrPort{}
+	for _, addr := range state.Remotes().Addresses() {
+		joinAddresses = append(joinAddresses, addr)
+	}
+
+	var records []internalTypes.TokenRecord
+	err = state.Database.Transaction(state.Context, func(ctx context.Context, tx *db.Tx) error {
+		var err error
+		tokens, err := cluster.GetInternalTokenRecords(ctx, tx, cluster.InternalTokenRecordFilter{})
+		if err != nil {
+			return err
+		}
+
+		records = make([]internalTypes.TokenRecord, 0, len(tokens))
+		for _, token := range tokens {
+			apiToken, err := token.ToAPI(clusterCert, joinAddresses)
+			if err != nil {
+				return err
+			}
+
+			records = append(records, *apiToken)
+		}
+
+		return nil
 	})
 	if err != nil {
 		return response.SmartError(err)
@@ -106,72 +119,14 @@ func tokensGet(state *state.State, r *http.Request) response.Response {
 	return response.SyncResponse(true, records)
 }
 
-func tokenPost(state *state.State, r *http.Request) response.Response {
-	joinerCert, err := url.PathUnescape(mux.Vars(r)["joinerCert"])
-	if err != nil {
-		return response.SmartError(err)
-	}
-
-	// Parse the request.
-	req := internalTypes.TokenRecord{}
-	err = json.NewDecoder(r.Body).Decode(&req)
-	if err != nil {
-		return response.BadRequest(err)
-	}
-
-	var record *cluster.InternalTokenRecord
-	err = state.Database.Transaction(state.Context, func(ctx context.Context, tx *db.Tx) error {
-		var err error
-		record, err = cluster.GetInternalTokenRecord(ctx, tx, joinerCert)
-		if err != nil {
-			return err
-		}
-
-		if record.Token != req.Token {
-			return fmt.Errorf("Received invalid token for the given joiner certificate")
-		}
-
-		return cluster.DeleteInternalTokenRecord(ctx, tx, joinerCert)
-	})
-	if err != nil {
-		return response.SmartError(err)
-	}
-
-	clusterCert, err := state.ClusterCert().PublicKeyX509()
-	if err != nil {
-		return response.SmartError(err)
-	}
-
-	remotes := state.Remotes()
-	clusterMembers := make([]internalTypes.ClusterMemberLocal, 0, remotes.Count())
-	for _, clusterMember := range remotes.RemotesByName() {
-		clusterMember := internalTypes.ClusterMemberLocal{
-			Name:        clusterMember.Name,
-			Address:     clusterMember.Address,
-			Certificate: clusterMember.Certificate,
-		}
-
-		clusterMembers = append(clusterMembers, clusterMember)
-	}
-
-	tokenResponse := internalTypes.TokenResponse{
-		ClusterCert: types.X509Certificate{Certificate: clusterCert},
-		ClusterKey:  string(state.ClusterCert().PrivateKey()),
-
-		ClusterMembers: clusterMembers,
-	}
-
-	return response.SyncResponse(true, tokenResponse)
-}
-
 func tokenDelete(state *state.State, r *http.Request) response.Response {
-	joinerCert, err := url.PathUnescape(mux.Vars(r)["joinerCert"])
+	name, err := url.PathUnescape(mux.Vars(r)["name"])
 	if err != nil {
 		return response.SmartError(err)
 	}
 
 	err = state.Database.Transaction(state.Context, func(ctx context.Context, tx *db.Tx) error {
-		return cluster.DeleteInternalTokenRecord(ctx, tx, joinerCert)
+		return cluster.DeleteInternalTokenRecord(ctx, tx, name)
 	})
 	if err != nil {
 		return response.SmartError(err)

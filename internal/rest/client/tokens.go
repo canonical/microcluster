@@ -9,8 +9,8 @@ import (
 	"github.com/lxc/lxd/shared/api"
 )
 
-// RequestToken requests a join token with the given certificate fingerprint.
-func (c *Client) RequestToken(ctx context.Context, fingerprint string) (string, error) {
+// RequestToken requests a join token with the given name.
+func (c *Client) RequestToken(ctx context.Context, name string) (string, error) {
 	endpoint := PublicEndpoint
 	if strings.HasSuffix(c.url.String(), "control.socket") {
 		endpoint = ControlEndpoint
@@ -20,26 +20,14 @@ func (c *Client) RequestToken(ctx context.Context, fingerprint string) (string, 
 	defer cancel()
 
 	var token string
-	tokenRecord := types.TokenRecord{JoinerCert: fingerprint}
+	tokenRecord := types.TokenRecord{Name: name}
 	err := c.QueryStruct(queryCtx, "POST", endpoint, api.NewURL().Path("tokens"), tokenRecord, &token)
 
 	return token, err
 }
 
-// SubmitToken authenticates a token and returns information necessary to join the cluster.
-func (c *Client) SubmitToken(ctx context.Context, fingerprint string, token string) (types.TokenResponse, error) {
-	queryCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
-	var tokenResponse types.TokenResponse
-	tokenRecord := types.TokenRecord{Token: token}
-	err := c.QueryStruct(queryCtx, "POST", InternalEndpoint, api.NewURL().Path("tokens", fingerprint), tokenRecord, &tokenResponse)
-
-	return tokenResponse, err
-}
-
 // DeleteTokenRecord deletes the toekn record.
-func (c *Client) DeleteTokenRecord(ctx context.Context, fingerprint string) error {
+func (c *Client) DeleteTokenRecord(ctx context.Context, name string) error {
 	endpoint := InternalEndpoint
 	if strings.HasSuffix(c.url.String(), "control.socket") {
 		endpoint = ControlEndpoint
@@ -48,7 +36,7 @@ func (c *Client) DeleteTokenRecord(ctx context.Context, fingerprint string) erro
 	queryCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	err := c.QueryStruct(queryCtx, "DELETE", endpoint, api.NewURL().Path("tokens", fingerprint), nil, nil)
+	err := c.QueryStruct(queryCtx, "DELETE", endpoint, api.NewURL().Path("tokens", name), nil, nil)
 
 	return err
 }

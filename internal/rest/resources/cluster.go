@@ -15,7 +15,9 @@ import (
 	"github.com/canonical/microcluster/internal/db"
 	"github.com/canonical/microcluster/internal/rest/access"
 	"github.com/canonical/microcluster/internal/rest/client"
-	"github.com/canonical/microcluster/internal/rest/types"
+	internalTypes "github.com/canonical/microcluster/internal/rest/types"
+	"github.com/canonical/microcluster/rest/types"
+
 	"github.com/canonical/microcluster/internal/state"
 	"github.com/canonical/microcluster/internal/trust"
 	"github.com/canonical/microcluster/rest"
@@ -29,7 +31,7 @@ var clusterCmd = rest.Endpoint{
 }
 
 func clusterPost(state *state.State, r *http.Request) response.Response {
-	req := types.ClusterMember{}
+	req := internalTypes.ClusterMember{}
 
 	// Parse the request.
 	err := json.NewDecoder(r.Body).Decode(&req)
@@ -70,7 +72,7 @@ func clusterPost(state *state.State, r *http.Request) response.Response {
 			return response.SmartError(err)
 		}
 
-		err = client.AddClusterMember(state.Context, req)
+		tokenResponse, err := client.AddClusterMember(state.Context, req)
 		if err != nil {
 			return response.SmartError(err)
 		}
@@ -81,7 +83,7 @@ func clusterPost(state *state.State, r *http.Request) response.Response {
 			return response.SmartError(err)
 		}
 
-		return response.EmptySyncResponse
+		return response.SyncResponse(true, tokenResponse)
 	}
 
 	err = state.Database.Transaction(state.Context, func(ctx context.Context, tx *db.Tx) error {
@@ -94,12 +96,44 @@ func clusterPost(state *state.State, r *http.Request) response.Response {
 			Role:        cluster.Pending,
 		}
 
-		_, err = cluster.CreateInternalClusterMember(ctx, tx, dbClusterMember)
+		record, err := cluster.GetInternalTokenRecord(ctx, tx, req.JoinToken)
+		if err != nil {
+			return err
+		}
 
-		return err
+		_, err = cluster.CreateInternalClusterMember(ctx, tx, dbClusterMember)
+		if err != nil {
+			return err
+		}
+
+		return cluster.DeleteInternalTokenRecord(ctx, tx, record.Name)
 	})
 	if err != nil {
 		return response.SmartError(err)
+	}
+
+	remotes := state.Remotes()
+	clusterMembers := make([]internalTypes.ClusterMemberLocal, 0, remotes.Count())
+	for _, clusterMember := range remotes.RemotesByName() {
+		clusterMember := internalTypes.ClusterMemberLocal{
+			Name:        clusterMember.Name,
+			Address:     clusterMember.Address,
+			Certificate: clusterMember.Certificate,
+		}
+
+		clusterMembers = append(clusterMembers, clusterMember)
+	}
+
+	clusterCert, err := state.ClusterCert().PublicKeyX509()
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	tokenResponse := internalTypes.TokenResponse{
+		ClusterCert: types.X509Certificate{Certificate: clusterCert},
+		ClusterKey:  string(state.ClusterCert().PrivateKey()),
+
+		ClusterMembers: clusterMembers,
 	}
 
 	// Add the cluster member to our local store for authentication.
@@ -108,18 +142,18 @@ func clusterPost(state *state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	return response.EmptySyncResponse
+	return response.SyncResponse(true, tokenResponse)
 }
 
 func clusterGet(state *state.State, r *http.Request) response.Response {
-	var apiClusterMembers []types.ClusterMember
+	var apiClusterMembers []internalTypes.ClusterMember
 	err := state.Database.Transaction(state.Context, func(ctx context.Context, tx *db.Tx) error {
 		clusterMembers, err := cluster.GetInternalClusterMembers(ctx, tx, cluster.InternalClusterMemberFilter{})
 		if err != nil {
 			return err
 		}
 
-		apiClusterMembers = make([]types.ClusterMember, 0, len(clusterMembers))
+		apiClusterMembers = make([]internalTypes.ClusterMember, 0, len(clusterMembers))
 		for _, clusterMember := range clusterMembers {
 			apiClusterMember, err := clusterMember.ToAPI()
 			if err != nil {
@@ -148,9 +182,9 @@ func clusterGet(state *state.State, r *http.Request) response.Response {
 			return response.SmartError(fmt.Errorf("Failed to create HTTPS client for cluster member with address %q: %w", addr.String(), err))
 		}
 
-    err = d.CheckReady(state.Context)
+		err = d.CheckReady(state.Context)
 		if err == nil {
-			apiClusterMembers[i].Status = types.MemberOnline
+			apiClusterMembers[i].Status = internalTypes.MemberOnline
 		} else {
 			logger.Warnf("Failed to get status of cluster member with address %q: %v", addr.String(), err)
 		}

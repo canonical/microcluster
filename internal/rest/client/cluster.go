@@ -10,11 +10,17 @@ import (
 )
 
 // AddClusterMember records a new cluster member in the trust store of each current cluster member.
-func (c *Client) AddClusterMember(ctx context.Context, args types.ClusterMember) error {
+func (c *Client) AddClusterMember(ctx context.Context, args types.ClusterMember) (*types.TokenResponse, error) {
 	queryCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	return c.QueryStruct(queryCtx, "POST", PublicEndpoint, api.NewURL().Path("cluster"), args, nil)
+	tokenResponse := types.TokenResponse{}
+	err := c.QueryStruct(queryCtx, "POST", PublicEndpoint, api.NewURL().Path("cluster"), args, &tokenResponse)
+	if err != nil {
+		return nil, err
+	}
+
+	return &tokenResponse, nil
 }
 
 // GetClusterMembers returns the database record of cluster members.

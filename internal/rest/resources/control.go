@@ -10,6 +10,7 @@ import (
 	"github.com/lxc/lxd/lxd/response"
 	"github.com/lxc/lxd/lxd/util"
 	"github.com/lxc/lxd/shared/api"
+	"github.com/lxc/lxd/shared/logger"
 
 	"github.com/canonical/microcluster/internal/db/update"
 	"github.com/canonical/microcluster/internal/rest/access"
@@ -55,37 +56,6 @@ func joinWithToken(state *state.State, req *internalTypes.Control) response.Resp
 		return response.SmartError(err)
 	}
 
-	// Get a client to the target address.
-	url := api.NewURL().Scheme("https").Host(token.JoinAddress.String())
-	d, err := client.New(*url, state.ServerCert(), token.ClusterCert.Certificate, false)
-	if err != nil {
-		return response.SmartError(err)
-	}
-
-	// Submit the token string to obtain cluster credentials.
-	tokenResponse, err := d.SubmitToken(context.Background(), state.ServerCert().Fingerprint(), token.Token)
-	if err != nil {
-		return response.SmartError(err)
-	}
-
-	err = util.WriteCert(state.OS.StateDir, "cluster", []byte(tokenResponse.ClusterCert.String()), []byte(tokenResponse.ClusterKey), nil)
-	if err != nil {
-		return response.SmartError(err)
-	}
-
-	joinAddrs := types.AddrPorts{}
-	clusterMembers := make([]trust.Remote, 0, len(tokenResponse.ClusterMembers))
-	for _, clusterMember := range tokenResponse.ClusterMembers {
-		remote := trust.Remote{
-			Name:        clusterMember.Name,
-			Certificate: clusterMember.Certificate,
-			Address:     clusterMember.Address,
-		}
-
-		joinAddrs = append(joinAddrs, clusterMember.Address)
-		clusterMembers = append(clusterMembers, remote)
-	}
-
 	addr, err := types.ParseAddrPort(state.Address.URL.Host)
 	if err != nil {
 		return response.SmartError(fmt.Errorf("Failed to parse listen address when bootstrapping API: %w", err))
@@ -103,12 +73,6 @@ func joinWithToken(state *state.State, req *internalTypes.Control) response.Resp
 		Certificate: types.X509Certificate{Certificate: serverCert},
 	}
 
-	clusterMembers = append(clusterMembers, localClusterMember)
-	err = state.Remotes().Add(state.OS.TrustDir, clusterMembers...)
-	if err != nil {
-		return response.SmartError(err)
-	}
-
 	// Prepare the cluster for the incoming dqlite request by creating a database entry.
 	newClusterMember := internalTypes.ClusterMember{
 		ClusterMemberLocal: internalTypes.ClusterMemberLocal{
@@ -117,9 +81,50 @@ func joinWithToken(state *state.State, req *internalTypes.Control) response.Resp
 			Certificate: localClusterMember.Certificate,
 		},
 		SchemaVersion: update.Schema().Version(),
+		JoinToken:     token.Token,
 	}
 
-	err = d.AddClusterMember(context.Background(), newClusterMember)
+	// Get a client to the target address.
+	var joinInfo *internalTypes.TokenResponse
+	for _, addr := range token.JoinAddresses {
+		url := api.NewURL().Scheme("https").Host(addr.String())
+		d, err := client.New(*url, state.ServerCert(), token.ClusterCert.Certificate, false)
+		if err != nil {
+			return response.SmartError(err)
+		}
+
+		joinInfo, err = d.AddClusterMember(context.Background(), newClusterMember)
+		if err != nil {
+			logger.Error("Unable to complete cluster join request", logger.Ctx{"address": addr.String(), "error": err})
+		} else {
+			break
+		}
+	}
+
+	if joinInfo == nil {
+		return response.SmartError(fmt.Errorf("Failed to join cluster with the given join token"))
+	}
+
+	err = util.WriteCert(state.OS.StateDir, "cluster", []byte(joinInfo.ClusterCert.String()), []byte(joinInfo.ClusterKey), nil)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	joinAddrs := types.AddrPorts{}
+	clusterMembers := make([]trust.Remote, 0, len(joinInfo.ClusterMembers))
+	for _, clusterMember := range joinInfo.ClusterMembers {
+		remote := trust.Remote{
+			Name:        clusterMember.Name,
+			Certificate: clusterMember.Certificate,
+			Address:     clusterMember.Address,
+		}
+
+		joinAddrs = append(joinAddrs, clusterMember.Address)
+		clusterMembers = append(clusterMembers, remote)
+	}
+
+	clusterMembers = append(clusterMembers, localClusterMember)
+	err = state.Remotes().Add(state.OS.TrustDir, clusterMembers...)
 	if err != nil {
 		return response.SmartError(err)
 	}

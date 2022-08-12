@@ -13,6 +13,7 @@ type ClusterMember struct {
 	SchemaVersion int          `json:"schema_version" yaml:"schema_version"`
 	LastHeartbeat time.Time    `json:"last_heartbeat" yaml:"last_heartbeat"`
 	Status        MemberStatus `json:"status" yaml:"status"`
+	JoinToken     string       `json:"join_token" yaml:"join_token"`
 }
 
 // ClusterMemberLocal represents local information about a new cluster member.

@@ -15,24 +15,24 @@ import (
 var _ = api.ServerEnvironment{}
 
 var internalTokenRecordObjects = RegisterStmt(`
-SELECT internal_token_records.id, internal_token_records.token, internal_token_records.name
+SELECT internal_token_records.id, internal_token_records.secret, internal_token_records.name
   FROM internal_token_records
-  ORDER BY internal_token_records.name
+  ORDER BY internal_token_records.secret
 `)
 
-var internalTokenRecordObjectsByToken = RegisterStmt(`
-SELECT internal_token_records.id, internal_token_records.token, internal_token_records.name
+var internalTokenRecordObjectsBySecret = RegisterStmt(`
+SELECT internal_token_records.id, internal_token_records.secret, internal_token_records.name
   FROM internal_token_records
-  WHERE internal_token_records.token = ? ORDER BY internal_token_records.name
+  WHERE internal_token_records.secret = ? ORDER BY internal_token_records.secret
 `)
 
 var internalTokenRecordID = RegisterStmt(`
 SELECT internal_token_records.id FROM internal_token_records
-  WHERE internal_token_records.name = ?
+  WHERE internal_token_records.secret = ?
 `)
 
 var internalTokenRecordCreate = RegisterStmt(`
-INSERT INTO internal_token_records (token, name)
+INSERT INTO internal_token_records (secret, name)
   VALUES (?, ?)
 `)
 
@@ -42,9 +42,13 @@ DELETE FROM internal_token_records WHERE name = ?
 
 // GetInternalTokenRecordID return the ID of the internal_token_record with the given key.
 // generator: internal_token_record ID
-func GetInternalTokenRecordID(ctx context.Context, tx *sql.Tx, name string) (int64, error) {
-	stmt := stmt(tx, internalTokenRecordID)
-	rows, err := stmt.Query(name)
+func GetInternalTokenRecordID(ctx context.Context, tx *sql.Tx, secret string) (int64, error) {
+	stmt, err := Stmt(tx, internalTokenRecordID)
+	if err != nil {
+		return -1, fmt.Errorf("Failed to get \"internalTokenRecordID\" prepared statement: %w", err)
+	}
+
+	rows, err := stmt.Query(secret)
 	if err != nil {
 		return -1, fmt.Errorf("Failed to get \"internals_tokens_records\" ID: %w", err)
 	}
@@ -76,8 +80,8 @@ func GetInternalTokenRecordID(ctx context.Context, tx *sql.Tx, name string) (int
 
 // InternalTokenRecordExists checks if a internal_token_record with the given key exists.
 // generator: internal_token_record Exists
-func InternalTokenRecordExists(ctx context.Context, tx *sql.Tx, name string) (bool, error) {
-	_, err := GetInternalTokenRecordID(ctx, tx, name)
+func InternalTokenRecordExists(ctx context.Context, tx *sql.Tx, secret string) (bool, error) {
+	_, err := GetInternalTokenRecordID(ctx, tx, secret)
 	if err != nil {
 		if api.StatusErrorCheck(err, http.StatusNotFound) {
 			return false, nil
@@ -91,9 +95,9 @@ func InternalTokenRecordExists(ctx context.Context, tx *sql.Tx, name string) (bo
 
 // GetInternalTokenRecord returns the internal_token_record with the given key.
 // generator: internal_token_record GetOne
-func GetInternalTokenRecord(ctx context.Context, tx *sql.Tx, token string) (*InternalTokenRecord, error) {
+func GetInternalTokenRecord(ctx context.Context, tx *sql.Tx, secret string) (*InternalTokenRecord, error) {
 	filter := InternalTokenRecordFilter{}
-	filter.Secret = &token
+	filter.Secret = &secret
 
 	objects, err := GetInternalTokenRecords(ctx, tx, filter)
 	if err != nil {
@@ -122,26 +126,37 @@ func GetInternalTokenRecords(ctx context.Context, tx *sql.Tx, filter InternalTok
 	var sqlStmt *sql.Stmt
 	var args []any
 
-	if filter.Name == nil && filter.ID == nil && filter.Secret != nil {
-		sqlStmt = stmt(tx, internalTokenRecordObjectsByToken)
+	if filter.Secret != nil && filter.ID == nil && filter.Name == nil {
+		sqlStmt, err = Stmt(tx, internalTokenRecordObjectsBySecret)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to get \"internalTokenRecordObjectsBySecret\" prepared statement: %w", err)
+		}
+
 		args = []any{
 			filter.Secret,
 		}
 	} else if filter.ID == nil && filter.Secret == nil && filter.Name == nil {
-		sqlStmt = stmt(tx, internalTokenRecordObjects)
+		sqlStmt, err = Stmt(tx, internalTokenRecordObjects)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to get \"internalTokenRecordObjects\" prepared statement: %w", err)
+		}
+
 		args = []any{}
 	} else {
 		return nil, fmt.Errorf("No statement exists for the given Filter")
 	}
 
 	// Dest function for scanning a row.
-	dest := func(i int) []any {
-		objects = append(objects, InternalTokenRecord{})
-		return []any{
-			&objects[i].ID,
-			&objects[i].Secret,
-			&objects[i].Name,
+	dest := func(scan func(dest ...any) error) error {
+		i := InternalTokenRecord{}
+		err := scan(&i.ID, &i.Secret, &i.Name)
+		if err != nil {
+			return err
 		}
+
+		objects = append(objects, i)
+
+		return nil
 	}
 
 	// Select.
@@ -157,7 +172,7 @@ func GetInternalTokenRecords(ctx context.Context, tx *sql.Tx, filter InternalTok
 // generator: internal_token_record Create
 func CreateInternalTokenRecord(ctx context.Context, tx *sql.Tx, object InternalTokenRecord) (int64, error) {
 	// Check if a internal_token_record with the same key exists.
-	exists, err := InternalTokenRecordExists(ctx, tx, object.Name)
+	exists, err := InternalTokenRecordExists(ctx, tx, object.Secret)
 	if err != nil {
 		return -1, fmt.Errorf("Failed to check for duplicates: %w", err)
 	}
@@ -173,7 +188,10 @@ func CreateInternalTokenRecord(ctx context.Context, tx *sql.Tx, object InternalT
 	args[1] = object.Name
 
 	// Prepared statement to use.
-	stmt := stmt(tx, internalTokenRecordCreate)
+	stmt, err := Stmt(tx, internalTokenRecordCreate)
+	if err != nil {
+		return -1, fmt.Errorf("Failed to get \"internalTokenRecordCreate\" prepared statement: %w", err)
+	}
 
 	// Execute the statement.
 	result, err := stmt.Exec(args...)
@@ -192,7 +210,11 @@ func CreateInternalTokenRecord(ctx context.Context, tx *sql.Tx, object InternalT
 // DeleteInternalTokenRecord deletes the internal_token_record matching the given key parameters.
 // generator: internal_token_record DeleteOne-by-Name
 func DeleteInternalTokenRecord(ctx context.Context, tx *sql.Tx, name string) error {
-	stmt := stmt(tx, internalTokenRecordDeleteByName)
+	stmt, err := Stmt(tx, internalTokenRecordDeleteByName)
+	if err != nil {
+		return fmt.Errorf("Failed to get \"internalTokenRecordDeleteByName\" prepared statement: %w", err)
+	}
+
 	result, err := stmt.Exec(name)
 	if err != nil {
 		return fmt.Errorf("Delete \"internals_tokens_records\": %w", err)

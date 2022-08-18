@@ -59,29 +59,36 @@ func GetInternalClusterMembers(ctx context.Context, tx *sql.Tx, filter InternalC
 	var args []any
 
 	if filter.Address != nil {
-		sqlStmt = stmt(tx, internalClusterMemberObjectsByAddress)
+		sqlStmt, err = Stmt(tx, internalClusterMemberObjectsByAddress)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to get \"internalClusterMemberObjectsByAddress\" prepared statement: %w", err)
+		}
+
 		args = []any{
 			filter.Address,
 		}
 	} else if filter.Address == nil {
-		sqlStmt = stmt(tx, internalClusterMemberObjects)
+		sqlStmt, err = Stmt(tx, internalClusterMemberObjects)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to get \"internalClusterMemberObjects\" prepared statement: %w", err)
+		}
+
 		args = []any{}
 	} else {
 		return nil, fmt.Errorf("No statement exists for the given Filter")
 	}
 
 	// Dest function for scanning a row.
-	dest := func(i int) []any {
-		objects = append(objects, InternalClusterMember{})
-		return []any{
-			&objects[i].ID,
-			&objects[i].Name,
-			&objects[i].Address,
-			&objects[i].Certificate,
-			&objects[i].Schema,
-			&objects[i].Heartbeat,
-			&objects[i].Role,
+	dest := func(scan func(dest ...any) error) error {
+		i := InternalClusterMember{}
+		err := scan(&i.ID, &i.Name, &i.Address, &i.Certificate, &i.Schema, &i.Heartbeat, &i.Role)
+		if err != nil {
+			return err
 		}
+
+		objects = append(objects, i)
+
+		return nil
 	}
 
 	// Select.
@@ -117,7 +124,11 @@ func GetInternalClusterMember(ctx context.Context, tx *sql.Tx, address string) (
 // GetInternalClusterMemberID return the ID of the internal_cluster_member with the given key.
 // generator: internal_cluster_member ID
 func GetInternalClusterMemberID(ctx context.Context, tx *sql.Tx, address string) (int64, error) {
-	stmt := stmt(tx, internalClusterMemberID)
+	stmt, err := Stmt(tx, internalClusterMemberID)
+	if err != nil {
+		return -1, fmt.Errorf("Failed to get \"internalClusterMemberID\" prepared statement: %w", err)
+	}
+
 	rows, err := stmt.Query(address)
 	if err != nil {
 		return -1, fmt.Errorf("Failed to get \"internals_clusters_members\" ID: %w", err)
@@ -187,7 +198,10 @@ func CreateInternalClusterMember(ctx context.Context, tx *sql.Tx, object Interna
 	args[5] = object.Role
 
 	// Prepared statement to use.
-	stmt := stmt(tx, internalClusterMemberCreate)
+	stmt, err := Stmt(tx, internalClusterMemberCreate)
+	if err != nil {
+		return -1, fmt.Errorf("Failed to get \"internalClusterMemberCreate\" prepared statement: %w", err)
+	}
 
 	// Execute the statement.
 	result, err := stmt.Exec(args...)
@@ -206,7 +220,11 @@ func CreateInternalClusterMember(ctx context.Context, tx *sql.Tx, object Interna
 // DeleteInternalClusterMember deletes the internal_cluster_member matching the given key parameters.
 // generator: internal_cluster_member DeleteOne-by-Address
 func DeleteInternalClusterMember(ctx context.Context, tx *sql.Tx, address string) error {
-	stmt := stmt(tx, internalClusterMemberDeleteByAddress)
+	stmt, err := Stmt(tx, internalClusterMemberDeleteByAddress)
+	if err != nil {
+		return fmt.Errorf("Failed to get \"internalClusterMemberDeleteByAddress\" prepared statement: %w", err)
+	}
+
 	result, err := stmt.Exec(address)
 	if err != nil {
 		return fmt.Errorf("Delete \"internals_clusters_members\": %w", err)
@@ -234,7 +252,11 @@ func UpdateInternalClusterMember(ctx context.Context, tx *sql.Tx, address string
 		return err
 	}
 
-	stmt := stmt(tx, internalClusterMemberUpdate)
+	stmt, err := Stmt(tx, internalClusterMemberUpdate)
+	if err != nil {
+		return fmt.Errorf("Failed to get \"internalClusterMemberUpdate\" prepared statement: %w", err)
+	}
+
 	result, err := stmt.Exec(object.Name, object.Address, object.Certificate, object.Schema, object.Heartbeat, object.Role, id)
 	if err != nil {
 		return fmt.Errorf("Update \"internals_clusters_members\" entry failed: %w", err)

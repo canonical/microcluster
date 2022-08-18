@@ -29,8 +29,8 @@ import (
 // InternalTokenRecord is the database representation of a join token record.
 type InternalTokenRecord struct {
 	ID     int
-	Secret string
-	Name   string `db:"primary=yes"`
+	Secret string `db:"primary=yes"`
+	Name   string
 }
 
 // InternalTokenRecordFilter is the filter struct for filtering results from generated methods.

@@ -61,25 +61,36 @@ func GetExtendedTables(ctx context.Context, tx *sql.Tx, filter ExtendedTableFilt
 	var args []any
 
 	if filter.Key != nil {
-		sqlStmt = cluster.Stmt(tx, extendedTableObjectsByKey)
+		sqlStmt, err = cluster.Stmt(tx, extendedTableObjectsByKey)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to get \"extendedTableObjectsByKey\" prepared statement: %w", err)
+		}
+
 		args = []any{
 			filter.Key,
 		}
 	} else if filter.Key == nil {
-		sqlStmt = cluster.Stmt(tx, extendedTableObjects)
+		sqlStmt, err = cluster.Stmt(tx, extendedTableObjects)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to get \"extendedTableObjects\" prepared statement: %w", err)
+		}
+
 		args = []any{}
 	} else {
 		return nil, fmt.Errorf("No statement exists for the given Filter")
 	}
 
 	// Dest function for scanning a row.
-	dest := func(i int) []any {
-		objects = append(objects, ExtendedTable{})
-		return []any{
-			&objects[i].ID,
-			&objects[i].Key,
-			&objects[i].Value,
+	dest := func(scan func(dest ...any) error) error {
+		e := ExtendedTable{}
+		err := scan(&e.ID, &e.Key, &e.Value)
+		if err != nil {
+			return err
 		}
+
+		objects = append(objects, e)
+
+		return nil
 	}
 
 	// Select.
@@ -115,7 +126,11 @@ func GetExtendedTable(ctx context.Context, tx *sql.Tx, key string) (*ExtendedTab
 // GetExtendedTableID return the ID of the extended_table with the given key.
 // generator: extended_table ID
 func GetExtendedTableID(ctx context.Context, tx *sql.Tx, key string) (int64, error) {
-	stmt := cluster.Stmt(tx, extendedTableID)
+	stmt, err := cluster.Stmt(tx, extendedTableID)
+	if err != nil {
+		return -1, fmt.Errorf("Failed to get \"extendedTableID\" prepared statement: %w", err)
+	}
+
 	rows, err := stmt.Query(key)
 	if err != nil {
 		return -1, fmt.Errorf("Failed to get \"extendeds_tables\" ID: %w", err)
@@ -181,7 +196,10 @@ func CreateExtendedTable(ctx context.Context, tx *sql.Tx, object ExtendedTable) 
 	args[1] = object.Value
 
 	// Prepared statement to use.
-	stmt := cluster.Stmt(tx, extendedTableCreate)
+	stmt, err := cluster.Stmt(tx, extendedTableCreate)
+	if err != nil {
+		return -1, fmt.Errorf("Failed to get \"extendedTableCreate\" prepared statement: %w", err)
+	}
 
 	// Execute the statement.
 	result, err := stmt.Exec(args...)
@@ -200,7 +218,11 @@ func CreateExtendedTable(ctx context.Context, tx *sql.Tx, object ExtendedTable) 
 // DeleteExtendedTable deletes the extended_table matching the given key parameters.
 // generator: extended_table DeleteOne-by-Key
 func DeleteExtendedTable(ctx context.Context, tx *sql.Tx, key string) error {
-	stmt := cluster.Stmt(tx, extendedTableDeleteByKey)
+	stmt, err := cluster.Stmt(tx, extendedTableDeleteByKey)
+	if err != nil {
+		return fmt.Errorf("Failed to get \"extendedTableDeleteByKey\" prepared statement: %w", err)
+	}
+
 	result, err := stmt.Exec(key)
 	if err != nil {
 		return fmt.Errorf("Delete \"extendeds_tables\": %w", err)
@@ -228,7 +250,11 @@ func UpdateExtendedTable(ctx context.Context, tx *sql.Tx, key string, object Ext
 		return err
 	}
 
-	stmt := cluster.Stmt(tx, extendedTableUpdate)
+	stmt, err := cluster.Stmt(tx, extendedTableUpdate)
+	if err != nil {
+		return fmt.Errorf("Failed to get \"extendedTableUpdate\" prepared statement: %w", err)
+	}
+
 	result, err := stmt.Exec(object.Key, object.Value, id)
 	if err != nil {
 		return fmt.Errorf("Update \"extendeds_tables\" entry failed: %w", err)

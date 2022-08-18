@@ -61,7 +61,7 @@ func tokensPost(state *state.State, r *http.Request) response.Response {
 	token := internalTypes.Token{
 		Name:          req.Name,
 		Token:         tokenKey,
-		ClusterCert:   types.X509Certificate{Certificate: clusterCert},
+		Fingerprint:   shared.CertFingerprint(clusterCert),
 		JoinAddresses: joinAddresses,
 	}
 

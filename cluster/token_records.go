@@ -5,6 +5,7 @@ import (
 
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/rest/types"
+	"github.com/lxc/lxd/shared"
 )
 
 // Code generation directives.
@@ -43,7 +44,7 @@ type InternalTokenRecordFilter struct {
 func (t *InternalTokenRecord) ToAPI(clusterCert *x509.Certificate, joinAddresses []types.AddrPort) (*internalTypes.TokenRecord, error) {
 	token := internalTypes.Token{
 		Token:         t.Token,
-		ClusterCert:   types.X509Certificate{Certificate: clusterCert},
+		Fingerprint:   shared.CertFingerprint(clusterCert),
 		JoinAddresses: joinAddresses,
 	}
 

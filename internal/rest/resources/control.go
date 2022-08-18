@@ -9,6 +9,7 @@ import (
 
 	"github.com/lxc/lxd/lxd/response"
 	"github.com/lxc/lxd/lxd/util"
+	"github.com/lxc/lxd/shared"
 	"github.com/lxc/lxd/shared/api"
 	"github.com/lxc/lxd/shared/logger"
 
@@ -88,7 +89,18 @@ func joinWithToken(state *state.State, req *internalTypes.Control) response.Resp
 	var joinInfo *internalTypes.TokenResponse
 	for _, addr := range token.JoinAddresses {
 		url := api.NewURL().Scheme("https").Host(addr.String())
-		d, err := client.New(*url, state.ServerCert(), token.ClusterCert.Certificate, false)
+
+		cert, err := shared.GetRemoteCertificate(url.String(), "")
+		if err != nil {
+			return response.SmartError(fmt.Errorf("Failed to get certificate of cluster member %q: %w", url.URL.Host, err))
+		}
+
+		fingerprint := shared.CertFingerprint(cert)
+		if fingerprint != token.Fingerprint {
+			return response.SmartError(fmt.Errorf("Cluster certificate token does not match that of cluster member %q", url.URL.Host))
+		}
+
+		d, err := client.New(*url, state.ServerCert(), cert, false)
 		if err != nil {
 			return response.SmartError(err)
 		}

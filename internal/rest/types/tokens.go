@@ -23,7 +23,7 @@ type TokenResponse struct {
 // Token holds the information that is presented to the joining node when requesting a token.
 type Token struct {
 	Name          string           `json:"name" yaml:"name"`
-	Token         string           `json:"token" yaml:"token"`
+	Secret        string           `json:"secret" yaml:"secret"`
 	Fingerprint   string           `json:"fingerprint" yaml:"fingerprint"`
 	JoinAddresses []types.AddrPort `json:"join_addresses" yaml:"join_addresses"`
 }

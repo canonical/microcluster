@@ -96,7 +96,7 @@ func clusterPost(state *state.State, r *http.Request) response.Response {
 			Role:        cluster.Pending,
 		}
 
-		record, err := cluster.GetInternalTokenRecord(ctx, tx, req.JoinToken)
+		record, err := cluster.GetInternalTokenRecord(ctx, tx, req.Secret)
 		if err != nil {
 			return err
 		}

@@ -82,7 +82,7 @@ func joinWithToken(state *state.State, req *internalTypes.Control) response.Resp
 			Certificate: localClusterMember.Certificate,
 		},
 		SchemaVersion: update.Schema().Version(),
-		JoinToken:     token.Token,
+		Secret:        token.Secret,
 	}
 
 	// Get a client to the target address.

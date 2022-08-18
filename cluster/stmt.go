@@ -34,17 +34,12 @@ func PrepareStmts(db *sql.DB, skipErrors bool) error {
 	return nil
 }
 
-// stmt returns the prepared statement with the given code.
-func stmt(tx *sql.Tx, code int) *sql.Stmt {
+// Stmt prepares the in-memory prepared statement for the transaction.
+func Stmt(tx *sql.Tx, code int) (*sql.Stmt, error) {
 	stmt, ok := preparedStmts[code]
 	if !ok {
-		panic(fmt.Sprintf("No prepared statement registered with code %d", code))
+		return nil, fmt.Errorf("No prepared statement registered with code %d", code)
 	}
 
-	return tx.Stmt(stmt)
-}
-
-// Stmt exports the stmt helper so it can be called externally.
-func Stmt(tx *sql.Tx, code int) *sql.Stmt {
-	return stmt(tx, code)
+	return tx.Stmt(stmt), nil
 }

@@ -5,8 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"time"
 
+	dqliteClient "github.com/canonical/go-dqlite/client"
+	"github.com/gorilla/mux"
 	"github.com/lxc/lxd/lxd/response"
 	"github.com/lxc/lxd/shared/api"
 	"github.com/lxc/lxd/shared/logger"
@@ -28,6 +31,12 @@ var clusterCmd = rest.Endpoint{
 
 	Post: rest.EndpointAction{Handler: clusterPost, AllowUntrusted: true},
 	Get:  rest.EndpointAction{Handler: clusterGet, AccessHandler: access.AllowAuthenticated},
+}
+
+var clusterMemberCmd = rest.Endpoint{
+	Path: "cluster/{name}",
+
+	Delete: rest.EndpointAction{Handler: clusterMemberDelete, AccessHandler: access.AllowAuthenticated},
 }
 
 func clusterPost(state *state.State, r *http.Request) response.Response {
@@ -191,4 +200,195 @@ func clusterGet(state *state.State, r *http.Request) response.Response {
 	}
 
 	return response.SyncResponse(true, apiClusterMembers)
+}
+
+// clusterMemberDelete Removes a cluster member from dqlite and re-execs its daemon.
+func clusterMemberDelete(state *state.State, r *http.Request) response.Response {
+	name, err := url.PathUnescape(mux.Vars(r)["name"])
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	allRemotes := state.Remotes().RemotesByName()
+	remote, ok := allRemotes[name]
+	if !ok {
+		return response.SmartError(fmt.Errorf("No remote exists with the given name %q", name))
+	}
+
+	ctx, cancel := context.WithTimeout(state.Context, time.Second*30)
+	defer cancel()
+
+	leader, err := state.Database.Leader(ctx)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	leaderInfo, err := leader.Leader(ctx)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	// If we are not the leader, just update our trust store.
+	if leaderInfo.Address != state.Address.URL.Host {
+		if allRemotes[name].Address.String() == state.Address.URL.Host {
+			// If the member being removed is ourselves and we are not the leader, then lock the
+			// clusterPutDisableMu before we forward the request to the leader, so that when the leader
+			// goes on to request clusterPutDisable back to ourselves it won't be actioned until we
+			// have returned this request back to the original client.
+			clusterDisableMu.Lock()
+			logger.Info("Acquired cluster self removal lock", logger.Ctx{"member": name})
+
+			go func() {
+				<-r.Context().Done() // Wait until request is finished.
+
+				logger.Info("Releasing cluster self removal lock", logger.Ctx{"member": name})
+				clusterDisableMu.Unlock()
+			}()
+		}
+
+		client, err := state.Leader()
+		if err != nil {
+			return response.SmartError(err)
+		}
+
+		err = client.DeleteClusterMember(state.Context, name)
+		if err != nil {
+			return response.SmartError(err)
+		}
+
+		newRemotes := []internalTypes.ClusterMember{}
+		for _, remote := range allRemotes {
+			if remote.Name != name {
+				clusterMember := internalTypes.ClusterMemberLocal{Name: remote.Name, Address: remote.Address, Certificate: remote.Certificate}
+				newRemotes = append(newRemotes, internalTypes.ClusterMember{ClusterMemberLocal: clusterMember})
+			}
+		}
+
+		err = state.Remotes().Replace(state.OS.TrustDir, newRemotes...)
+		if err != nil {
+			return response.SmartError(err)
+		}
+
+		return response.ManualResponse(func(w http.ResponseWriter) error {
+			err := response.EmptySyncResponse.Render(w)
+			if err != nil {
+				return err
+			}
+
+			// Send the response before replacing the LXD daemon process.
+			f, ok := w.(http.Flusher)
+			if ok {
+				f.Flush()
+			} else {
+				return fmt.Errorf("http.ResponseWriter is not type http.Flusher")
+			}
+
+			return nil
+		})
+	}
+
+	info, err := leader.Cluster(state.Context)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	index := -1
+	for i, node := range info {
+		if node.Address == remote.Address.String() {
+			index = i
+			break
+		}
+	}
+
+	if index < 0 {
+		return response.SmartError(fmt.Errorf("No dqlite cluster member exists with the given name %q", name))
+	}
+
+	localClient, err := client.New(state.OS.ControlSocket(), nil, nil, false)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	clusterMembers, err := localClient.GetClusterMembers(state.Context)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	numPending := 0
+	for _, clusterMember := range clusterMembers {
+		if clusterMember.Role == string(cluster.Pending) {
+			numPending++
+		}
+	}
+
+	if len(clusterMembers)-numPending < 2 {
+		return response.SmartError(fmt.Errorf("Cannot remove cluster members, there are no remaining non-pending members"))
+	}
+
+	if len(info) < 2 {
+		return response.SmartError(fmt.Errorf("Cannot leave a cluster with %d members", len(info)))
+	}
+
+	if len(info) == 2 && allRemotes[name].Address.String() == leaderInfo.Address {
+		for _, node := range info {
+			if node.Address != leaderInfo.Address {
+				err = leader.Assign(ctx, node.ID, dqliteClient.Voter)
+				if err != nil {
+					return response.SmartError(err)
+				}
+			}
+		}
+	}
+
+	// Remove the cluster member from the database.
+	err = state.Database.Transaction(state.Context, func(ctx context.Context, tx *db.Tx) error {
+		return cluster.DeleteInternalClusterMember(ctx, tx, info[index].Address)
+	})
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	// Remove the node from dqlite.
+	err = leader.Remove(state.Context, info[index].ID)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	// Reset the state of the removed node.
+	if allRemotes[name].Address.String() == state.Address.URL.Host {
+		return clusterMemberPut(state, r)
+	} else {
+
+		newRemotes := []internalTypes.ClusterMember{}
+		for _, remote := range allRemotes {
+			if remote.Name != name {
+				clusterMember := internalTypes.ClusterMemberLocal{Name: remote.Name, Address: remote.Address, Certificate: remote.Certificate}
+				newRemotes = append(newRemotes, internalTypes.ClusterMember{ClusterMemberLocal: clusterMember})
+			}
+		}
+
+		// Remove the cluster member from the leader's trust store.
+		err = state.Remotes().Replace(state.OS.TrustDir, newRemotes...)
+		if err != nil {
+			return response.SmartError(err)
+		}
+
+		remote := allRemotes[name]
+		publicKey, err := state.ClusterCert().PublicKeyX509()
+		if err != nil {
+			return response.SmartError(err)
+		}
+
+		client, err := client.New(remote.URL(), state.ServerCert(), publicKey, false)
+		if err != nil {
+			return response.SmartError(err)
+		}
+
+		err = client.ResetClusterMember(state.Context, name)
+		if err != nil {
+			return response.SmartError(err)
+		}
+	}
+
+	return response.EmptySyncResponse
 }

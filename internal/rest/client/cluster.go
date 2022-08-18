@@ -38,3 +38,16 @@ func (c *Client) GetClusterMembers(ctx context.Context) ([]types.ClusterMember, 
 
 	return clusterMembers, err
 }
+
+// DeleteClusterMember deletes the cluster member with the given name.
+func (c *Client) DeleteClusterMember(ctx context.Context, name string) error {
+	endpoint := PublicEndpoint
+	if strings.HasSuffix(c.url.String(), "control.socket") {
+		endpoint = ControlEndpoint
+	}
+
+	queryCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	return c.QueryStruct(queryCtx, "DELETE", endpoint, api.NewURL().Path("cluster", name), nil, nil)
+}

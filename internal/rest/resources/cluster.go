@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
+	"strings"
+	"sync"
 	"time"
 
 	dqliteClient "github.com/canonical/go-dqlite/client"
@@ -13,6 +16,7 @@ import (
 	"github.com/lxc/lxd/lxd/response"
 	"github.com/lxc/lxd/shared/api"
 	"github.com/lxc/lxd/shared/logger"
+	"golang.org/x/sys/unix"
 
 	"github.com/canonical/microcluster/cluster"
 	"github.com/canonical/microcluster/internal/db"
@@ -36,6 +40,7 @@ var clusterCmd = rest.Endpoint{
 var clusterMemberCmd = rest.Endpoint{
 	Path: "cluster/{name}",
 
+	Put:    rest.EndpointAction{Handler: clusterMemberPut, AccessHandler: access.AllowAuthenticated},
 	Delete: rest.EndpointAction{Handler: clusterMemberDelete, AccessHandler: access.AllowAuthenticated},
 }
 
@@ -200,6 +205,63 @@ func clusterGet(state *state.State, r *http.Request) response.Response {
 	}
 
 	return response.SyncResponse(true, apiClusterMembers)
+}
+
+// clusterDisableMu is used to prevent the daemon process from being replaced/stopped during removal from the
+// cluster until such time as the request that initiated the removal has finished. This allows for self removal
+// from the cluster when not the leader.
+var clusterDisableMu sync.Mutex
+
+// Re-execs the daemon of the cluster member with a fresh state.
+func clusterMemberPut(state *state.State, r *http.Request) response.Response {
+	err := state.Database.Stop()
+	if err != nil {
+		return response.SmartError(fmt.Errorf("Failed shutting down database: %w", err))
+	}
+
+	err = os.RemoveAll(state.OS.StateDir)
+	if err != nil {
+		return response.SmartError(fmt.Errorf("Failed to remove the state directory: %w", err))
+	}
+
+	go func() {
+		<-r.Context().Done() // Wait until request has finished.
+
+		// Wait until we can acquire the lock. This way if another request is holding the lock we won't
+		// replace/stop the LXD daemon until that request has finished.
+		clusterDisableMu.Lock()
+		defer clusterDisableMu.Unlock()
+		execPath, err := os.Readlink("/proc/self/exe")
+		if err != nil {
+			execPath = "bad-exec-path"
+		}
+
+		// The execPath from /proc/self/exe can end with " (deleted)" if the lxd binary has been removed/changed
+		// since the lxd process was started, strip this so that we only return a valid path.
+		logger.Info("Restarting daemon following removal from cluster")
+		execPath = strings.TrimSuffix(execPath, " (deleted)")
+		err = unix.Exec(execPath, os.Args, os.Environ())
+		if err != nil {
+			logger.Error("Failed restarting daemon", logger.Ctx{"err": err})
+		}
+	}()
+
+	return response.ManualResponse(func(w http.ResponseWriter) error {
+		err := response.EmptySyncResponse.Render(w)
+		if err != nil {
+			return err
+		}
+
+		// Send the response before replacing the LXD daemon process.
+		f, ok := w.(http.Flusher)
+		if ok {
+			f.Flush()
+		} else {
+			return fmt.Errorf("http.ResponseWriter is not type http.Flusher")
+		}
+
+		return nil
+	})
 }
 
 // clusterMemberDelete Removes a cluster member from dqlite and re-execs its daemon.

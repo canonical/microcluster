@@ -22,10 +22,10 @@ type TokenResponse struct {
 
 // Token holds the information that is presented to the joining node when requesting a token.
 type Token struct {
-	Name          string                `json:"name" yaml:"name"`
-	Token         string                `json:"token" yaml:"token"`
-	ClusterCert   types.X509Certificate `json:"cluster_cert" yaml:"cluster_cert"`
-	JoinAddresses []types.AddrPort      `json:"join_addresses" yaml:"join_addresses"`
+	Name          string           `json:"name" yaml:"name"`
+	Secret        string           `json:"secret" yaml:"secret"`
+	Fingerprint   string           `json:"fingerprint" yaml:"fingerprint"`
+	JoinAddresses []types.AddrPort `json:"join_addresses" yaml:"join_addresses"`
 }
 
 func (t Token) String() (string, error) {

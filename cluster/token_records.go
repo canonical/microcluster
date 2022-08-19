@@ -5,6 +5,7 @@ import (
 
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/rest/types"
+	"github.com/lxc/lxd/shared"
 )
 
 // Code generation directives.
@@ -13,7 +14,7 @@ import (
 //go:generate mapper reset
 //
 //go:generate mapper stmt -e internal_token_record objects table=internal_token_records version=2
-//go:generate mapper stmt -e internal_token_record objects-by-Token table=internal_token_records version=2
+//go:generate mapper stmt -e internal_token_record objects-by-Secret table=internal_token_records version=2
 //go:generate mapper stmt -e internal_token_record id table=internal_token_records version=2
 //go:generate mapper stmt -e internal_token_record create table=internal_token_records version=2
 //go:generate mapper stmt -e internal_token_record delete-by-Name table=internal_token_records version=2
@@ -27,23 +28,23 @@ import (
 
 // InternalTokenRecord is the database representation of a join token record.
 type InternalTokenRecord struct {
-	ID    int
-	Token string
-	Name  string `db:"primary=yes"`
+	ID     int
+	Secret string
+	Name   string `db:"primary=yes"`
 }
 
 // InternalTokenRecordFilter is the filter struct for filtering results from generated methods.
 type InternalTokenRecordFilter struct {
-	ID    *int
-	Token *string
-	Name  *string
+	ID     *int
+	Secret *string
+	Name   *string
 }
 
 // ToAPI converts the InternalTokenRecord to a full token and returns an API compatible struct.
 func (t *InternalTokenRecord) ToAPI(clusterCert *x509.Certificate, joinAddresses []types.AddrPort) (*internalTypes.TokenRecord, error) {
 	token := internalTypes.Token{
-		Token:         t.Token,
-		ClusterCert:   types.X509Certificate{Certificate: clusterCert},
+		Secret:        t.Secret,
+		Fingerprint:   shared.CertFingerprint(clusterCert),
 		JoinAddresses: joinAddresses,
 	}
 

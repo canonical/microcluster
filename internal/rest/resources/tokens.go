@@ -60,8 +60,8 @@ func tokensPost(state *state.State, r *http.Request) response.Response {
 
 	token := internalTypes.Token{
 		Name:          req.Name,
-		Token:         tokenKey,
-		ClusterCert:   types.X509Certificate{Certificate: clusterCert},
+		Secret:        tokenKey,
+		Fingerprint:   shared.CertFingerprint(clusterCert),
 		JoinAddresses: joinAddresses,
 	}
 
@@ -71,7 +71,7 @@ func tokensPost(state *state.State, r *http.Request) response.Response {
 	}
 
 	err = state.Database.Transaction(state.Context, func(ctx context.Context, tx *db.Tx) error {
-		_, err = cluster.CreateInternalTokenRecord(ctx, tx, cluster.InternalTokenRecord{Name: req.Name, Token: tokenKey})
+		_, err = cluster.CreateInternalTokenRecord(ctx, tx, cluster.InternalTokenRecord{Name: req.Name, Secret: tokenKey})
 		return err
 	})
 	if err != nil {

@@ -93,7 +93,7 @@ func InternalTokenRecordExists(ctx context.Context, tx *sql.Tx, name string) (bo
 // generator: internal_token_record GetOne
 func GetInternalTokenRecord(ctx context.Context, tx *sql.Tx, token string) (*InternalTokenRecord, error) {
 	filter := InternalTokenRecordFilter{}
-	filter.Token = &token
+	filter.Secret = &token
 
 	objects, err := GetInternalTokenRecords(ctx, tx, filter)
 	if err != nil {
@@ -122,12 +122,12 @@ func GetInternalTokenRecords(ctx context.Context, tx *sql.Tx, filter InternalTok
 	var sqlStmt *sql.Stmt
 	var args []any
 
-	if filter.Name == nil && filter.ID == nil && filter.Token != nil {
+	if filter.Name == nil && filter.ID == nil && filter.Secret != nil {
 		sqlStmt = stmt(tx, internalTokenRecordObjectsByToken)
 		args = []any{
-			filter.Token,
+			filter.Secret,
 		}
-	} else if filter.ID == nil && filter.Token == nil && filter.Name == nil {
+	} else if filter.ID == nil && filter.Secret == nil && filter.Name == nil {
 		sqlStmt = stmt(tx, internalTokenRecordObjects)
 		args = []any{}
 	} else {
@@ -139,7 +139,7 @@ func GetInternalTokenRecords(ctx context.Context, tx *sql.Tx, filter InternalTok
 		objects = append(objects, InternalTokenRecord{})
 		return []any{
 			&objects[i].ID,
-			&objects[i].Token,
+			&objects[i].Secret,
 			&objects[i].Name,
 		}
 	}
@@ -169,7 +169,7 @@ func CreateInternalTokenRecord(ctx context.Context, tx *sql.Tx, object InternalT
 	args := make([]any, 2)
 
 	// Populate the statement arguments.
-	args[0] = object.Token
+	args[0] = object.Secret
 	args[1] = object.Name
 
 	// Prepared statement to use.

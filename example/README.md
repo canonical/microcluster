@@ -41,7 +41,7 @@ microctl --state-dir /path/to/state/dir3 init "dir3"" --token ${token_node3}
 ## Interacting with the cluster
 * List info on all cluster members
 ```bash
-microctl --state-dir /path/to/state/dir1 cluster
+microctl --state-dir /path/to/state/dir1 cluster list
 +------+----------------+-------+------------------------------------------------------------------+--------+
 | NAME |    ADDRESS     | ROLE  |                           CERTIFICATE                            | STATUS |
 +------+----------------+-------+------------------------------------------------------------------+--------+
@@ -91,6 +91,11 @@ microctl --state-dir /path/to/state/dir1 cluster
 |      |                |       |                                                                  |        |
 +------+----------------+-------+------------------------------------------------------------------+--------+
 ```
+* Remove a cluster member
+```bash
+microctl --state-dir /path/to/state/dir1 cluster remove dir2
+```
+
 * Perform an SQL query
 ```bash
 microctl --state-dir /path/to/state/dir1 sql "select name,address,schema,heartbeat from cluster_members"

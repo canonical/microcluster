@@ -21,8 +21,9 @@ var ControlEndpoints = &Resources{
 		tokensCmd,
 		tokenCmd,
 		clusterCmd,
+		clusterMemberCmd,
 		heartbeatCmd,
-    shutdownCmd,
+		shutdownCmd,
 	},
 }
 
@@ -31,6 +32,7 @@ var PublicEndpoints = &Resources{
 	Path: client.PublicEndpoint,
 	Endpoints: []rest.Endpoint{
 		clusterCmd,
+		clusterMemberCmd,
 		tokensCmd,
 		readyCmd,
 	},

@@ -93,9 +93,9 @@ func updateFromV0(tx *sql.Tx) error {
 CREATE TABLE internal_token_records (
   id           INTEGER         PRIMARY  KEY    AUTOINCREMENT  NOT  NULL,
   name         TEXT            NOT      NULL,
-  token        TEXT            NOT      NULL,
+  secret       TEXT            NOT      NULL,
   UNIQUE       (name),
-  UNIQUE       (token)
+  UNIQUE       (secret)
 );
 
 CREATE TABLE internal_cluster_members (

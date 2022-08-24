@@ -1,3 +1,4 @@
+// Package client provides a full Go API client.
 package client
 
 import (
@@ -11,7 +12,7 @@ import (
 	"github.com/canonical/microcluster/example/api/types"
 )
 
-// This a client function that sets a context timeout and sends a POST to /public/extended using the given
+// ExtendedPostCmd is a client function that sets a context timeout and sends a POST to /public/extended using the given
 // client. This function is expected to be called from an api endpoint handler, which gives us access to the
 // daemon state, from which we can create a client.
 func ExtendedPostCmd(ctx context.Context, c *client.Client, data *types.ExtendedType) (string, error) {

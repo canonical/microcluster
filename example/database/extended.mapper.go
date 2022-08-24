@@ -11,7 +11,7 @@ import (
 	"github.com/lxc/lxd/lxd/db/query"
 	"github.com/lxc/lxd/shared/api"
 
-  "github.com/canonical/microcluster/cluster"
+	"github.com/canonical/microcluster/cluster"
 )
 
 var _ = api.ServerEnvironment{}

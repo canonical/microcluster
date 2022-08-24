@@ -1,3 +1,4 @@
+// Package api provides the REST API endpoints.
 package api
 
 import (

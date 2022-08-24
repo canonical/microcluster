@@ -1,3 +1,4 @@
+// Package database provides the database access functions and schema.
 package database
 
 import (

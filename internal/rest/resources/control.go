@@ -43,7 +43,7 @@ func controlPost(state *state.State, r *http.Request) response.Response {
 		return joinWithToken(state, req)
 	}
 
-	err = state.StartAPI(req.Bootstrap)
+	err = state.StartAPI(req.Bootstrap, true)
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -142,7 +142,7 @@ func joinWithToken(state *state.State, req *internalTypes.Control) response.Resp
 	}
 
 	// Start the HTTPS listeners and join Dqlite.
-	err = state.StartAPI(false, joinAddrs.Strings()...)
+	err = state.StartAPI(false, true, joinAddrs.Strings()...)
 	if err != nil {
 		return response.SmartError(err)
 	}

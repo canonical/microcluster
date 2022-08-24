@@ -148,7 +148,7 @@ func (d *Daemon) reloadIfBootstrapped() error {
 		return err
 	}
 
-	err = d.StartAPI(false)
+	err = d.StartAPI(false, false)
 	if err != nil {
 		return err
 	}
@@ -241,7 +241,7 @@ func (d *Daemon) validateConfig(addr string, stateDir string) error {
 
 // StartAPI starts up the admin and consumer APIs, and generates a cluster cert
 // if we are bootstrapping the first node.
-func (d *Daemon) StartAPI(bootstrap bool, joinAddresses ...string) error {
+func (d *Daemon) StartAPI(bootstrap bool, runHook bool, joinAddresses ...string) error {
 	addr, err := types.ParseAddrPort(d.Address.URL.Host)
 	if err != nil {
 		return fmt.Errorf("Failed to parse listen address when bootstrapping API: %w", err)
@@ -382,7 +382,7 @@ func (d *Daemon) StartAPI(bootstrap bool, joinAddresses ...string) error {
 		return err
 	}
 
-	if d.initHook != nil {
+	if runHook && d.initHook != nil {
 		return d.initHook(d.State(), bootstrap)
 	}
 

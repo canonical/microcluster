@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/lxc/lxd/lxd/db/query"
 	"github.com/lxc/lxd/shared/api"
@@ -23,7 +24,7 @@ SELECT internal_token_records.id, internal_token_records.secret, internal_token_
 var internalTokenRecordObjectsBySecret = RegisterStmt(`
 SELECT internal_token_records.id, internal_token_records.secret, internal_token_records.name
   FROM internal_token_records
-  WHERE internal_token_records.secret = ? ORDER BY internal_token_records.secret
+  WHERE ( internal_token_records.secret = ? ) ORDER BY internal_token_records.secret
 `)
 
 var internalTokenRecordID = RegisterStmt(`
@@ -116,7 +117,7 @@ func GetInternalTokenRecord(ctx context.Context, tx *sql.Tx, secret string) (*In
 
 // GetInternalTokenRecords returns all available internal_token_records.
 // generator: internal_token_record GetMany
-func GetInternalTokenRecords(ctx context.Context, tx *sql.Tx, filter InternalTokenRecordFilter) ([]InternalTokenRecord, error) {
+func GetInternalTokenRecords(ctx context.Context, tx *sql.Tx, filters ...InternalTokenRecordFilter) ([]InternalTokenRecord, error) {
 	var err error
 
 	// Result slice.
@@ -124,26 +125,46 @@ func GetInternalTokenRecords(ctx context.Context, tx *sql.Tx, filter InternalTok
 
 	// Pick the prepared statement and arguments to use based on active criteria.
 	var sqlStmt *sql.Stmt
-	var args []any
+	args := []any{}
+	queryParts := [2]string{}
 
-	if filter.Secret != nil && filter.ID == nil && filter.Name == nil {
-		sqlStmt, err = Stmt(tx, internalTokenRecordObjectsBySecret)
-		if err != nil {
-			return nil, fmt.Errorf("Failed to get \"internalTokenRecordObjectsBySecret\" prepared statement: %w", err)
-		}
-
-		args = []any{
-			filter.Secret,
-		}
-	} else if filter.ID == nil && filter.Secret == nil && filter.Name == nil {
+	if len(filters) == 0 {
 		sqlStmt, err = Stmt(tx, internalTokenRecordObjects)
 		if err != nil {
 			return nil, fmt.Errorf("Failed to get \"internalTokenRecordObjects\" prepared statement: %w", err)
 		}
+	}
 
-		args = []any{}
-	} else {
-		return nil, fmt.Errorf("No statement exists for the given Filter")
+	for i, filter := range filters {
+		if filter.Secret != nil && filter.ID == nil && filter.Name == nil {
+			args = append(args, []any{filter.Secret}...)
+			if len(filters) == 1 {
+				sqlStmt, err = Stmt(tx, internalTokenRecordObjectsBySecret)
+				if err != nil {
+					return nil, fmt.Errorf("Failed to get \"internalTokenRecordObjectsBySecret\" prepared statement: %w", err)
+				}
+
+				break
+			}
+
+			query, err := StmtString(internalTokenRecordObjectsBySecret)
+			if err != nil {
+				return nil, fmt.Errorf("Failed to get \"internalTokenRecordObjects\" prepared statement: %w", err)
+			}
+
+			parts := strings.SplitN(query, "ORDER BY", 2)
+			if i == 0 {
+				copy(queryParts[:], parts)
+				continue
+			}
+
+			_, where, _ := strings.Cut(parts[0], "WHERE")
+			queryParts[0] += "OR" + where
+		} else if filter.ID == nil && filter.Secret == nil && filter.Name == nil {
+			return nil, fmt.Errorf("Cannot filter on empty InternalTokenRecordFilter")
+		} else {
+			return nil, fmt.Errorf("No statement exists for the given Filter")
+		}
 	}
 
 	// Dest function for scanning a row.
@@ -160,7 +181,13 @@ func GetInternalTokenRecords(ctx context.Context, tx *sql.Tx, filter InternalTok
 	}
 
 	// Select.
-	err = query.SelectObjects(sqlStmt, dest, args...)
+	if sqlStmt != nil {
+		err = query.SelectObjects(sqlStmt, dest, args...)
+	} else {
+		queryStr := strings.Join(queryParts[:], "ORDER BY")
+		err = query.Scan(tx, queryStr, dest, args...)
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("Failed to fetch from \"internals_tokens_records\" table: %w", err)
 	}

@@ -101,7 +101,7 @@ func beginHeartbeat(state *state.State, r *http.Request) response.Response {
 	// Get the database record of cluster members.
 	var clusterMembers []types.ClusterMember
 	err = state.Database.Transaction(state.Context, func(ctx context.Context, tx *db.Tx) error {
-		dbClusterMembers, err := cluster.GetInternalClusterMembers(ctx, tx, cluster.InternalClusterMemberFilter{})
+		dbClusterMembers, err := cluster.GetInternalClusterMembers(ctx, tx)
 		if err != nil {
 			return err
 		}
@@ -242,7 +242,7 @@ func beginHeartbeat(state *state.State, r *http.Request) response.Response {
 
 	// Having sent a heartbeat to each valid cluster member, update the database record of members.
 	err = state.Database.Transaction(state.Context, func(ctx context.Context, tx *db.Tx) error {
-		dbClusterMembers, err := cluster.GetInternalClusterMembers(ctx, tx, cluster.InternalClusterMemberFilter{})
+		dbClusterMembers, err := cluster.GetInternalClusterMembers(ctx, tx)
 		if err != nil {
 			return err
 		}

@@ -40,3 +40,12 @@ update-gomod:
 	go get -u ./...
 	go mod tidy
 
+# Update lxd-generate generated database helpers.
+.PHONY: update-schema
+update-schema:
+	go generate ../...
+	# Formatting for internal database helpers.
+	gofmt -s -w ../cluster/ ./database
+	goimports -w ../cluster/ ./database
+	@echo "Code generation completed"
+

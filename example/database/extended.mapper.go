@@ -7,11 +7,11 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
-
-	"github.com/lxc/lxd/lxd/db/query"
-	"github.com/lxc/lxd/shared/api"
+	"strings"
 
 	"github.com/canonical/microcluster/cluster"
+	"github.com/lxc/lxd/lxd/db/query"
+	"github.com/lxc/lxd/shared/api"
 )
 
 var _ = api.ServerEnvironment{}
@@ -25,7 +25,7 @@ SELECT extended_table.id, extended_table.key, extended_table.value
 var extendedTableObjectsByKey = cluster.RegisterStmt(`
 SELECT extended_table.id, extended_table.key, extended_table.value
   FROM extended_table
-  WHERE extended_table.key = ? ORDER BY extended_table.key
+  WHERE ( extended_table.key = ? ) ORDER BY extended_table.key
 `)
 
 var extendedTableID = cluster.RegisterStmt(`
@@ -50,7 +50,7 @@ UPDATE extended_table
 
 // GetExtendedTables returns all available extended_tables.
 // generator: extended_table GetMany
-func GetExtendedTables(ctx context.Context, tx *sql.Tx, filter ExtendedTableFilter) ([]ExtendedTable, error) {
+func GetExtendedTables(ctx context.Context, tx *sql.Tx, filters ...ExtendedTableFilter) ([]ExtendedTable, error) {
 	var err error
 
 	// Result slice.
@@ -58,26 +58,46 @@ func GetExtendedTables(ctx context.Context, tx *sql.Tx, filter ExtendedTableFilt
 
 	// Pick the prepared statement and arguments to use based on active criteria.
 	var sqlStmt *sql.Stmt
-	var args []any
+	args := []any{}
+	queryParts := [2]string{}
 
-	if filter.Key != nil {
-		sqlStmt, err = cluster.Stmt(tx, extendedTableObjectsByKey)
-		if err != nil {
-			return nil, fmt.Errorf("Failed to get \"extendedTableObjectsByKey\" prepared statement: %w", err)
-		}
-
-		args = []any{
-			filter.Key,
-		}
-	} else if filter.Key == nil {
+	if len(filters) == 0 {
 		sqlStmt, err = cluster.Stmt(tx, extendedTableObjects)
 		if err != nil {
 			return nil, fmt.Errorf("Failed to get \"extendedTableObjects\" prepared statement: %w", err)
 		}
+	}
 
-		args = []any{}
-	} else {
-		return nil, fmt.Errorf("No statement exists for the given Filter")
+	for i, filter := range filters {
+		if filter.Key != nil {
+			args = append(args, []any{filter.Key}...)
+			if len(filters) == 1 {
+				sqlStmt, err = cluster.Stmt(tx, extendedTableObjectsByKey)
+				if err != nil {
+					return nil, fmt.Errorf("Failed to get \"extendedTableObjectsByKey\" prepared statement: %w", err)
+				}
+
+				break
+			}
+
+			query, err := cluster.StmtString(extendedTableObjectsByKey)
+			if err != nil {
+				return nil, fmt.Errorf("Failed to get \"extendedTableObjects\" prepared statement: %w", err)
+			}
+
+			parts := strings.SplitN(query, "ORDER BY", 2)
+			if i == 0 {
+				copy(queryParts[:], parts)
+				continue
+			}
+
+			_, where, _ := strings.Cut(parts[0], "WHERE")
+			queryParts[0] += "OR" + where
+		} else if filter.Key == nil {
+			return nil, fmt.Errorf("Cannot filter on empty ExtendedTableFilter")
+		} else {
+			return nil, fmt.Errorf("No statement exists for the given Filter")
+		}
 	}
 
 	// Dest function for scanning a row.
@@ -94,7 +114,13 @@ func GetExtendedTables(ctx context.Context, tx *sql.Tx, filter ExtendedTableFilt
 	}
 
 	// Select.
-	err = query.SelectObjects(sqlStmt, dest, args...)
+	if sqlStmt != nil {
+		err = query.SelectObjects(sqlStmt, dest, args...)
+	} else {
+		queryStr := strings.Join(queryParts[:], "ORDER BY")
+		err = query.Scan(tx, queryStr, dest, args...)
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("Failed to fetch from \"extendeds_tables\" table: %w", err)
 	}

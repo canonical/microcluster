@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/lxc/lxd/lxd/db/query"
 	"github.com/lxc/lxd/shared/api"
@@ -23,7 +24,7 @@ SELECT internal_cluster_members.id, internal_cluster_members.name, internal_clus
 var internalClusterMemberObjectsByAddress = RegisterStmt(`
 SELECT internal_cluster_members.id, internal_cluster_members.name, internal_cluster_members.address, internal_cluster_members.certificate, internal_cluster_members.schema, internal_cluster_members.heartbeat, internal_cluster_members.role
   FROM internal_cluster_members
-  WHERE internal_cluster_members.address = ? ORDER BY internal_cluster_members.address
+  WHERE ( internal_cluster_members.address = ? ) ORDER BY internal_cluster_members.address
 `)
 
 var internalClusterMemberID = RegisterStmt(`
@@ -48,7 +49,7 @@ UPDATE internal_cluster_members
 
 // GetInternalClusterMembers returns all available internal_cluster_members.
 // generator: internal_cluster_member GetMany
-func GetInternalClusterMembers(ctx context.Context, tx *sql.Tx, filter InternalClusterMemberFilter) ([]InternalClusterMember, error) {
+func GetInternalClusterMembers(ctx context.Context, tx *sql.Tx, filters ...InternalClusterMemberFilter) ([]InternalClusterMember, error) {
 	var err error
 
 	// Result slice.
@@ -56,26 +57,46 @@ func GetInternalClusterMembers(ctx context.Context, tx *sql.Tx, filter InternalC
 
 	// Pick the prepared statement and arguments to use based on active criteria.
 	var sqlStmt *sql.Stmt
-	var args []any
+	args := []any{}
+	queryParts := [2]string{}
 
-	if filter.Address != nil {
-		sqlStmt, err = Stmt(tx, internalClusterMemberObjectsByAddress)
-		if err != nil {
-			return nil, fmt.Errorf("Failed to get \"internalClusterMemberObjectsByAddress\" prepared statement: %w", err)
-		}
-
-		args = []any{
-			filter.Address,
-		}
-	} else if filter.Address == nil {
+	if len(filters) == 0 {
 		sqlStmt, err = Stmt(tx, internalClusterMemberObjects)
 		if err != nil {
 			return nil, fmt.Errorf("Failed to get \"internalClusterMemberObjects\" prepared statement: %w", err)
 		}
+	}
 
-		args = []any{}
-	} else {
-		return nil, fmt.Errorf("No statement exists for the given Filter")
+	for i, filter := range filters {
+		if filter.Address != nil {
+			args = append(args, []any{filter.Address}...)
+			if len(filters) == 1 {
+				sqlStmt, err = Stmt(tx, internalClusterMemberObjectsByAddress)
+				if err != nil {
+					return nil, fmt.Errorf("Failed to get \"internalClusterMemberObjectsByAddress\" prepared statement: %w", err)
+				}
+
+				break
+			}
+
+			query, err := StmtString(internalClusterMemberObjectsByAddress)
+			if err != nil {
+				return nil, fmt.Errorf("Failed to get \"internalClusterMemberObjects\" prepared statement: %w", err)
+			}
+
+			parts := strings.SplitN(query, "ORDER BY", 2)
+			if i == 0 {
+				copy(queryParts[:], parts)
+				continue
+			}
+
+			_, where, _ := strings.Cut(parts[0], "WHERE")
+			queryParts[0] += "OR" + where
+		} else if filter.Address == nil {
+			return nil, fmt.Errorf("Cannot filter on empty InternalClusterMemberFilter")
+		} else {
+			return nil, fmt.Errorf("No statement exists for the given Filter")
+		}
 	}
 
 	// Dest function for scanning a row.
@@ -92,7 +113,13 @@ func GetInternalClusterMembers(ctx context.Context, tx *sql.Tx, filter InternalC
 	}
 
 	// Select.
-	err = query.SelectObjects(sqlStmt, dest, args...)
+	if sqlStmt != nil {
+		err = query.SelectObjects(sqlStmt, dest, args...)
+	} else {
+		queryStr := strings.Join(queryParts[:], "ORDER BY")
+		err = query.Scan(tx, queryStr, dest, args...)
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("Failed to fetch from \"internals_clusters_members\" table: %w", err)
 	}

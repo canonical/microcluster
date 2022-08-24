@@ -43,3 +43,13 @@ func Stmt(tx *sql.Tx, code int) (*sql.Stmt, error) {
 
 	return tx.Stmt(stmt), nil
 }
+
+// StmtString returns the in-memory query string with the given code.
+func StmtString(code int) (string, error) {
+	stmt, ok := stmts[code]
+	if !ok {
+		return "", fmt.Errorf("No prepared statement registered with code %d", code)
+	}
+
+	return stmt, nil
+}

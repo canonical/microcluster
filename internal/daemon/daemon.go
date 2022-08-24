@@ -49,6 +49,8 @@ type Daemon struct {
 	fsWatcher  *sys.Watcher
 	trustStore *trust.Store
 
+	initHook func(state *state.State, bootstrap bool) error // Hook to be called upon initializing the daemon for the first time.
+
 	ReadyChan      chan struct{}      // Closed when the daemon is fully ready.
 	ShutdownCtx    context.Context    // Cancelled when shutdown starts.
 	ShutdownDoneCh chan error         // Receives the result of the d.Stop() function and tells the daemon to end.
@@ -67,7 +69,7 @@ func NewDaemon(ctx context.Context) *Daemon {
 }
 
 // Init initializes the Daemon with the given configuration, and starts the database.
-func (d *Daemon) Init(addr string, stateDir string, extendedEndpoints []rest.Endpoint, schemaExtensions map[int]schema.Update) error {
+func (d *Daemon) Init(addr string, stateDir string, extendedEndpoints []rest.Endpoint, schemaExtensions map[int]schema.Update, initHook func(state *state.State, bootstrap bool) error) error {
 	if stateDir == "" {
 		stateDir = os.Getenv(sys.StateDir)
 	}
@@ -84,7 +86,7 @@ func (d *Daemon) Init(addr string, stateDir string, extendedEndpoints []rest.End
 		return fmt.Errorf("Failed to initialize directory structure: %w", err)
 	}
 
-	err = d.init(extendedEndpoints, schemaExtensions)
+	err = d.init(extendedEndpoints, schemaExtensions, initHook)
 	if err != nil {
 		return fmt.Errorf("Daemon failed to start: %w", err)
 	}
@@ -94,7 +96,7 @@ func (d *Daemon) Init(addr string, stateDir string, extendedEndpoints []rest.End
 	return nil
 }
 
-func (d *Daemon) init(extendedEndpoints []rest.Endpoint, schemaExtensions map[int]schema.Update) error {
+func (d *Daemon) init(extendedEndpoints []rest.Endpoint, schemaExtensions map[int]schema.Update, initHook func(state *state.State, bootstrap bool) error) error {
 	var err error
 	d.serverCert, err = util.LoadServerCert(d.os.StateDir)
 	if err != nil {
@@ -129,6 +131,8 @@ func (d *Daemon) init(extendedEndpoints []rest.Endpoint, schemaExtensions map[in
 	if err != nil {
 		return err
 	}
+
+	d.initHook = initHook
 
 	return nil
 }
@@ -374,8 +378,15 @@ func (d *Daemon) StartAPI(bootstrap bool, joinAddresses ...string) error {
 
 		return nil
 	})
+	if err != nil {
+		return err
+	}
 
-	return err
+	if d.initHook != nil {
+		return d.initHook(d.State(), bootstrap)
+	}
+
+	return nil
 }
 
 // ClusterCert ensures both the daemon and state have the same cluster cert.

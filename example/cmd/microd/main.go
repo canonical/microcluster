@@ -14,6 +14,7 @@ import (
 	"github.com/canonical/microcluster/example/database"
 	"github.com/canonical/microcluster/example/version"
 	"github.com/canonical/microcluster/microcluster"
+	"github.com/canonical/microcluster/state"
 )
 
 // Debug indicates whether to log debug messages or not.
@@ -64,7 +65,15 @@ func (c *cmdDaemon) Run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	return m.Start(c.flagAddr, api.Endpoints, database.SchemaExtensions)
+	return m.Start(c.flagAddr, api.Endpoints, database.SchemaExtensions, func(state *state.State, bootstrap bool) error {
+		if bootstrap {
+			logger.Info("This is a hook run on bootstrap")
+		} else {
+			logger.Info("This is a hook run on join")
+		}
+
+		return nil
+	})
 }
 
 func init() {

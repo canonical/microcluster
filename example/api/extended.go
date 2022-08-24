@@ -16,14 +16,14 @@ import (
 	"github.com/canonical/microcluster/state"
 )
 
-// This is an example extended endpoint on the /public endpoint, reachable at /public/extended.
+// This is an example extended endpoint on the /1.0 endpoint, reachable at /1.0/extended.
 var extendedCmd = rest.Endpoint{
 	Path: "extended",
 
 	Post: rest.EndpointAction{Handler: cmdPost, AllowUntrusted: true},
 }
 
-// This is the POST handler for the /public/extended endpoint.
+// This is the POST handler for the /1.0/extended endpoint.
 // This example shows how to forward a request to other cluster members.
 func cmdPost(state *state.State, r *http.Request) response.Response {
 	// Check the user agent header to check if we are the notifying cluster member.
@@ -47,7 +47,7 @@ func cmdPost(state *state.State, r *http.Request) response.Response {
 				Message: "Testing 1 2 3...",
 			}
 
-			// Asynchronously send a POST on /public/extended to each other cluster member.
+			// Asynchronously send a POST on /1.0/extended to each other cluster member.
 			outMessage, err := extendedClient.ExtendedPostCmd(ctx, c, data)
 			if err != nil {
 				clientURL := c.URL()

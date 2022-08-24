@@ -162,7 +162,7 @@ func clusterPost(state *state.State, r *http.Request) response.Response {
 func clusterGet(state *state.State, r *http.Request) response.Response {
 	var apiClusterMembers []internalTypes.ClusterMember
 	err := state.Database.Transaction(state.Context, func(ctx context.Context, tx *db.Tx) error {
-		clusterMembers, err := cluster.GetInternalClusterMembers(ctx, tx, cluster.InternalClusterMemberFilter{})
+		clusterMembers, err := cluster.GetInternalClusterMembers(ctx, tx)
 		if err != nil {
 			return err
 		}

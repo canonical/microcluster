@@ -95,7 +95,7 @@ func tokensGet(state *state.State, r *http.Request) response.Response {
 	var records []internalTypes.TokenRecord
 	err = state.Database.Transaction(state.Context, func(ctx context.Context, tx *db.Tx) error {
 		var err error
-		tokens, err := cluster.GetInternalTokenRecords(ctx, tx, cluster.InternalTokenRecordFilter{})
+		tokens, err := cluster.GetInternalTokenRecords(ctx, tx)
 		if err != nil {
 			return err
 		}

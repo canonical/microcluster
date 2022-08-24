@@ -1,11 +1,5 @@
 .PHONY: default
-default: build
-
-# Build targets.
-.PHONY: build
-build:
-	go install -v ./cmd/microctl
-	go install -v ./cmd/microd
+default: update-schema
 
 # Testing targets.
 .PHONY: check
@@ -43,8 +37,8 @@ update-gomod:
 # Update lxd-generate generated database helpers.
 .PHONY: update-schema
 update-schema:
-	go generate ./...
-	gofmt -s -w ./database/
-	goimports -w ./database/
+	go generate ./cluster/...
+	gofmt -s -w ./cluster/
+	goimports -w ./cluster/
 	@echo "Code generation completed"
 

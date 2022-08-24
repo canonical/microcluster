@@ -35,7 +35,7 @@ func cmdPost(state *state.State, r *http.Request) response.Response {
 		}
 
 		messages := make([]string, 0, len(cluster))
-		cluster.Query(state.Context, true, func(ctx context.Context, c *client.Client) error {
+		err = cluster.Query(state.Context, true, func(ctx context.Context, c *client.Client) error {
 			addrPort, err := types.ParseAddrPort(state.Address.URL.Host)
 			if err != nil {
 				return fmt.Errorf("Failed to parse addr:port of listen address %q: %w", state.Address.String(), err)

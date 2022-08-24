@@ -1,3 +1,4 @@
+// Package client provides a full Go API client.
 package client
 
 import (

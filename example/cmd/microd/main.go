@@ -1,3 +1,4 @@
+// Package microd provides the daemon.
 package main
 
 import (

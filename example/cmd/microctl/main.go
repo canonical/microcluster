@@ -1,3 +1,4 @@
+// Package microctl provides the main client tool.
 package main
 
 import (

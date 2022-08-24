@@ -1,3 +1,4 @@
+// Package types provides shared types and structs.
 package types
 
 import "github.com/canonical/microcluster/rest/types"

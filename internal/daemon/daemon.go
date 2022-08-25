@@ -304,8 +304,15 @@ func (d *Daemon) StartAPI(bootstrap bool, runHook bool, joinAddresses ...string)
 
 			return err
 		})
+		if err != nil {
+			return err
+		}
 
-		return err
+		if runHook && d.initHook != nil {
+			return d.initHook(d.State(), bootstrap)
+		}
+
+		return nil
 	}
 
 	if len(joinAddresses) != 0 {

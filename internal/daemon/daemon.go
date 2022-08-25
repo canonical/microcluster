@@ -301,8 +301,15 @@ func (d *Daemon) StartAPI(bootstrap bool, runHook bool, joinAddresses ...string)
 			}
 
 			_, err := cluster.CreateInternalClusterMember(ctx, tx, clusterMember)
+			if err != nil {
+				return err
+			}
 
-			return err
+			if runHook && d.initHook != nil {
+				return d.initHook(d.State(), bootstrap)
+			}
+
+			return nil
 		})
 
 		return err

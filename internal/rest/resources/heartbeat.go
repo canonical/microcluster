@@ -39,6 +39,11 @@ func heartbeatPost(state *state.State, r *http.Request) response.Response {
 
 	// If we are not beginning a heartbeat, we are receiving one sent by the leader,
 	// so we should update our local store of cluster members with the data from the heartbeat.
+
+	if !state.Database.IsOpen() {
+		return response.SmartError(fmt.Errorf("Failed to respond to heartbeat, database is not yet open"))
+	}
+
 	clusterMemberList := []types.ClusterMember{}
 	for _, clusterMember := range hbInfo.ClusterMembers {
 		clusterMemberList = append(clusterMemberList, clusterMember)

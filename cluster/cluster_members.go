@@ -38,8 +38,8 @@ const Pending Role = "PENDING"
 // InternalClusterMember represents the global database entry for a dqlite cluster member.
 type InternalClusterMember struct {
 	ID          int
-	Name        string
-	Address     string `db:"primary=yes"`
+	Name        string `db:"primary=yes"`
+	Address     string
 	Certificate string
 	Schema      int
 	Heartbeat   time.Time

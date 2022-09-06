@@ -24,7 +24,8 @@ SELECT internal_token_records.id, internal_token_records.secret, internal_token_
 var internalTokenRecordObjectsBySecret = RegisterStmt(`
 SELECT internal_token_records.id, internal_token_records.secret, internal_token_records.name
   FROM internal_token_records
-  WHERE ( internal_token_records.secret = ? ) ORDER BY internal_token_records.secret
+  WHERE ( internal_token_records.secret = ? )
+  ORDER BY internal_token_records.secret
 `)
 
 var internalTokenRecordID = RegisterStmt(`

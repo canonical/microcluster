@@ -14,20 +14,20 @@ import (
 //go:generate -command mapper lxd-generate db mapper -t cluster_members.mapper.go
 //go:generate mapper reset
 //
-//go:generate mapper stmt -e internal_cluster_member objects table=internal_cluster_members version=2
-//go:generate mapper stmt -e internal_cluster_member objects-by-Address table=internal_cluster_members version=2
-//go:generate mapper stmt -e internal_cluster_member id table=internal_cluster_members version=2
-//go:generate mapper stmt -e internal_cluster_member create table=internal_cluster_members version=2
-//go:generate mapper stmt -e internal_cluster_member delete-by-Address table=internal_cluster_members version=2
-//go:generate mapper stmt -e internal_cluster_member update table=internal_cluster_members version=2
+//go:generate mapper stmt -e internal_cluster_member objects table=internal_cluster_members
+//go:generate mapper stmt -e internal_cluster_member objects-by-Address table=internal_cluster_members
+//go:generate mapper stmt -e internal_cluster_member id table=internal_cluster_members
+//go:generate mapper stmt -e internal_cluster_member create table=internal_cluster_members
+//go:generate mapper stmt -e internal_cluster_member delete-by-Address table=internal_cluster_members
+//go:generate mapper stmt -e internal_cluster_member update table=internal_cluster_members
 //
-//go:generate mapper method -i -e internal_cluster_member GetMany version=2
-//go:generate mapper method -i -e internal_cluster_member GetOne version=2
-//go:generate mapper method -i -e internal_cluster_member ID version=2
-//go:generate mapper method -i -e internal_cluster_member Exists version=2
-//go:generate mapper method -i -e internal_cluster_member Create version=2
-//go:generate mapper method -i -e internal_cluster_member DeleteOne-by-Address version=2
-//go:generate mapper method -i -e internal_cluster_member Update version=2
+//go:generate mapper method -i -e internal_cluster_member GetMany
+//go:generate mapper method -i -e internal_cluster_member GetOne
+//go:generate mapper method -i -e internal_cluster_member ID
+//go:generate mapper method -i -e internal_cluster_member Exists
+//go:generate mapper method -i -e internal_cluster_member Create
+//go:generate mapper method -i -e internal_cluster_member DeleteOne-by-Address
+//go:generate mapper method -i -e internal_cluster_member Update
 
 // Role is the role of the dqlite cluster member, with the addition of "pending" for nodes about to be added or
 // removed.
@@ -38,8 +38,8 @@ const Pending Role = "PENDING"
 // InternalClusterMember represents the global database entry for a dqlite cluster member.
 type InternalClusterMember struct {
 	ID          int
-	Name        string
-	Address     string `db:"primary=yes"`
+	Name        string `db:"primary=yes"`
+	Address     string
 	Certificate string
 	Schema      int
 	Heartbeat   time.Time

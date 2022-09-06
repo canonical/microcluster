@@ -25,7 +25,8 @@ SELECT extended_table.id, extended_table.key, extended_table.value
 var extendedTableObjectsByKey = cluster.RegisterStmt(`
 SELECT extended_table.id, extended_table.key, extended_table.value
   FROM extended_table
-  WHERE ( extended_table.key = ? ) ORDER BY extended_table.key
+  WHERE ( extended_table.key = ? )
+  ORDER BY extended_table.key
 `)
 
 var extendedTableID = cluster.RegisterStmt(`

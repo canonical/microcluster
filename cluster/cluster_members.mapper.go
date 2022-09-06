@@ -18,18 +18,19 @@ var _ = api.ServerEnvironment{}
 var internalClusterMemberObjects = RegisterStmt(`
 SELECT internal_cluster_members.id, internal_cluster_members.name, internal_cluster_members.address, internal_cluster_members.certificate, internal_cluster_members.schema, internal_cluster_members.heartbeat, internal_cluster_members.role
   FROM internal_cluster_members
-  ORDER BY internal_cluster_members.address
+  ORDER BY internal_cluster_members.name
 `)
 
 var internalClusterMemberObjectsByAddress = RegisterStmt(`
 SELECT internal_cluster_members.id, internal_cluster_members.name, internal_cluster_members.address, internal_cluster_members.certificate, internal_cluster_members.schema, internal_cluster_members.heartbeat, internal_cluster_members.role
   FROM internal_cluster_members
-  WHERE ( internal_cluster_members.address = ? ) ORDER BY internal_cluster_members.address
+  WHERE ( internal_cluster_members.address = ? )
+  ORDER BY internal_cluster_members.name
 `)
 
 var internalClusterMemberID = RegisterStmt(`
 SELECT internal_cluster_members.id FROM internal_cluster_members
-  WHERE internal_cluster_members.address = ?
+  WHERE internal_cluster_members.name = ?
 `)
 
 var internalClusterMemberCreate = RegisterStmt(`
@@ -129,9 +130,9 @@ func GetInternalClusterMembers(ctx context.Context, tx *sql.Tx, filters ...Inter
 
 // GetInternalClusterMember returns the internal_cluster_member with the given key.
 // generator: internal_cluster_member GetOne
-func GetInternalClusterMember(ctx context.Context, tx *sql.Tx, address string) (*InternalClusterMember, error) {
+func GetInternalClusterMember(ctx context.Context, tx *sql.Tx, name string) (*InternalClusterMember, error) {
 	filter := InternalClusterMemberFilter{}
-	filter.Address = &address
+	filter.Name = &name
 
 	objects, err := GetInternalClusterMembers(ctx, tx, filter)
 	if err != nil {
@@ -150,13 +151,13 @@ func GetInternalClusterMember(ctx context.Context, tx *sql.Tx, address string) (
 
 // GetInternalClusterMemberID return the ID of the internal_cluster_member with the given key.
 // generator: internal_cluster_member ID
-func GetInternalClusterMemberID(ctx context.Context, tx *sql.Tx, address string) (int64, error) {
+func GetInternalClusterMemberID(ctx context.Context, tx *sql.Tx, name string) (int64, error) {
 	stmt, err := Stmt(tx, internalClusterMemberID)
 	if err != nil {
 		return -1, fmt.Errorf("Failed to get \"internalClusterMemberID\" prepared statement: %w", err)
 	}
 
-	rows, err := stmt.Query(address)
+	rows, err := stmt.Query(name)
 	if err != nil {
 		return -1, fmt.Errorf("Failed to get \"internals_clusters_members\" ID: %w", err)
 	}
@@ -188,8 +189,8 @@ func GetInternalClusterMemberID(ctx context.Context, tx *sql.Tx, address string)
 
 // InternalClusterMemberExists checks if a internal_cluster_member with the given key exists.
 // generator: internal_cluster_member Exists
-func InternalClusterMemberExists(ctx context.Context, tx *sql.Tx, address string) (bool, error) {
-	_, err := GetInternalClusterMemberID(ctx, tx, address)
+func InternalClusterMemberExists(ctx context.Context, tx *sql.Tx, name string) (bool, error) {
+	_, err := GetInternalClusterMemberID(ctx, tx, name)
 	if err != nil {
 		if api.StatusErrorCheck(err, http.StatusNotFound) {
 			return false, nil
@@ -205,7 +206,7 @@ func InternalClusterMemberExists(ctx context.Context, tx *sql.Tx, address string
 // generator: internal_cluster_member Create
 func CreateInternalClusterMember(ctx context.Context, tx *sql.Tx, object InternalClusterMember) (int64, error) {
 	// Check if a internal_cluster_member with the same key exists.
-	exists, err := InternalClusterMemberExists(ctx, tx, object.Address)
+	exists, err := InternalClusterMemberExists(ctx, tx, object.Name)
 	if err != nil {
 		return -1, fmt.Errorf("Failed to check for duplicates: %w", err)
 	}
@@ -273,8 +274,8 @@ func DeleteInternalClusterMember(ctx context.Context, tx *sql.Tx, address string
 
 // UpdateInternalClusterMember updates the internal_cluster_member matching the given key parameters.
 // generator: internal_cluster_member Update
-func UpdateInternalClusterMember(ctx context.Context, tx *sql.Tx, address string, object InternalClusterMember) error {
-	id, err := GetInternalClusterMemberID(ctx, tx, address)
+func UpdateInternalClusterMember(ctx context.Context, tx *sql.Tx, name string, object InternalClusterMember) error {
+	id, err := GetInternalClusterMemberID(ctx, tx, name)
 	if err != nil {
 		return err
 	}

@@ -159,23 +159,23 @@ func (m *MicroCluster) Ready(timeoutSeconds int) error {
 }
 
 // NewCluster bootstrapps a brand new cluster with this daemon as its only member.
-func (m *MicroCluster) NewCluster() error {
+func (m *MicroCluster) NewCluster(timeout time.Duration) error {
 	c, err := m.LocalClient()
 	if err != nil {
 		return err
 	}
 
-	return c.ControlDaemon(m.ctx, types.Control{Bootstrap: true})
+	return c.ControlDaemon(m.ctx, types.Control{Bootstrap: true}, timeout)
 }
 
 // JoinCluster joins an existing cluster with a join token supplied by an existing cluster member.
-func (m *MicroCluster) JoinCluster(token string) error {
+func (m *MicroCluster) JoinCluster(token string, timeout time.Duration) error {
 	c, err := m.LocalClient()
 	if err != nil {
 		return err
 	}
 
-	return c.ControlDaemon(m.ctx, types.Control{JoinToken: token})
+	return c.ControlDaemon(m.ctx, types.Control{JoinToken: token}, timeout)
 }
 
 // NewJoinToken creates and records a new join token containing all the necessary credentials for joining a cluster.

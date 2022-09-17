@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/canonical/microcluster/microcluster"
 	"github.com/spf13/cobra"
@@ -48,11 +49,11 @@ func (c *cmdInit) Run(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("Name can only be specified with a join token")
 		}
 
-		return m.NewCluster()
+		return m.NewCluster(time.Second * 30)
 	}
 
 	if c.flagToken != "" {
-		return m.JoinCluster(c.flagToken)
+		return m.JoinCluster(c.flagToken, time.Second*30)
 	}
 
 	return fmt.Errorf("Option must be one of bootstrap or token")

@@ -152,7 +152,22 @@ func (d *Daemon) reloadIfBootstrapped() error {
 		return err
 	}
 
-	err = d.StartAPI(false, false)
+	_, err = os.Stat(filepath.Join(d.os.StateDir, "daemon.yaml"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			logger.Warn("microcluster daemon config is missing")
+			return nil
+		}
+
+		return err
+	}
+
+	err = d.setDaemonConfig(nil)
+	if err != nil {
+		return fmt.Errorf("Failed to retrieve daemon configuration yaml: %w", err)
+	}
+
+	err = d.StartAPI(false, false, nil)
 	if err != nil {
 		return err
 	}

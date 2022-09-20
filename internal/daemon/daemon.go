@@ -220,29 +220,6 @@ func (d *Daemon) initServer(resources ...*resources.Resources) *http.Server {
 	}
 }
 
-func (d *Daemon) validateConfig(addr string, stateDir string) error {
-	isListenAddress := validate.IsListenAddress(true, true, false)
-	if addr != "" {
-		err := isListenAddress(addr)
-		if err != nil {
-			return fmt.Errorf("Invalid admin address %q: %w", addr, err)
-		}
-
-		d.Address = *api.NewURL().Scheme("https").Host(addr)
-	}
-
-	if stateDir == "" {
-		return fmt.Errorf("State directory must be specified")
-	}
-
-	_, err := os.Stat(stateDir)
-	if err != nil && !os.IsNotExist(err) {
-		return err
-	}
-
-	return nil
-}
-
 // StartAPI starts up the admin and consumer APIs, and generates a cluster cert
 // if we are bootstrapping the first node.
 func (d *Daemon) StartAPI(bootstrap bool, runHook bool, joinAddresses ...string) error {

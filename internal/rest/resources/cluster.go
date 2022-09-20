@@ -74,8 +74,7 @@ func clusterPost(state *state.State, r *http.Request) response.Response {
 	}
 
 	newRemote := trust.Remote{
-		Name:        req.Name,
-		Address:     req.Address,
+		Location:    trust.Location{Name: req.Name, Address: req.Address},
 		Certificate: req.Certificate,
 	}
 

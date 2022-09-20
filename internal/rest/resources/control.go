@@ -126,9 +126,8 @@ func joinWithToken(state *state.State, req *internalTypes.Control) response.Resp
 	clusterMembers := make([]trust.Remote, 0, len(joinInfo.ClusterMembers))
 	for _, clusterMember := range joinInfo.ClusterMembers {
 		remote := trust.Remote{
-			Name:        clusterMember.Name,
+			Location:    trust.Location{Name: clusterMember.Name, Address: clusterMember.Address},
 			Certificate: clusterMember.Certificate,
-			Address:     clusterMember.Address,
 		}
 
 		joinAddrs = append(joinAddrs, clusterMember.Address)

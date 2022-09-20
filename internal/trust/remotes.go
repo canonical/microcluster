@@ -26,9 +26,14 @@ type Remotes struct {
 
 // Remote represents a yaml file with credentials to be read by the daemon.
 type Remote struct {
-	Name        string                `yaml:"name"`
-	Address     types.AddrPort        `yaml:"address"`
+	Location    `yaml:",inline"`
 	Certificate types.X509Certificate `yaml:"certificate"`
+}
+
+// Location represents configurable identifying information about a remote.
+type Location struct {
+	Name    string         `yaml:"name"`
+	Address types.AddrPort `yaml:"address"`
 }
 
 // Load reads any yaml files in the given directory and parses them into a set of Remotes.
@@ -114,7 +119,10 @@ func (r *Remotes) Replace(dir string, newRemotes ...internalTypes.ClusterMember)
 
 	r.data = map[string]Remote{}
 	for _, remote := range newRemotes {
-		newRemote := Remote{Name: remote.Name, Address: remote.Address, Certificate: remote.Certificate}
+		newRemote := Remote{
+			Location:    Location{Name: remote.Name, Address: remote.Address},
+			Certificate: remote.Certificate,
+		}
 		bytes, err := yaml.Marshal(newRemote)
 		if err != nil {
 			return fmt.Errorf("Failed to parse remote %q to yaml: %w", remote.Name, err)

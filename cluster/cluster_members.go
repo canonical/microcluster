@@ -1,6 +1,7 @@
 package cluster
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"time"
@@ -101,9 +102,9 @@ func UpdateClusterMemberSchemaVersion(tx *sql.Tx, version int, address string) e
 
 // GetClusterMemberSchemaVersions returns the schema versions from all cluster members that are not pending.
 // This helper is non-generated to work before generated statements are loaded, as we update the schema.
-func GetClusterMemberSchemaVersions(tx *sql.Tx) ([]int, error) {
+func GetClusterMemberSchemaVersions(ctx context.Context, tx *sql.Tx) ([]int, error) {
 	sql := "SELECT schema FROM internal_cluster_members WHERE NOT role='pending'"
-	versions, err := query.SelectIntegers(tx, sql)
+	versions, err := query.SelectIntegers(ctx, tx, sql)
 	if err != nil {
 		return nil, err
 	}

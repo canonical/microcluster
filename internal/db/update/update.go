@@ -1,6 +1,7 @@
 package update
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"os"
@@ -86,7 +87,7 @@ var updates = map[int]schema.Update{
 	1: updateFromV0,
 }
 
-func updateFromV0(tx *sql.Tx) error {
+func updateFromV0(ctx context.Context, tx *sql.Tx) error {
 	stmt := fmt.Sprintf(`
 %s
 
@@ -111,6 +112,6 @@ CREATE TABLE internal_cluster_members (
 );
 `, CreateSchema)
 
-	_, err := tx.Exec(stmt)
+	_, err := tx.ExecContext(ctx, stmt)
 	return err
 }

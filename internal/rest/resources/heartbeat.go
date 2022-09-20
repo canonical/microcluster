@@ -56,7 +56,7 @@ func heartbeatPost(state *state.State, r *http.Request) response.Response {
 
 	var schemaVersion int
 	err = state.Database.Transaction(state.Context, func(ctx context.Context, tx *db.Tx) error {
-		localClusterMember, err := cluster.GetInternalClusterMember(ctx, tx, state.Address.URL.Host)
+		localClusterMember, err := cluster.GetInternalClusterMember(ctx, tx, state.Name())
 		if err != nil {
 			return err
 		}
@@ -260,7 +260,7 @@ func beginHeartbeat(state *state.State, r *http.Request) response.Response {
 
 			clusterMember.Heartbeat = heartbeatInfo.LastHeartbeat
 			clusterMember.Role = cluster.Role(heartbeatInfo.Role)
-			err = cluster.UpdateInternalClusterMember(ctx, tx, clusterMember.Address, clusterMember)
+			err = cluster.UpdateInternalClusterMember(ctx, tx, clusterMember.Name, clusterMember)
 			if err != nil {
 				return err
 			}

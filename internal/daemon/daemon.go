@@ -237,10 +237,16 @@ func (d *Daemon) initServer(resources ...*resources.Resources) *http.Server {
 
 // StartAPI starts up the admin and consumer APIs, and generates a cluster cert
 // if we are bootstrapping the first node.
-func (d *Daemon) StartAPI(bootstrap bool, runHook bool, joinAddresses ...string) error {
-	addr, err := types.ParseAddrPort(d.Address.URL.Host)
-	if err != nil {
-		return fmt.Errorf("Failed to parse listen address when bootstrapping API: %w", err)
+func (d *Daemon) StartAPI(bootstrap bool, runHook bool, newConfig *trust.Location, joinAddresses ...string) error {
+	if newConfig != nil {
+		err := d.setDaemonConfig(newConfig)
+		if err != nil {
+			return fmt.Errorf("Failed to apply and save new daemon configuration: %w", err)
+		}
+	}
+
+	if d.address.URL.Host == "" || d.name == "" {
+		return fmt.Errorf("Cannot start network API without valid daemon configuration")
 	}
 
 	serverCert, err := d.serverCert.PublicKeyX509()
@@ -248,9 +254,13 @@ func (d *Daemon) StartAPI(bootstrap bool, runHook bool, joinAddresses ...string)
 		return fmt.Errorf("Failed to parse server certificate when bootstrapping API: %w", err)
 	}
 
+	addrPort, err := types.ParseAddrPort(d.address.URL.Host)
+	if err != nil {
+		return fmt.Errorf("Failed to parse listen address when bootstrapping API: %w", err)
+	}
+
 	localNode := trust.Remote{
-		Name:        filepath.Base(d.os.StateDir),
-		Address:     addr,
+		Location:    trust.Location{Name: d.name, Address: addrPort},
 		Certificate: types.X509Certificate{Certificate: serverCert},
 	}
 
@@ -276,7 +286,7 @@ func (d *Daemon) StartAPI(bootstrap bool, runHook bool, joinAddresses ...string)
 
 	// If bootstrapping the first node, just open the database and create an entry for ourselves.
 	if bootstrap {
-		err = d.db.Bootstrap(d.ClusterCert())
+		err = d.db.Bootstrap(d.address, d.ClusterCert())
 		if err != nil {
 			return err
 		}
@@ -312,12 +322,12 @@ func (d *Daemon) StartAPI(bootstrap bool, runHook bool, joinAddresses ...string)
 	}
 
 	if len(joinAddresses) != 0 {
-		err = d.db.Join(d.ClusterCert(), joinAddresses...)
+		err = d.db.Join(d.address, d.ClusterCert(), joinAddresses...)
 		if err != nil {
 			return fmt.Errorf("Failed to join cluster: %w", err)
 		}
 	} else {
-		err = d.db.StartWithCluster(d.trustStore.Remotes().Addresses(), d.clusterCert)
+		err = d.db.StartWithCluster(d.address, d.trustStore.Remotes().Addresses(), d.clusterCert)
 		if err != nil {
 			return fmt.Errorf("Failed to re-establish cluster connection: %w", err)
 		}

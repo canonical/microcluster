@@ -53,7 +53,7 @@ type State struct {
 	Remotes func() *trust.Remotes
 
 	// Initialize APIs and bootstrap/join database.
-	StartAPI func(bootstrap bool, runHook bool, joinAddresses ...string) error
+	StartAPI func(bootstrap bool, runHook bool, newConfig *trust.Location, joinAddresses ...string) error
 
 	// Stop fully stops the daemon, its database, and all listeners.
 	Stop func() error

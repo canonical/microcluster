@@ -44,7 +44,6 @@ type cmdDaemon struct {
 	global *cmdGlobal
 
 	flagStateDir string
-	flagAddr     string
 }
 
 func (c *cmdDaemon) Command() *cobra.Command {
@@ -65,7 +64,7 @@ func (c *cmdDaemon) Run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	return m.Start(c.flagAddr, api.Endpoints, database.SchemaExtensions, func(state *state.State, bootstrap bool) error {
+	return m.Start(api.Endpoints, database.SchemaExtensions, func(state *state.State, bootstrap bool) error {
 		if bootstrap {
 			logger.Info("This is a hook run on bootstrap")
 		} else {
@@ -92,7 +91,6 @@ func main() {
 	app.PersistentFlags().BoolVarP(&daemonCmd.global.flagLogVerbose, "verbose", "v", false, "Show all information messages")
 
 	app.PersistentFlags().StringVar(&daemonCmd.flagStateDir, "state-dir", "", "Path to store state information"+"``")
-	app.PersistentFlags().StringVar(&daemonCmd.flagAddr, "address", "", "Address:Port to bind for the API"+"``")
 
 	app.SetVersionTemplate("{{.Version}}\n")
 

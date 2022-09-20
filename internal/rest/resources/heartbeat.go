@@ -99,7 +99,7 @@ func beginHeartbeat(state *state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	if state.Address.URL.Host != leaderInfo.Address {
+	if state.Address().URL.Host != leaderInfo.Address {
 		return response.SmartError(fmt.Errorf("Attempt to initiate heartbeat from non-leader"))
 	}
 
@@ -159,7 +159,7 @@ func beginHeartbeat(state *state.State, r *http.Request) response.Response {
 
 	// If we sent out a heartbeat within double the request timeout,
 	// then wait the up to half the request timeout before exiting to prevent sending more unsuccessful attempts.
-	leaderEntry := clusterMap[state.Address.URL.Host]
+	leaderEntry := clusterMap[state.Address().URL.Host]
 	heartbeatInterval := time.Duration(time.Second * internalClient.HeartbeatTimeout * 2)
 	timeSinceLast := time.Since(leaderEntry.LastHeartbeat)
 	if timeSinceLast < heartbeatInterval {
@@ -181,7 +181,7 @@ func beginHeartbeat(state *state.State, r *http.Request) response.Response {
 
 		return response.EmptySyncResponse
 	}
-	logger.Debug("Beginning new heartbeat round", logger.Ctx{"address": state.Address.URL.Host})
+	logger.Debug("Beginning new heartbeat round", logger.Ctx{"address": state.Address().URL.Host})
 
 	// Update local record of cluster members from the database, including any pending nodes for authentication.
 	err = state.Remotes().Replace(state.OS.TrustDir, clusterMembers...)
@@ -191,7 +191,7 @@ func beginHeartbeat(state *state.State, r *http.Request) response.Response {
 
 	// Set the time of the last heartbeat to now.
 	leaderEntry.LastHeartbeat = time.Now()
-	clusterMap[state.Address.URL.Host] = leaderEntry
+	clusterMap[state.Address().URL.Host] = leaderEntry
 
 	// Record the maximum schema version discovered.
 	hbInfo := types.HeartbeatInfo{ClusterMembers: clusterMap}

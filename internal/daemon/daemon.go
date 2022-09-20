@@ -37,7 +37,8 @@ import (
 
 // Daemon holds information for the microcluster daemon.
 type Daemon struct {
-	Address api.URL // Listen Address.
+	address api.URL // Listen Address.
+	name    string  // Name of the cluster member.
 
 	os          *sys.OS
 	serverCert  *shared.CertInfo
@@ -271,7 +272,7 @@ func (d *Daemon) StartAPI(bootstrap bool, runHook bool, joinAddresses ...string)
 	}
 
 	server := d.initServer(resources.InternalEndpoints, resources.PublicEndpoints, resources.ExtendedEndpoints)
-	network := endpoints.NewNetwork(d.ShutdownCtx, endpoints.EndpointNetwork, server, d.Address, d.clusterCert)
+	network := endpoints.NewNetwork(d.ShutdownCtx, endpoints.EndpointNetwork, server, d.address, d.clusterCert)
 
 	err = d.endpoints.Add(network)
 	if err != nil {
@@ -335,7 +336,7 @@ func (d *Daemon) StartAPI(bootstrap bool, runHook bool, joinAddresses ...string)
 	// Get a client for every other cluster member in the newly refreshed local store.
 	cluster := make(client.Cluster, 0, d.trustStore.Remotes().Count()-1)
 	for _, addr := range d.trustStore.Remotes().Addresses() {
-		if d.Address.URL.Host == addr.String() {
+		if d.address.URL.Host == addr.String() {
 			continue
 		}
 
@@ -406,6 +407,16 @@ func (d *Daemon) ServerCert() *shared.CertInfo {
 	return d.serverCert
 }
 
+// Address ensures both the daemon and state have the same address.
+func (d *Daemon) Address() api.URL {
+	return d.address
+}
+
+// Name ensures both the daemon and state have the same name.
+func (d *Daemon) Name() string {
+	return d.name
+}
+
 // State creates a State instance with the daemon's stateful components.
 func (d *Daemon) State() *state.State {
 	state := &state.State{
@@ -414,6 +425,7 @@ func (d *Daemon) State() *state.State {
 		ShutdownDoneCh: d.ShutdownDoneCh,
 		OS:             d.os,
 		Address:        d.Address,
+		Name:           d.Name,
 		Endpoints:      d.endpoints,
 		ServerCert:     d.ServerCert,
 		ClusterCert:    d.ClusterCert,

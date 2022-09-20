@@ -16,9 +16,10 @@ import (
 	"github.com/canonical/microcluster/client"
 	"github.com/canonical/microcluster/internal/daemon"
 	internalClient "github.com/canonical/microcluster/internal/rest/client"
-	"github.com/canonical/microcluster/internal/rest/types"
+	internalTypes "github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/internal/sys"
 	"github.com/canonical/microcluster/rest"
+	"github.com/canonical/microcluster/rest/types"
 	"github.com/canonical/microcluster/state"
 )
 
@@ -48,7 +49,7 @@ func App(ctx context.Context, stateDir string, verbose bool, debug bool) (*Micro
 
 // Start starts up a brand new MicroCluster daemon. Only the local control socket will be available at this stage, no
 // database exists yet. Any api or schema extensions can be applied here.
-func (m *MicroCluster) Start(listenAddr string, apiEndpoints []rest.Endpoint, schemaExtensions map[int]schema.Update, initHook func(state *state.State, bootstrap bool) error) error {
+func (m *MicroCluster) Start(apiEndpoints []rest.Endpoint, schemaExtensions map[int]schema.Update, initHook func(state *state.State, bootstrap bool) error) error {
 	// Initialize the logger.
 	err := logger.InitLogger(m.FileSystem.LogFile, "", m.verbose, m.debug, nil)
 	if err != nil {
@@ -68,7 +69,7 @@ func (m *MicroCluster) Start(listenAddr string, apiEndpoints []rest.Endpoint, sc
 	chIgnore := make(chan os.Signal, 1)
 	signal.Notify(chIgnore, unix.SIGHUP)
 
-	err = d.Init(listenAddr, m.FileSystem.StateDir, apiEndpoints, schemaExtensions, initHook)
+	err = d.Init(m.FileSystem.StateDir, apiEndpoints, schemaExtensions, initHook)
 	if err != nil {
 		return fmt.Errorf("Unable to start daemon: %w", err)
 	}
@@ -159,23 +160,33 @@ func (m *MicroCluster) Ready(timeoutSeconds int) error {
 }
 
 // NewCluster bootstrapps a brand new cluster with this daemon as its only member.
-func (m *MicroCluster) NewCluster(timeout time.Duration) error {
+func (m *MicroCluster) NewCluster(name string, address string, timeout time.Duration) error {
 	c, err := m.LocalClient()
 	if err != nil {
 		return err
 	}
 
-	return c.ControlDaemon(m.ctx, types.Control{Bootstrap: true}, timeout)
+	addr, err := types.ParseAddrPort(address)
+	if err != nil {
+		return fmt.Errorf("Received invalid address %q: %w", address, err)
+	}
+
+	return c.ControlDaemon(m.ctx, internalTypes.Control{Bootstrap: true, Address: addr, Name: name}, timeout)
 }
 
 // JoinCluster joins an existing cluster with a join token supplied by an existing cluster member.
-func (m *MicroCluster) JoinCluster(token string, timeout time.Duration) error {
+func (m *MicroCluster) JoinCluster(name string, address string, token string, timeout time.Duration) error {
 	c, err := m.LocalClient()
 	if err != nil {
 		return err
 	}
 
-	return c.ControlDaemon(m.ctx, types.Control{JoinToken: token}, timeout)
+	addr, err := types.ParseAddrPort(address)
+	if err != nil {
+		return fmt.Errorf("Received invalid address %q: %w", address, err)
+	}
+
+	return c.ControlDaemon(m.ctx, internalTypes.Control{JoinToken: token, Address: addr, Name: name}, timeout)
 }
 
 // NewJoinToken creates and records a new join token containing all the necessary credentials for joining a cluster.
@@ -196,7 +207,7 @@ func (m *MicroCluster) NewJoinToken(name string) (string, error) {
 }
 
 // ListJoinTokens lists all the join tokens currently available for use.
-func (m *MicroCluster) ListJoinTokens() ([]types.TokenRecord, error) {
+func (m *MicroCluster) ListJoinTokens() ([]internalTypes.TokenRecord, error) {
 	c, err := internalClient.New(m.FileSystem.ControlSocket(), nil, nil, false)
 	if err != nil {
 		return nil, err
@@ -263,7 +274,7 @@ func (m *MicroCluster) Client(address string) (*client.Client, error) {
 }
 
 // SQL performs either a GET or POST on /internal/sql with a given query. This is a useful helper for using direct SQL.
-func (m *MicroCluster) SQL(query string) (string, *types.SQLBatch, error) {
+func (m *MicroCluster) SQL(query string) (string, *internalTypes.SQLBatch, error) {
 	if query == "-" {
 		// Read from stdin
 		bytes, err := ioutil.ReadAll(os.Stdin)
@@ -288,7 +299,7 @@ func (m *MicroCluster) SQL(query string) (string, *types.SQLBatch, error) {
 		return fmt.Sprintf(dump.Text), nil, nil
 	}
 
-	data := types.SQLQuery{
+	data := internalTypes.SQLQuery{
 		Query: query,
 	}
 

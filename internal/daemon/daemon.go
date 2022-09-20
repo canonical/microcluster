@@ -70,18 +70,21 @@ func NewDaemon(ctx context.Context) *Daemon {
 }
 
 // Init initializes the Daemon with the given configuration, and starts the database.
-func (d *Daemon) Init(addr string, stateDir string, extendedEndpoints []rest.Endpoint, schemaExtensions map[int]schema.Update, initHook func(state *state.State, bootstrap bool) error) error {
+func (d *Daemon) Init(stateDir string, extendedEndpoints []rest.Endpoint, schemaExtensions map[int]schema.Update, initHook func(state *state.State, bootstrap bool) error) error {
 	if stateDir == "" {
 		stateDir = os.Getenv(sys.StateDir)
 	}
 
-	err := d.validateConfig(addr, stateDir)
-	if err != nil {
-		return fmt.Errorf("Invalid daemon configuration: %w", err)
+	if stateDir == "" {
+		return fmt.Errorf("State directory must be specified")
+	}
+
+	_, err := os.Stat(stateDir)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("Failed to find state directory: %w", err)
 	}
 
 	// TODO: Check if already running.
-
 	d.os, err = sys.DefaultOS(stateDir, true)
 	if err != nil {
 		return fmt.Errorf("Failed to initialize directory structure: %w", err)
@@ -109,7 +112,7 @@ func (d *Daemon) init(extendedEndpoints []rest.Endpoint, schemaExtensions map[in
 		return fmt.Errorf("Failed to initialize trust store: %w", err)
 	}
 
-	d.db = db.NewDB(d.ShutdownCtx, d.serverCert, d.os, d.Address)
+	d.db = db.NewDB(d.ShutdownCtx, d.serverCert, d.os)
 
 	ctlServer := d.initServer(resources.ControlEndpoints)
 	ctl := endpoints.NewSocket(d.ShutdownCtx, ctlServer, d.os.ControlSocket(), "") // TODO: add socket group.

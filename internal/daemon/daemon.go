@@ -18,7 +18,7 @@ import (
 	"github.com/lxc/lxd/shared"
 	"github.com/lxc/lxd/shared/api"
 	"github.com/lxc/lxd/shared/logger"
-	"github.com/lxc/lxd/shared/validate"
+	"gopkg.in/yaml.v2"
 
 	"github.com/canonical/microcluster/client"
 	"github.com/canonical/microcluster/cluster"
@@ -448,4 +448,36 @@ func (d *Daemon) Stop() error {
 	}
 
 	return d.endpoints.Down()
+}
+
+// setDaemonConfig sets the daemon's address and name from the given location information. If none is supplied, the file
+// at `state-dir/daemon.yaml` will be read for the information.
+func (d *Daemon) setDaemonConfig(config *trust.Location) error {
+	if config != nil {
+		bytes, err := yaml.Marshal(config)
+		if err != nil {
+			return fmt.Errorf("Failed to parse daemon config to yaml: %w", err)
+		}
+
+		err = os.WriteFile(filepath.Join(d.os.StateDir, "daemon.yaml"), bytes, 0644)
+		if err != nil {
+			return fmt.Errorf("Failed to write daemon configuration yaml: %w", err)
+		}
+	} else {
+		data, err := os.ReadFile(filepath.Join(d.os.StateDir, "daemon.yaml"))
+		if err != nil {
+			return fmt.Errorf("Failed to find daemon configuration: %w", err)
+		}
+
+		config = &trust.Location{}
+		err = yaml.Unmarshal(data, config)
+		if err != nil {
+			return fmt.Errorf("Failed to parse daemon config from yaml: %w", err)
+		}
+	}
+
+	d.address = *api.NewURL().Scheme("https").Host(config.Address.String())
+	d.name = config.Name
+
+	return nil
 }

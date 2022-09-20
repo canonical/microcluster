@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"path/filepath"
 
 	"github.com/lxc/lxd/lxd/response"
 	"github.com/lxc/lxd/lxd/util"
@@ -43,7 +42,8 @@ func controlPost(state *state.State, r *http.Request) response.Response {
 		return joinWithToken(state, req)
 	}
 
-	err = state.StartAPI(req.Bootstrap, true)
+	daemonConfig := &trust.Location{Address: req.Address, Name: req.Name}
+	err = state.StartAPI(req.Bootstrap, true, daemonConfig)
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -57,20 +57,15 @@ func joinWithToken(state *state.State, req *internalTypes.Control) response.Resp
 		return response.SmartError(err)
 	}
 
-	addr, err := types.ParseAddrPort(state.Address.URL.Host)
-	if err != nil {
-		return response.SmartError(fmt.Errorf("Failed to parse listen address when bootstrapping API: %w", err))
-	}
-
 	serverCert, err := state.ServerCert().PublicKeyX509()
 	if err != nil {
 		return response.SmartError(fmt.Errorf("Failed to parse server certificate when bootstrapping API: %w", err))
 	}
 
 	// Add the local node to the list of clusterMembers.
+	daemonConfig := &trust.Location{Address: req.Address, Name: req.Name}
 	localClusterMember := trust.Remote{
-		Name:        filepath.Base(state.OS.StateDir),
-		Address:     addr,
+		Location:    *daemonConfig,
 		Certificate: types.X509Certificate{Certificate: serverCert},
 	}
 
@@ -141,7 +136,7 @@ func joinWithToken(state *state.State, req *internalTypes.Control) response.Resp
 	}
 
 	// Start the HTTPS listeners and join Dqlite.
-	err = state.StartAPI(false, true, joinAddrs.Strings()...)
+	err = state.StartAPI(false, true, daemonConfig, joinAddrs.Strings()...)
 	if err != nil {
 		return response.SmartError(err)
 	}

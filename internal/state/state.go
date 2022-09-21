@@ -32,7 +32,7 @@ type State struct {
 	OS *sys.OS
 
 	// Listen Address.
-	Address func() api.URL
+	Address func() *api.URL
 
 	// Name of the cluster member.
 	Name func() string

@@ -413,8 +413,9 @@ func (d *Daemon) ServerCert() *shared.CertInfo {
 }
 
 // Address ensures both the daemon and state have the same address.
-func (d *Daemon) Address() api.URL {
-	return d.address
+func (d *Daemon) Address() *api.URL {
+	copyURL := d.address
+	return &copyURL
 }
 
 // Name ensures both the daemon and state have the same name.

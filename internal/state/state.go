@@ -32,7 +32,10 @@ type State struct {
 	OS *sys.OS
 
 	// Listen Address.
-	Address api.URL
+	Address func() api.URL
+
+	// Name of the cluster member.
+	Name func() string
 
 	// Server.
 	Endpoints *endpoints.Endpoints
@@ -50,7 +53,7 @@ type State struct {
 	Remotes func() *trust.Remotes
 
 	// Initialize APIs and bootstrap/join database.
-	StartAPI func(bootstrap bool, runHook bool, joinAddresses ...string) error
+	StartAPI func(bootstrap bool, runHook bool, newConfig *trust.Location, joinAddresses ...string) error
 
 	// Stop fully stops the daemon, its database, and all listeners.
 	Stop func() error
@@ -75,7 +78,7 @@ func (s *State) Cluster(r *http.Request) (client.Cluster, error) {
 
 	clients := make(client.Cluster, 0, len(clusterMembers)-1)
 	for _, clusterMember := range clusterMembers {
-		if s.Address.URL.Host == clusterMember.Address.String() {
+		if s.Address().URL.Host == clusterMember.Address.String() {
 			continue
 		}
 

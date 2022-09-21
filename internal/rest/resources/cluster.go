@@ -74,13 +74,12 @@ func clusterPost(state *state.State, r *http.Request) response.Response {
 	}
 
 	newRemote := trust.Remote{
-		Name:        req.Name,
-		Address:     req.Address,
+		Location:    trust.Location{Name: req.Name, Address: req.Address},
 		Certificate: req.Certificate,
 	}
 
 	// Forward request to leader.
-	if leaderInfo.Address != state.Address.URL.Host {
+	if leaderInfo.Address != state.Address().URL.Host {
 		client, err := state.Leader()
 		if err != nil {
 			return response.SmartError(err)
@@ -291,8 +290,8 @@ func clusterMemberDelete(state *state.State, r *http.Request) response.Response 
 	}
 
 	// If we are not the leader, just update our trust store.
-	if leaderInfo.Address != state.Address.URL.Host {
-		if allRemotes[name].Address.String() == state.Address.URL.Host {
+	if leaderInfo.Address != state.Address().URL.Host {
+		if allRemotes[name].Address.String() == state.Address().URL.Host {
 			// If the member being removed is ourselves and we are not the leader, then lock the
 			// clusterPutDisableMu before we forward the request to the leader, so that when the leader
 			// goes on to request clusterPutDisable back to ourselves it won't be actioned until we
@@ -417,7 +416,7 @@ func clusterMemberDelete(state *state.State, r *http.Request) response.Response 
 	}
 
 	// Reset the state of the removed node.
-	if allRemotes[name].Address.String() == state.Address.URL.Host {
+	if allRemotes[name].Address.String() == state.Address().URL.Host {
 		return clusterMemberPut(state, r)
 	} else {
 

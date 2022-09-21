@@ -172,7 +172,7 @@ func authenticate(state *internalState.State, r *http.Request) (bool, error) {
 
 	var trustedCerts map[string]x509.Certificate
 	switch r.Host {
-	case state.Address.URL.Host:
+	case state.Address().URL.Host:
 		trustedCerts = state.Remotes().CertificatesNative()
 	default:
 		return false, fmt.Errorf("Invalid request address %q", r.Host)

@@ -12,11 +12,11 @@ The daemon can be started with `microd` and is controlled by `microctl`.
 `make`
 
 ## Running
-This starts up three daemons at the given addresses.
+This starts up three daemons.
 ```bash
-microd --state-dir /path/to/state/dir1 --address 127.0.0.1:9001 &
-microd --state-dir /path/to/state/dir2 --address 127.0.0.1:9002 &
-microd --state-dir /path/to/state/dir3 --address 127.0.0.1:9003 &
+microd --state-dir /path/to/state/dir1 &
+microd --state-dir /path/to/state/dir2 &
+microd --state-dir /path/to/state/dir3 &
 ```
 
 ## Starting dqlite
@@ -24,16 +24,16 @@ microd --state-dir /path/to/state/dir3 --address 127.0.0.1:9003 &
 # Wait for the daemon to finish setup.
 microctl --state-dir /path/to/state/dir1 waitready
 
-# Bootstrap the first node to start a new cluster.
-microctl --state-dir /path/to/state/dir1 init --bootstrap
+# Bootstrap the first node to start a new cluster. The new member will be given the name "member1" and will listen on `127.0.0.1:9001`
+microctl --state-dir /path/to/state/dir1 init "member1" 127.0.0.1:9001 --bootstrap
 
 # Get some join tokens from the new cluster. These are deleted after use.
-token_node2=$(microctl --state-dir /path/to/state/dir1 tokens add "dir2")
-token_node3=$(microctl --state-dir /path/to/state/dir1 tokens add "dir3")
+token_node2=$(microctl --state-dir /path/to/state/dir1 tokens add "member2")
+token_node3=$(microctl --state-dir /path/to/state/dir1 tokens add "member3")
 
 # Join the dqlite cluster.
-microctl --state-dir /path/to/state/dir2 init "dir2" --token ${token_node2}
-microctl --state-dir /path/to/state/dir3 init "dir3"" --token ${token_node3}
+microctl --state-dir /path/to/state/dir2 init "member2" 127.0.0.1:9002 --token ${token_node2}
+microctl --state-dir /path/to/state/dir3 init "member3" 127.0.0.1:9003 --token ${token_node3}
 
 # The cluster is now up and running!
 ```
@@ -93,13 +93,15 @@ microctl --state-dir /path/to/state/dir1 cluster list
 ```
 * Remove a cluster member
 ```bash
-microctl --state-dir /path/to/state/dir1 cluster remove dir2
+# This will remove member2 from the cluster.
+microctl --state-dir /path/to/state/dir1 cluster remove member2
 ```
 
 * Perform an SQL query
 ```bash
 microctl --state-dir /path/to/state/dir1 sql "select name,address,schema,heartbeat from cluster_members"
 # Note that the schema version is 3, because this example has extended the schema with two additional updates.
+Customized schema updates and API endpoints can be added when first starting a cluster.
 +------+----------------+--------+--------------------------------+
 | name |    address     | schema |           heartbeat            |
 +------+----------------+--------+--------------------------------+

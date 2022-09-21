@@ -18,7 +18,7 @@ import (
 	"github.com/lxc/lxd/shared"
 	"github.com/lxc/lxd/shared/api"
 	"github.com/lxc/lxd/shared/logger"
-	"github.com/lxc/lxd/shared/validate"
+	"gopkg.in/yaml.v2"
 
 	"github.com/canonical/microcluster/client"
 	"github.com/canonical/microcluster/cluster"
@@ -37,7 +37,8 @@ import (
 
 // Daemon holds information for the microcluster daemon.
 type Daemon struct {
-	Address api.URL // Listen Address.
+	address api.URL // Listen Address.
+	name    string  // Name of the cluster member.
 
 	os          *sys.OS
 	serverCert  *shared.CertInfo
@@ -69,18 +70,21 @@ func NewDaemon(ctx context.Context) *Daemon {
 }
 
 // Init initializes the Daemon with the given configuration, and starts the database.
-func (d *Daemon) Init(addr string, stateDir string, extendedEndpoints []rest.Endpoint, schemaExtensions map[int]schema.Update, initHook func(state *state.State, bootstrap bool) error) error {
+func (d *Daemon) Init(stateDir string, extendedEndpoints []rest.Endpoint, schemaExtensions map[int]schema.Update, initHook func(state *state.State, bootstrap bool) error) error {
 	if stateDir == "" {
 		stateDir = os.Getenv(sys.StateDir)
 	}
 
-	err := d.validateConfig(addr, stateDir)
-	if err != nil {
-		return fmt.Errorf("Invalid daemon configuration: %w", err)
+	if stateDir == "" {
+		return fmt.Errorf("State directory must be specified")
+	}
+
+	_, err := os.Stat(stateDir)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("Failed to find state directory: %w", err)
 	}
 
 	// TODO: Check if already running.
-
 	d.os, err = sys.DefaultOS(stateDir, true)
 	if err != nil {
 		return fmt.Errorf("Failed to initialize directory structure: %w", err)
@@ -108,7 +112,7 @@ func (d *Daemon) init(extendedEndpoints []rest.Endpoint, schemaExtensions map[in
 		return fmt.Errorf("Failed to initialize trust store: %w", err)
 	}
 
-	d.db = db.NewDB(d.ShutdownCtx, d.serverCert, d.os, d.Address)
+	d.db = db.NewDB(d.ShutdownCtx, d.serverCert, d.os)
 
 	ctlServer := d.initServer(resources.ControlEndpoints)
 	ctl := endpoints.NewSocket(d.ShutdownCtx, ctlServer, d.os.ControlSocket(), "") // TODO: add socket group.
@@ -148,7 +152,22 @@ func (d *Daemon) reloadIfBootstrapped() error {
 		return err
 	}
 
-	err = d.StartAPI(false, false)
+	_, err = os.Stat(filepath.Join(d.os.StateDir, "daemon.yaml"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			logger.Warn("microcluster daemon config is missing")
+			return nil
+		}
+
+		return err
+	}
+
+	err = d.setDaemonConfig(nil)
+	if err != nil {
+		return fmt.Errorf("Failed to retrieve daemon configuration yaml: %w", err)
+	}
+
+	err = d.StartAPI(false, false, nil)
 	if err != nil {
 		return err
 	}
@@ -216,35 +235,18 @@ func (d *Daemon) initServer(resources ...*resources.Resources) *http.Server {
 	}
 }
 
-func (d *Daemon) validateConfig(addr string, stateDir string) error {
-	isListenAddress := validate.IsListenAddress(true, true, false)
-	if addr != "" {
-		err := isListenAddress(addr)
-		if err != nil {
-			return fmt.Errorf("Invalid admin address %q: %w", addr, err)
-		}
-
-		d.Address = *api.NewURL().Scheme("https").Host(addr)
-	}
-
-	if stateDir == "" {
-		return fmt.Errorf("State directory must be specified")
-	}
-
-	_, err := os.Stat(stateDir)
-	if err != nil && !os.IsNotExist(err) {
-		return err
-	}
-
-	return nil
-}
-
 // StartAPI starts up the admin and consumer APIs, and generates a cluster cert
 // if we are bootstrapping the first node.
-func (d *Daemon) StartAPI(bootstrap bool, runHook bool, joinAddresses ...string) error {
-	addr, err := types.ParseAddrPort(d.Address.URL.Host)
-	if err != nil {
-		return fmt.Errorf("Failed to parse listen address when bootstrapping API: %w", err)
+func (d *Daemon) StartAPI(bootstrap bool, runHook bool, newConfig *trust.Location, joinAddresses ...string) error {
+	if newConfig != nil {
+		err := d.setDaemonConfig(newConfig)
+		if err != nil {
+			return fmt.Errorf("Failed to apply and save new daemon configuration: %w", err)
+		}
+	}
+
+	if d.address.URL.Host == "" || d.name == "" {
+		return fmt.Errorf("Cannot start network API without valid daemon configuration")
 	}
 
 	serverCert, err := d.serverCert.PublicKeyX509()
@@ -252,9 +254,13 @@ func (d *Daemon) StartAPI(bootstrap bool, runHook bool, joinAddresses ...string)
 		return fmt.Errorf("Failed to parse server certificate when bootstrapping API: %w", err)
 	}
 
+	addrPort, err := types.ParseAddrPort(d.address.URL.Host)
+	if err != nil {
+		return fmt.Errorf("Failed to parse listen address when bootstrapping API: %w", err)
+	}
+
 	localNode := trust.Remote{
-		Name:        filepath.Base(d.os.StateDir),
-		Address:     addr,
+		Location:    trust.Location{Name: d.name, Address: addrPort},
 		Certificate: types.X509Certificate{Certificate: serverCert},
 	}
 
@@ -271,7 +277,7 @@ func (d *Daemon) StartAPI(bootstrap bool, runHook bool, joinAddresses ...string)
 	}
 
 	server := d.initServer(resources.InternalEndpoints, resources.PublicEndpoints, resources.ExtendedEndpoints)
-	network := endpoints.NewNetwork(d.ShutdownCtx, endpoints.EndpointNetwork, server, d.Address, d.clusterCert)
+	network := endpoints.NewNetwork(d.ShutdownCtx, endpoints.EndpointNetwork, server, d.address, d.clusterCert)
 
 	err = d.endpoints.Add(network)
 	if err != nil {
@@ -280,7 +286,7 @@ func (d *Daemon) StartAPI(bootstrap bool, runHook bool, joinAddresses ...string)
 
 	// If bootstrapping the first node, just open the database and create an entry for ourselves.
 	if bootstrap {
-		err = d.db.Bootstrap(d.ClusterCert())
+		err = d.db.Bootstrap(d.address, d.ClusterCert())
 		if err != nil {
 			return err
 		}
@@ -316,12 +322,12 @@ func (d *Daemon) StartAPI(bootstrap bool, runHook bool, joinAddresses ...string)
 	}
 
 	if len(joinAddresses) != 0 {
-		err = d.db.Join(d.ClusterCert(), joinAddresses...)
+		err = d.db.Join(d.address, d.ClusterCert(), joinAddresses...)
 		if err != nil {
 			return fmt.Errorf("Failed to join cluster: %w", err)
 		}
 	} else {
-		err = d.db.StartWithCluster(d.trustStore.Remotes().Addresses(), d.clusterCert)
+		err = d.db.StartWithCluster(d.address, d.trustStore.Remotes().Addresses(), d.clusterCert)
 		if err != nil {
 			return fmt.Errorf("Failed to re-establish cluster connection: %w", err)
 		}
@@ -335,7 +341,7 @@ func (d *Daemon) StartAPI(bootstrap bool, runHook bool, joinAddresses ...string)
 	// Get a client for every other cluster member in the newly refreshed local store.
 	cluster := make(client.Cluster, 0, d.trustStore.Remotes().Count()-1)
 	for _, addr := range d.trustStore.Remotes().Addresses() {
-		if d.Address.URL.Host == addr.String() {
+		if d.address.URL.Host == addr.String() {
 			continue
 		}
 
@@ -406,6 +412,16 @@ func (d *Daemon) ServerCert() *shared.CertInfo {
 	return d.serverCert
 }
 
+// Address ensures both the daemon and state have the same address.
+func (d *Daemon) Address() api.URL {
+	return d.address
+}
+
+// Name ensures both the daemon and state have the same name.
+func (d *Daemon) Name() string {
+	return d.name
+}
+
 // State creates a State instance with the daemon's stateful components.
 func (d *Daemon) State() *state.State {
 	state := &state.State{
@@ -414,6 +430,7 @@ func (d *Daemon) State() *state.State {
 		ShutdownDoneCh: d.ShutdownDoneCh,
 		OS:             d.os,
 		Address:        d.Address,
+		Name:           d.Name,
 		Endpoints:      d.endpoints,
 		ServerCert:     d.ServerCert,
 		ClusterCert:    d.ClusterCert,
@@ -436,4 +453,36 @@ func (d *Daemon) Stop() error {
 	}
 
 	return d.endpoints.Down()
+}
+
+// setDaemonConfig sets the daemon's address and name from the given location information. If none is supplied, the file
+// at `state-dir/daemon.yaml` will be read for the information.
+func (d *Daemon) setDaemonConfig(config *trust.Location) error {
+	if config != nil {
+		bytes, err := yaml.Marshal(config)
+		if err != nil {
+			return fmt.Errorf("Failed to parse daemon config to yaml: %w", err)
+		}
+
+		err = os.WriteFile(filepath.Join(d.os.StateDir, "daemon.yaml"), bytes, 0644)
+		if err != nil {
+			return fmt.Errorf("Failed to write daemon configuration yaml: %w", err)
+		}
+	} else {
+		data, err := os.ReadFile(filepath.Join(d.os.StateDir, "daemon.yaml"))
+		if err != nil {
+			return fmt.Errorf("Failed to find daemon configuration: %w", err)
+		}
+
+		config = &trust.Location{}
+		err = yaml.Unmarshal(data, config)
+		if err != nil {
+			return fmt.Errorf("Failed to parse daemon config from yaml: %w", err)
+		}
+	}
+
+	d.address = *api.NewURL().Scheme("https").Host(config.Address.String())
+	d.name = config.Name
+
+	return nil
 }

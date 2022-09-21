@@ -1,6 +1,7 @@
 package cluster
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"time"
@@ -16,18 +17,19 @@ import (
 //
 //go:generate mapper stmt -e internal_cluster_member objects table=internal_cluster_members
 //go:generate mapper stmt -e internal_cluster_member objects-by-Address table=internal_cluster_members
+//go:generate mapper stmt -e internal_cluster_member objects-by-Name table=internal_cluster_members
 //go:generate mapper stmt -e internal_cluster_member id table=internal_cluster_members
 //go:generate mapper stmt -e internal_cluster_member create table=internal_cluster_members
 //go:generate mapper stmt -e internal_cluster_member delete-by-Address table=internal_cluster_members
 //go:generate mapper stmt -e internal_cluster_member update table=internal_cluster_members
 //
-//go:generate mapper method -i -e internal_cluster_member GetMany
-//go:generate mapper method -i -e internal_cluster_member GetOne
-//go:generate mapper method -i -e internal_cluster_member ID
-//go:generate mapper method -i -e internal_cluster_member Exists
-//go:generate mapper method -i -e internal_cluster_member Create
-//go:generate mapper method -i -e internal_cluster_member DeleteOne-by-Address
-//go:generate mapper method -i -e internal_cluster_member Update
+//go:generate mapper method -i -e internal_cluster_member GetMany table=internal_cluster_members
+//go:generate mapper method -i -e internal_cluster_member GetOne table=internal_cluster_members
+//go:generate mapper method -i -e internal_cluster_member ID table=internal_cluster_members
+//go:generate mapper method -i -e internal_cluster_member Exists table=internal_cluster_members
+//go:generate mapper method -i -e internal_cluster_member Create table=internal_cluster_members
+//go:generate mapper method -i -e internal_cluster_member DeleteOne-by-Address table=internal_cluster_members
+//go:generate mapper method -i -e internal_cluster_member Update table=internal_cluster_members
 
 // Role is the role of the dqlite cluster member, with the addition of "pending" for nodes about to be added or
 // removed.
@@ -49,6 +51,7 @@ type InternalClusterMember struct {
 // InternalClusterMemberFilter is used for filtering queries using generated methods.
 type InternalClusterMemberFilter struct {
 	Address *string
+	Name    *string
 }
 
 // ToAPI returns the api struct for a ClusterMember database entity.
@@ -99,9 +102,9 @@ func UpdateClusterMemberSchemaVersion(tx *sql.Tx, version int, address string) e
 
 // GetClusterMemberSchemaVersions returns the schema versions from all cluster members that are not pending.
 // This helper is non-generated to work before generated statements are loaded, as we update the schema.
-func GetClusterMemberSchemaVersions(tx *sql.Tx) ([]int, error) {
+func GetClusterMemberSchemaVersions(ctx context.Context, tx *sql.Tx) ([]int, error) {
 	sql := "SELECT schema FROM internal_cluster_members WHERE NOT role='pending'"
-	versions, err := query.SelectIntegers(tx, sql)
+	versions, err := query.SelectIntegers(ctx, tx, sql)
 	if err != nil {
 		return nil, err
 	}

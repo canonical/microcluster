@@ -5,6 +5,7 @@ package cluster
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -50,31 +51,15 @@ func GetInternalTokenRecordID(ctx context.Context, tx *sql.Tx, secret string) (i
 		return -1, fmt.Errorf("Failed to get \"internalTokenRecordID\" prepared statement: %w", err)
 	}
 
-	rows, err := stmt.Query(secret)
-	if err != nil {
-		return -1, fmt.Errorf("Failed to get \"internals_tokens_records\" ID: %w", err)
-	}
-
-	defer func() { _ = rows.Close() }()
-
-	// Ensure we read one and only one row.
-	if !rows.Next() {
+	row := stmt.QueryRowContext(ctx, secret)
+	var id int64
+	err = row.Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
 		return -1, api.StatusErrorf(http.StatusNotFound, "InternalTokenRecord not found")
 	}
 
-	var id int64
-	err = rows.Scan(&id)
 	if err != nil {
-		return -1, fmt.Errorf("Failed to scan ID: %w", err)
-	}
-
-	if rows.Next() {
-		return -1, fmt.Errorf("More than one row returned")
-	}
-
-	err = rows.Err()
-	if err != nil {
-		return -1, fmt.Errorf("Result set failure: %w", err)
+		return -1, fmt.Errorf("Failed to get \"internal_token_records\" ID: %w", err)
 	}
 
 	return id, nil
@@ -103,7 +88,7 @@ func GetInternalTokenRecord(ctx context.Context, tx *sql.Tx, secret string) (*In
 
 	objects, err := GetInternalTokenRecords(ctx, tx, filter)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to fetch from \"internals_tokens_records\" table: %w", err)
+		return nil, fmt.Errorf("Failed to fetch from \"internal_token_records\" table: %w", err)
 	}
 
 	switch len(objects) {
@@ -112,7 +97,7 @@ func GetInternalTokenRecord(ctx context.Context, tx *sql.Tx, secret string) (*In
 	case 1:
 		return &objects[0], nil
 	default:
-		return nil, fmt.Errorf("More than one \"internals_tokens_records\" entry matches")
+		return nil, fmt.Errorf("More than one \"internal_token_records\" entry matches")
 	}
 }
 
@@ -183,14 +168,14 @@ func GetInternalTokenRecords(ctx context.Context, tx *sql.Tx, filters ...Interna
 
 	// Select.
 	if sqlStmt != nil {
-		err = query.SelectObjects(sqlStmt, dest, args...)
+		err = query.SelectObjects(ctx, sqlStmt, dest, args...)
 	} else {
 		queryStr := strings.Join(queryParts[:], "ORDER BY")
-		err = query.Scan(tx, queryStr, dest, args...)
+		err = query.Scan(ctx, tx, queryStr, dest, args...)
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("Failed to fetch from \"internals_tokens_records\" table: %w", err)
+		return nil, fmt.Errorf("Failed to fetch from \"internal_token_records\" table: %w", err)
 	}
 
 	return objects, nil
@@ -206,7 +191,7 @@ func CreateInternalTokenRecord(ctx context.Context, tx *sql.Tx, object InternalT
 	}
 
 	if exists {
-		return -1, api.StatusErrorf(http.StatusConflict, "This \"internals_tokens_records\" entry already exists")
+		return -1, api.StatusErrorf(http.StatusConflict, "This \"internal_token_records\" entry already exists")
 	}
 
 	args := make([]any, 2)
@@ -224,12 +209,12 @@ func CreateInternalTokenRecord(ctx context.Context, tx *sql.Tx, object InternalT
 	// Execute the statement.
 	result, err := stmt.Exec(args...)
 	if err != nil {
-		return -1, fmt.Errorf("Failed to create \"internals_tokens_records\" entry: %w", err)
+		return -1, fmt.Errorf("Failed to create \"internal_token_records\" entry: %w", err)
 	}
 
 	id, err := result.LastInsertId()
 	if err != nil {
-		return -1, fmt.Errorf("Failed to fetch \"internals_tokens_records\" entry ID: %w", err)
+		return -1, fmt.Errorf("Failed to fetch \"internal_token_records\" entry ID: %w", err)
 	}
 
 	return id, nil
@@ -245,7 +230,7 @@ func DeleteInternalTokenRecord(ctx context.Context, tx *sql.Tx, name string) err
 
 	result, err := stmt.Exec(name)
 	if err != nil {
-		return fmt.Errorf("Delete \"internals_tokens_records\": %w", err)
+		return fmt.Errorf("Delete \"internal_token_records\": %w", err)
 	}
 
 	n, err := result.RowsAffected()

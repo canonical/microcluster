@@ -57,7 +57,7 @@ func (s *SchemaUpdate) Ensure(db *sql.DB) (int, error) {
 	var current int
 	aborted := false
 	err := query.Transaction(context.TODO(), db, func(ctx context.Context, tx *sql.Tx) error {
-		err := execFromFile(tx, s.path, s.hook)
+		err := execFromFile(ctx, tx, s.path, s.hook)
 		if err != nil {
 			return fmt.Errorf("failed to execute queries from %s: %w", s.path, err)
 		}
@@ -69,7 +69,7 @@ func (s *SchemaUpdate) Ensure(db *sql.DB) (int, error) {
 
 		current := 0
 		if exists {
-			versions, err := query.SelectIntegers(tx, "SELECT version FROM schemas ORDER BY version")
+			versions, err := query.SelectIntegers(ctx, tx, "SELECT version FROM schemas ORDER BY version")
 			if err != nil {
 				return err
 			}
@@ -80,7 +80,7 @@ func (s *SchemaUpdate) Ensure(db *sql.DB) (int, error) {
 		}
 
 		if s.check != nil {
-			err := s.check(current, tx)
+			err := s.check(ctx, current, tx)
 			if err == schema.ErrGracefulAbort {
 				// Abort the update gracefully, committing what
 				// we've done so far.
@@ -95,7 +95,7 @@ func (s *SchemaUpdate) Ensure(db *sql.DB) (int, error) {
 		// When creating the schema from scratch, use the fresh dump if
 		// available. Otherwise just apply all relevant updates.
 		if current == 0 && s.fresh != "" {
-			_, err = tx.Exec(s.fresh)
+			_, err = tx.ExecContext(ctx, s.fresh)
 			if err != nil {
 				return fmt.Errorf("cannot apply fresh schema: %w", err)
 			}
@@ -126,7 +126,7 @@ func (s *SchemaUpdate) Ensure(db *sql.DB) (int, error) {
 func (s *SchemaUpdate) Dump(db *sql.DB) (string, error) {
 	var statements []string
 	err := query.Transaction(context.TODO(), db, func(ctx context.Context, tx *sql.Tx) error {
-		versions, err := query.SelectIntegers(tx, "SELECT version FROM schemas ORDER BY version")
+		versions, err := query.SelectIntegers(ctx, tx, "SELECT version FROM schemas ORDER BY version")
 		if err != nil {
 			return err
 		}
@@ -145,7 +145,7 @@ func (s *SchemaUpdate) Dump(db *sql.DB) (string, error) {
 			return fmt.Errorf("Update level is %d, expected %d", current, len(s.updates))
 		}
 
-		statements, err = selectTablesSQL(tx)
+		statements, err = selectTablesSQL(ctx, tx)
 		return err
 	})
 	if err != nil {
@@ -178,7 +178,7 @@ func checkSchemaVersionsHaveNoHoles(versions []int) error {
 
 // Return a list of SQL statements that can be used to create all tables in the
 // database.
-func selectTablesSQL(tx *sql.Tx) ([]string, error) {
+func selectTablesSQL(ctx context.Context, tx *sql.Tx) ([]string, error) {
 	statement := `
 SELECT sql FROM sqlite_master WHERE
   type IN ('table', 'index', 'view', 'trigger') AND
@@ -186,7 +186,7 @@ SELECT sql FROM sqlite_master WHERE
   name NOT LIKE 'sqlite_%'
 ORDER BY name
 `
-	return query.SelectStrings(tx, statement)
+	return query.SelectStrings(ctx, tx, statement)
 }
 
 // Apply any pending update that was not yet applied.
@@ -205,20 +205,20 @@ func ensureUpdatesAreApplied(ctx context.Context, tx *sql.Tx, current int, updat
 	// Apply missing updates.
 	for _, update := range updates[current:] {
 		if hook != nil {
-			err := hook(current, tx)
+			err := hook(ctx, current, tx)
 			if err != nil {
 				return fmt.Errorf(
 					"failed to execute hook (version %d): %v", current, err)
 			}
 		}
-		err := update(tx)
+		err := update(ctx, tx)
 		if err != nil {
 			return fmt.Errorf("failed to apply update %d: %w", current, err)
 		}
 		current++
 
 		statement := `INSERT INTO schemas (version, updated_at) VALUES (?, strftime("%s"))`
-		_, err = tx.Exec(statement, current)
+		_, err = tx.ExecContext(ctx, statement, current)
 		if err != nil {
 			return fmt.Errorf("failed to insert version %d: %w", current, err)
 		}
@@ -228,7 +228,7 @@ func ensureUpdatesAreApplied(ctx context.Context, tx *sql.Tx, current int, updat
 }
 
 // Read the given file (if it exists) and executes all queries it contains.
-func execFromFile(tx *sql.Tx, path string, hook schema.Hook) error {
+func execFromFile(ctx context.Context, tx *sql.Tx, path string, hook schema.Hook) error {
 	if !shared.PathExists(path) {
 		return nil
 	}
@@ -239,13 +239,13 @@ func execFromFile(tx *sql.Tx, path string, hook schema.Hook) error {
 	}
 
 	if hook != nil {
-		err := hook(-1, tx)
+		err := hook(ctx, -1, tx)
 		if err != nil {
 			return fmt.Errorf("failed to execute hook: %w", err)
 		}
 	}
 
-	_, err = tx.Exec(string(bytes))
+	_, err = tx.ExecContext(ctx, string(bytes))
 	if err != nil {
 		return err
 	}

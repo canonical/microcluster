@@ -2,6 +2,7 @@
 package database
 
 import (
+	"context"
 	"database/sql"
 
 	"github.com/lxc/lxd/lxd/db/schema"
@@ -14,7 +15,7 @@ var SchemaExtensions = map[int]schema.Update{
 	2: schemaAppend2,
 }
 
-func schemaAppend1(tx *sql.Tx) error {
+func schemaAppend1(ctx context.Context, tx *sql.Tx) error {
 	stmt := `
 CREATE TABLE extended_table (
   id           INTEGER  PRIMARY         KEY    AUTOINCREMENT  NOT  NULL,
@@ -24,12 +25,12 @@ CREATE TABLE extended_table (
 );
   `
 
-	_, err := tx.Exec(stmt)
+	_, err := tx.ExecContext(ctx, stmt)
 
 	return err
 }
 
-func schemaAppend2(tx *sql.Tx) error {
+func schemaAppend2(ctx context.Context, tx *sql.Tx) error {
 	stmt := `
 CREATE TABLE some_other_table (
   id                  INTEGER  PRIMARY           KEY    AUTOINCREMENT  NOT  NULL,
@@ -40,7 +41,7 @@ CREATE TABLE some_other_table (
 );
   `
 
-	_, err := tx.Exec(stmt)
+	_, err := tx.ExecContext(ctx, stmt)
 
 	return err
 }

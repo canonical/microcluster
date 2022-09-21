@@ -19,12 +19,12 @@ import (
 //go:generate mapper stmt -e internal_token_record create table=internal_token_records
 //go:generate mapper stmt -e internal_token_record delete-by-Name table=internal_token_records
 //
-//go:generate mapper method -e internal_token_record ID
-//go:generate mapper method -e internal_token_record Exists
-//go:generate mapper method -e internal_token_record GetOne
-//go:generate mapper method -e internal_token_record GetMany
-//go:generate mapper method -e internal_token_record Create
-//go:generate mapper method -e internal_token_record DeleteOne-by-Name
+//go:generate mapper method -e internal_token_record ID table=internal_token_records
+//go:generate mapper method -e internal_token_record Exists table=internal_token_records
+//go:generate mapper method -e internal_token_record GetOne table=internal_token_records
+//go:generate mapper method -e internal_token_record GetMany table=internal_token_records
+//go:generate mapper method -e internal_token_record Create table=internal_token_records
+//go:generate mapper method -e internal_token_record DeleteOne-by-Name table=internal_token_records
 
 // InternalTokenRecord is the database representation of a join token record.
 type InternalTokenRecord struct {

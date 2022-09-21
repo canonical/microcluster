@@ -10,13 +10,13 @@ package database
 //go:generate mapper stmt -d github.com/canonical/microcluster/cluster -e extended_table delete-by-Key table=extended_table
 //go:generate mapper stmt -d github.com/canonical/microcluster/cluster -e extended_table update table=extended_table
 //
-//go:generate mapper method -i -d github.com/canonical/microcluster/cluster -e extended_table GetMany
-//go:generate mapper method -i -d github.com/canonical/microcluster/cluster -e extended_table GetOne
-//go:generate mapper method -i -d github.com/canonical/microcluster/cluster -e extended_table ID
-//go:generate mapper method -i -d github.com/canonical/microcluster/cluster -e extended_table Exists
-//go:generate mapper method -i -d github.com/canonical/microcluster/cluster -e extended_table Create
-//go:generate mapper method -i -d github.com/canonical/microcluster/cluster -e extended_table DeleteOne-by-Key
-//go:generate mapper method -i -d github.com/canonical/microcluster/cluster -e extended_table Update
+//go:generate mapper method -i -d github.com/canonical/microcluster/cluster -e extended_table GetMany table=extended_table
+//go:generate mapper method -i -d github.com/canonical/microcluster/cluster -e extended_table GetOne table=extended_table
+//go:generate mapper method -i -d github.com/canonical/microcluster/cluster -e extended_table ID table=extended_table
+//go:generate mapper method -i -d github.com/canonical/microcluster/cluster -e extended_table Exists table=extended_table
+//go:generate mapper method -i -d github.com/canonical/microcluster/cluster -e extended_table Create table=extended_table
+//go:generate mapper method -i -d github.com/canonical/microcluster/cluster -e extended_table DeleteOne-by-Key table=extended_table
+//go:generate mapper method -i -d github.com/canonical/microcluster/cluster -e extended_table Update table=extended_table
 
 // ExtendedTable is an example of a database table. In this case named `extended_table`. The above comments will
 // generate database queries and helpers using lxd-generate.

@@ -5,6 +5,7 @@ package database
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -116,14 +117,14 @@ func GetExtendedTables(ctx context.Context, tx *sql.Tx, filters ...ExtendedTable
 
 	// Select.
 	if sqlStmt != nil {
-		err = query.SelectObjects(sqlStmt, dest, args...)
+		err = query.SelectObjects(ctx, sqlStmt, dest, args...)
 	} else {
 		queryStr := strings.Join(queryParts[:], "ORDER BY")
-		err = query.Scan(tx, queryStr, dest, args...)
+		err = query.Scan(ctx, tx, queryStr, dest, args...)
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("Failed to fetch from \"extendeds_tables\" table: %w", err)
+		return nil, fmt.Errorf("Failed to fetch from \"extended_table\" table: %w", err)
 	}
 
 	return objects, nil
@@ -137,7 +138,7 @@ func GetExtendedTable(ctx context.Context, tx *sql.Tx, key string) (*ExtendedTab
 
 	objects, err := GetExtendedTables(ctx, tx, filter)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to fetch from \"extendeds_tables\" table: %w", err)
+		return nil, fmt.Errorf("Failed to fetch from \"extended_table\" table: %w", err)
 	}
 
 	switch len(objects) {
@@ -146,7 +147,7 @@ func GetExtendedTable(ctx context.Context, tx *sql.Tx, key string) (*ExtendedTab
 	case 1:
 		return &objects[0], nil
 	default:
-		return nil, fmt.Errorf("More than one \"extendeds_tables\" entry matches")
+		return nil, fmt.Errorf("More than one \"extended_table\" entry matches")
 	}
 }
 
@@ -158,31 +159,15 @@ func GetExtendedTableID(ctx context.Context, tx *sql.Tx, key string) (int64, err
 		return -1, fmt.Errorf("Failed to get \"extendedTableID\" prepared statement: %w", err)
 	}
 
-	rows, err := stmt.Query(key)
-	if err != nil {
-		return -1, fmt.Errorf("Failed to get \"extendeds_tables\" ID: %w", err)
-	}
-
-	defer func() { _ = rows.Close() }()
-
-	// Ensure we read one and only one row.
-	if !rows.Next() {
+	row := stmt.QueryRowContext(ctx, key)
+	var id int64
+	err = row.Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
 		return -1, api.StatusErrorf(http.StatusNotFound, "ExtendedTable not found")
 	}
 
-	var id int64
-	err = rows.Scan(&id)
 	if err != nil {
-		return -1, fmt.Errorf("Failed to scan ID: %w", err)
-	}
-
-	if rows.Next() {
-		return -1, fmt.Errorf("More than one row returned")
-	}
-
-	err = rows.Err()
-	if err != nil {
-		return -1, fmt.Errorf("Result set failure: %w", err)
+		return -1, fmt.Errorf("Failed to get \"extended_table\" ID: %w", err)
 	}
 
 	return id, nil
@@ -213,7 +198,7 @@ func CreateExtendedTable(ctx context.Context, tx *sql.Tx, object ExtendedTable) 
 	}
 
 	if exists {
-		return -1, api.StatusErrorf(http.StatusConflict, "This \"extendeds_tables\" entry already exists")
+		return -1, api.StatusErrorf(http.StatusConflict, "This \"extended_table\" entry already exists")
 	}
 
 	args := make([]any, 2)
@@ -231,12 +216,12 @@ func CreateExtendedTable(ctx context.Context, tx *sql.Tx, object ExtendedTable) 
 	// Execute the statement.
 	result, err := stmt.Exec(args...)
 	if err != nil {
-		return -1, fmt.Errorf("Failed to create \"extendeds_tables\" entry: %w", err)
+		return -1, fmt.Errorf("Failed to create \"extended_table\" entry: %w", err)
 	}
 
 	id, err := result.LastInsertId()
 	if err != nil {
-		return -1, fmt.Errorf("Failed to fetch \"extendeds_tables\" entry ID: %w", err)
+		return -1, fmt.Errorf("Failed to fetch \"extended_table\" entry ID: %w", err)
 	}
 
 	return id, nil
@@ -252,7 +237,7 @@ func DeleteExtendedTable(ctx context.Context, tx *sql.Tx, key string) error {
 
 	result, err := stmt.Exec(key)
 	if err != nil {
-		return fmt.Errorf("Delete \"extendeds_tables\": %w", err)
+		return fmt.Errorf("Delete \"extended_table\": %w", err)
 	}
 
 	n, err := result.RowsAffected()
@@ -284,7 +269,7 @@ func UpdateExtendedTable(ctx context.Context, tx *sql.Tx, key string, object Ext
 
 	result, err := stmt.Exec(object.Key, object.Value, id)
 	if err != nil {
-		return fmt.Errorf("Update \"extendeds_tables\" entry failed: %w", err)
+		return fmt.Errorf("Update \"extended_table\" entry failed: %w", err)
 	}
 
 	n, err := result.RowsAffected()

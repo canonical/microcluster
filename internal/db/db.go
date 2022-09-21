@@ -41,14 +41,14 @@ func (db *DB) Open(bootstrap bool) error {
 	otherNodesBehind := false
 	newSchema := update.Schema()
 	if !bootstrap {
-		checkVersions := func(current int, tx *sql.Tx) error {
+		checkVersions := func(ctx context.Context, current int, tx *sql.Tx) error {
 			schemaVersion := newSchema.Version()
 			err = cluster.UpdateClusterMemberSchemaVersion(tx, schemaVersion, db.listenAddr.URL.Host)
 			if err != nil {
 				return fmt.Errorf("Failed to update schema version when joining cluster: %w", err)
 			}
 
-			versions, err := cluster.GetClusterMemberSchemaVersions(tx)
+			versions, err := cluster.GetClusterMemberSchemaVersions(ctx, tx)
 			if err != nil {
 				return fmt.Errorf("Failed to get other members' schema versions: %w", err)
 			}

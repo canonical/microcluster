@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"io"
 	"net/http"
@@ -296,7 +297,7 @@ func (d *Daemon) StartAPI(bootstrap bool, runHook bool, newConfig *trust.Locatio
 			return err
 		}
 
-		err = d.db.Transaction(d.ShutdownCtx, func(ctx context.Context, tx *db.Tx) error {
+		err = d.db.Transaction(d.ShutdownCtx, func(ctx context.Context, tx *sql.Tx) error {
 			clusterMember := cluster.InternalClusterMember{
 				Name:        localNode.Name,
 				Address:     localNode.Address.String(),

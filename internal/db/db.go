@@ -19,9 +19,6 @@ import (
 	"github.com/canonical/microcluster/internal/sys"
 )
 
-// Tx is a convenience so we don't have to import sql.Tx everywhere.
-type Tx = sql.Tx
-
 // Open opens the dqlite database and loads the schema.
 // Returns true if we need to wait for other nodes to catch up to our version.
 func (db *DB) Open(bootstrap bool) error {
@@ -115,7 +112,7 @@ func (db *DB) Open(bootstrap bool) error {
 }
 
 // Transaction handles performing a transaction on the dqlite database.
-func (db *DB) Transaction(ctx context.Context, f func(context.Context, *Tx) error) error {
+func (db *DB) Transaction(ctx context.Context, f func(context.Context, *sql.Tx) error) error {
 	return db.retry(func() error {
 		err := query.Transaction(ctx, db.db, f)
 		if errors.Is(err, context.DeadlineExceeded) {

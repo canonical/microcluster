@@ -64,15 +64,7 @@ func (c *cmdDaemon) Run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	return m.Start(api.Endpoints, database.SchemaExtensions, func(state *state.State, bootstrap bool) error {
-		if bootstrap {
-			logger.Info("This is a hook run on bootstrap")
-		} else {
-			logger.Info("This is a hook run on join")
-		}
-
-		return nil
-	})
+	return m.Start(api.Endpoints, database.SchemaExtensions, exampleHooks{})
 }
 
 func init() {
@@ -98,4 +90,42 @@ func main() {
 	if err != nil {
 		os.Exit(1)
 	}
+}
+
+// exampleHooks are some example post-action hooks that can be run by MicroCluster.
+type exampleHooks struct{}
+
+// OnBootstrapHook is run after the daemon is initialized and bootstrapped.
+func (e exampleHooks) OnBootstrapHook(s *state.State) error {
+	logger.Info("This is a hook that runs after the daemon is initialized and bootstrapped")
+
+	return nil
+}
+
+// OnStartHook is run after the daemon is started.
+func (e exampleHooks) OnStartHook(s *state.State) error {
+	logger.Info("This is a hook that runs after the daemon first starts")
+
+	return nil
+}
+
+// OnJoinHook is run after the daemon is initialized and joins a cluster.
+func (e exampleHooks) OnJoinHook(s *state.State) error {
+	logger.Info("This is a hook that runs after the daemon is initialized and joins an existing cluster")
+
+	return nil
+}
+
+// OnRemoveHook is run after the daemon is removed from a cluster.
+func (e exampleHooks) OnRemoveHook(s *state.State) error {
+	logger.Info("This is a hook that is run on the dqlite leader after a cluster member is removed")
+
+	return nil
+}
+
+// OnHeartbeatHook is run after a successful heartbeat round.
+func (e exampleHooks) OnHeartbeatHook(s *state.State) error {
+	logger.Info("This is a hook that is run on the dqlite leader after a successful heartbeat")
+
+	return nil
 }

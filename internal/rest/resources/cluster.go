@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"os"
@@ -289,7 +290,7 @@ func clusterMemberDelete(state *state.State, r *http.Request) response.Response 
 		return response.SmartError(err)
 	}
 
-	// If we are not the leader, just update our trust store.
+	// If we are not the leader, just update our trust store and forward the request.
 	if leaderInfo.Address != state.Address().URL.Host {
 		if allRemotes[name].Address.String() == state.Address().URL.Host {
 			// If the member being removed is ourselves and we are not the leader, then lock the
@@ -390,15 +391,73 @@ func clusterMemberDelete(state *state.State, r *http.Request) response.Response 
 		return response.SmartError(fmt.Errorf("Cannot leave a cluster with %d members", len(info)))
 	}
 
+	// If we are removing the leader of a 2-node cluster, ensure the remaining node is a voter.
 	if len(info) == 2 && allRemotes[name].Address.String() == leaderInfo.Address {
 		for _, node := range info {
-			if node.Address != leaderInfo.Address {
+			if node.Address != leaderInfo.Address && node.Role != dqliteClient.Voter {
 				err = leader.Assign(ctx, node.ID, dqliteClient.Voter)
 				if err != nil {
 					return response.SmartError(err)
 				}
 			}
 		}
+	}
+
+	// If we are the leader and removing ourselves, reassign the leader role and perform the removal from there.
+	if allRemotes[name].Address.String() == leaderInfo.Address {
+		otherNodes := []uint64{}
+		for _, node := range info {
+			if node.Address != allRemotes[name].Address.String() && node.Role == dqliteClient.Voter {
+				otherNodes = append(otherNodes, node.ID)
+			}
+		}
+
+		if len(otherNodes) == 0 {
+			return response.SmartError(fmt.Errorf("Found no voters to transfer leadership to"))
+		}
+
+		randomID := otherNodes[rand.Intn(len(otherNodes))]
+		err = leader.Transfer(ctx, randomID)
+		if err != nil {
+			return response.SmartError(err)
+		}
+
+		client, err := state.Leader()
+		if err != nil {
+			return response.SmartError(err)
+		}
+
+		clusterDisableMu.Lock()
+		logger.Info("Acquired cluster self removal lock", logger.Ctx{"member": name})
+
+		go func() {
+			<-r.Context().Done() // Wait until request is finished.
+
+			logger.Info("Releasing cluster self removal lock", logger.Ctx{"member": name})
+			clusterDisableMu.Unlock()
+		}()
+
+		err = client.DeleteClusterMember(state.Context, name)
+		if err != nil {
+			return response.SmartError(err)
+		}
+
+		return response.ManualResponse(func(w http.ResponseWriter) error {
+			err := response.EmptySyncResponse.Render(w)
+			if err != nil {
+				return err
+			}
+
+			// Send the response before replacing the LXD daemon process.
+			f, ok := w.(http.Flusher)
+			if ok {
+				f.Flush()
+			} else {
+				return fmt.Errorf("http.ResponseWriter is not type http.Flusher")
+			}
+
+			return nil
+		})
 	}
 
 	// Remove the cluster member from the database.
@@ -415,40 +474,33 @@ func clusterMemberDelete(state *state.State, r *http.Request) response.Response 
 		return response.SmartError(err)
 	}
 
-	// Reset the state of the removed node.
-	if allRemotes[name].Address.String() == state.Address().URL.Host {
-		return clusterMemberPut(state, r)
-	} else {
-
-		newRemotes := []internalTypes.ClusterMember{}
-		for _, remote := range allRemotes {
-			if remote.Name != name {
-				clusterMember := internalTypes.ClusterMemberLocal{Name: remote.Name, Address: remote.Address, Certificate: remote.Certificate}
-				newRemotes = append(newRemotes, internalTypes.ClusterMember{ClusterMemberLocal: clusterMember})
-			}
+	newRemotes := []internalTypes.ClusterMember{}
+	for _, remote := range allRemotes {
+		if remote.Name != name {
+			clusterMember := internalTypes.ClusterMemberLocal{Name: remote.Name, Address: remote.Address, Certificate: remote.Certificate}
+			newRemotes = append(newRemotes, internalTypes.ClusterMember{ClusterMemberLocal: clusterMember})
 		}
+	}
 
-		// Remove the cluster member from the leader's trust store.
-		err = state.Remotes().Replace(state.OS.TrustDir, newRemotes...)
-		if err != nil {
-			return response.SmartError(err)
-		}
+	// Remove the cluster member from the leader's trust store.
+	err = state.Remotes().Replace(state.OS.TrustDir, newRemotes...)
+	if err != nil {
+		return response.SmartError(err)
+	}
 
-		remote := allRemotes[name]
-		publicKey, err := state.ClusterCert().PublicKeyX509()
-		if err != nil {
-			return response.SmartError(err)
-		}
+	publicKey, err := state.ClusterCert().PublicKeyX509()
+	if err != nil {
+		return response.SmartError(err)
+	}
 
-		client, err := client.New(remote.URL(), state.ServerCert(), publicKey, false)
-		if err != nil {
-			return response.SmartError(err)
-		}
+	client, err := client.New(remote.URL(), state.ServerCert(), publicKey, false)
+	if err != nil {
+		return response.SmartError(err)
+	}
 
-		err = client.ResetClusterMember(state.Context, name)
-		if err != nil {
-			return response.SmartError(err)
-		}
+	err = client.ResetClusterMember(state.Context, name)
+	if err != nil {
+		return response.SmartError(err)
 	}
 
 	return response.EmptySyncResponse

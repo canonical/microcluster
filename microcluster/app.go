@@ -14,13 +14,13 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/canonical/microcluster/client"
+	"github.com/canonical/microcluster/config"
 	"github.com/canonical/microcluster/internal/daemon"
 	internalClient "github.com/canonical/microcluster/internal/rest/client"
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/internal/sys"
 	"github.com/canonical/microcluster/rest"
 	"github.com/canonical/microcluster/rest/types"
-	"github.com/canonical/microcluster/state"
 )
 
 // MicroCluster contains some basic filesystem information for interacting with the MicroCluster daemon.
@@ -49,7 +49,7 @@ func App(ctx context.Context, stateDir string, verbose bool, debug bool) (*Micro
 
 // Start starts up a brand new MicroCluster daemon. Only the local control socket will be available at this stage, no
 // database exists yet. Any api or schema extensions can be applied here.
-func (m *MicroCluster) Start(apiEndpoints []rest.Endpoint, schemaExtensions map[int]schema.Update, initHook func(state *state.State, bootstrap bool) error) error {
+func (m *MicroCluster) Start(apiEndpoints []rest.Endpoint, schemaExtensions map[int]schema.Update, hooks config.Hooks) error {
 	// Initialize the logger.
 	err := logger.InitLogger(m.FileSystem.LogFile, "", m.verbose, m.debug, nil)
 	if err != nil {
@@ -69,7 +69,7 @@ func (m *MicroCluster) Start(apiEndpoints []rest.Endpoint, schemaExtensions map[
 	chIgnore := make(chan os.Signal, 1)
 	signal.Notify(chIgnore, unix.SIGHUP)
 
-	err = d.Init(m.FileSystem.StateDir, apiEndpoints, schemaExtensions, initHook)
+	err = d.Init(m.FileSystem.StateDir, apiEndpoints, schemaExtensions, hooks)
 	if err != nil {
 		return fmt.Errorf("Unable to start daemon: %w", err)
 	}

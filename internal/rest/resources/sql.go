@@ -13,7 +13,6 @@ import (
 	"github.com/lxc/lxd/lxd/db/query"
 	"github.com/lxc/lxd/lxd/response"
 
-	"github.com/canonical/microcluster/internal/db"
 	"github.com/canonical/microcluster/internal/rest/access"
 	"github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/internal/state"
@@ -38,7 +37,7 @@ func sqlGet(state *state.State, r *http.Request) response.Response {
 	}
 
 	var dump string
-	err = state.Database.Transaction(parentCtx, func(ctx context.Context, tx *db.Tx) error {
+	err = state.Database.Transaction(parentCtx, func(ctx context.Context, tx *sql.Tx) error {
 		dump, err = query.Dump(ctx, tx, schemaOnly == 1)
 		if err != nil {
 			return fmt.Errorf("failed dump database: %w", err)
@@ -78,7 +77,7 @@ func sqlPost(state *state.State, r *http.Request) response.Response {
 		}
 
 		result := types.SQLResult{}
-		err = state.Database.Transaction(parentCtx, func(ctx context.Context, tx *db.Tx) error {
+		err = state.Database.Transaction(parentCtx, func(ctx context.Context, tx *sql.Tx) error {
 			if strings.HasPrefix(strings.ToUpper(query), "SELECT") {
 				err = sqlSelect(ctx, tx, query, &result)
 			} else {

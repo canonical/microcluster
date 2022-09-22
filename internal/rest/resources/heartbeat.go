@@ -2,6 +2,7 @@ package resources
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -13,7 +14,6 @@ import (
 
 	"github.com/canonical/microcluster/client"
 	"github.com/canonical/microcluster/cluster"
-	"github.com/canonical/microcluster/internal/db"
 	internalClient "github.com/canonical/microcluster/internal/rest/client"
 	"github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/internal/state"
@@ -55,7 +55,7 @@ func heartbeatPost(state *state.State, r *http.Request) response.Response {
 	}
 
 	var schemaVersion int
-	err = state.Database.Transaction(state.Context, func(ctx context.Context, tx *db.Tx) error {
+	err = state.Database.Transaction(state.Context, func(ctx context.Context, tx *sql.Tx) error {
 		localClusterMember, err := cluster.GetInternalClusterMember(ctx, tx, state.Name())
 		if err != nil {
 			return err
@@ -105,7 +105,7 @@ func beginHeartbeat(state *state.State, r *http.Request) response.Response {
 
 	// Get the database record of cluster members.
 	var clusterMembers []types.ClusterMember
-	err = state.Database.Transaction(state.Context, func(ctx context.Context, tx *db.Tx) error {
+	err = state.Database.Transaction(state.Context, func(ctx context.Context, tx *sql.Tx) error {
 		dbClusterMembers, err := cluster.GetInternalClusterMembers(ctx, tx)
 		if err != nil {
 			return err
@@ -246,7 +246,7 @@ func beginHeartbeat(state *state.State, r *http.Request) response.Response {
 	}
 
 	// Having sent a heartbeat to each valid cluster member, update the database record of members.
-	err = state.Database.Transaction(state.Context, func(ctx context.Context, tx *db.Tx) error {
+	err = state.Database.Transaction(state.Context, func(ctx context.Context, tx *sql.Tx) error {
 		dbClusterMembers, err := cluster.GetInternalClusterMembers(ctx, tx)
 		if err != nil {
 			return err

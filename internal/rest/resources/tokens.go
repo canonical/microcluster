@@ -2,6 +2,7 @@ package resources
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/url"
@@ -11,7 +12,6 @@ import (
 	"github.com/lxc/lxd/shared"
 
 	"github.com/canonical/microcluster/cluster"
-	"github.com/canonical/microcluster/internal/db"
 	"github.com/canonical/microcluster/internal/rest/access"
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/internal/state"
@@ -70,7 +70,7 @@ func tokensPost(state *state.State, r *http.Request) response.Response {
 		return response.InternalError(err)
 	}
 
-	err = state.Database.Transaction(state.Context, func(ctx context.Context, tx *db.Tx) error {
+	err = state.Database.Transaction(state.Context, func(ctx context.Context, tx *sql.Tx) error {
 		_, err = cluster.CreateInternalTokenRecord(ctx, tx, cluster.InternalTokenRecord{Name: req.Name, Secret: tokenKey})
 		return err
 	})
@@ -93,7 +93,7 @@ func tokensGet(state *state.State, r *http.Request) response.Response {
 	}
 
 	var records []internalTypes.TokenRecord
-	err = state.Database.Transaction(state.Context, func(ctx context.Context, tx *db.Tx) error {
+	err = state.Database.Transaction(state.Context, func(ctx context.Context, tx *sql.Tx) error {
 		var err error
 		tokens, err := cluster.GetInternalTokenRecords(ctx, tx)
 		if err != nil {
@@ -125,7 +125,7 @@ func tokenDelete(state *state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	err = state.Database.Transaction(state.Context, func(ctx context.Context, tx *db.Tx) error {
+	err = state.Database.Transaction(state.Context, func(ctx context.Context, tx *sql.Tx) error {
 		return cluster.DeleteInternalTokenRecord(ctx, tx, name)
 	})
 	if err != nil {

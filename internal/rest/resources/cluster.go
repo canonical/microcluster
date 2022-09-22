@@ -2,6 +2,7 @@ package resources
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -19,7 +20,6 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/canonical/microcluster/cluster"
-	"github.com/canonical/microcluster/internal/db"
 	"github.com/canonical/microcluster/internal/rest/access"
 	"github.com/canonical/microcluster/internal/rest/client"
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
@@ -99,7 +99,7 @@ func clusterPost(state *state.State, r *http.Request) response.Response {
 		return response.SyncResponse(true, tokenResponse)
 	}
 
-	err = state.Database.Transaction(state.Context, func(ctx context.Context, tx *db.Tx) error {
+	err = state.Database.Transaction(state.Context, func(ctx context.Context, tx *sql.Tx) error {
 		dbClusterMember := cluster.InternalClusterMember{
 			Name:        req.Name,
 			Address:     req.Address.String(),
@@ -160,7 +160,7 @@ func clusterPost(state *state.State, r *http.Request) response.Response {
 
 func clusterGet(state *state.State, r *http.Request) response.Response {
 	var apiClusterMembers []internalTypes.ClusterMember
-	err := state.Database.Transaction(state.Context, func(ctx context.Context, tx *db.Tx) error {
+	err := state.Database.Transaction(state.Context, func(ctx context.Context, tx *sql.Tx) error {
 		clusterMembers, err := cluster.GetInternalClusterMembers(ctx, tx)
 		if err != nil {
 			return err
@@ -402,7 +402,7 @@ func clusterMemberDelete(state *state.State, r *http.Request) response.Response 
 	}
 
 	// Remove the cluster member from the database.
-	err = state.Database.Transaction(state.Context, func(ctx context.Context, tx *db.Tx) error {
+	err = state.Database.Transaction(state.Context, func(ctx context.Context, tx *sql.Tx) error {
 		return cluster.DeleteInternalClusterMember(ctx, tx, info[index].Address)
 	})
 	if err != nil {

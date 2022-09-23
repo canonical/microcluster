@@ -53,11 +53,17 @@ type State struct {
 	Remotes func() *trust.Remotes
 
 	// Initialize APIs and bootstrap/join database.
-	StartAPI func(bootstrap bool, runHook bool, newConfig *trust.Location, joinAddresses ...string) error
+	StartAPI func(bootstrap bool, newConfig *trust.Location, joinAddresses ...string) error
 
 	// Stop fully stops the daemon, its database, and all listeners.
 	Stop func() error
 }
+
+// OnRemoveHook is a post-action hook that is run on the leader when a cluster member is removed.
+var OnRemoveHook func(state *State) error
+
+// OnHeartbeatHook is a post-action hook that is run on the leader after a successful heartbeat round.
+var OnHeartbeatHook func(state *State) error
 
 // Cluster returns a client for every member of a cluster, except
 // this one, with the UserAgentNotifier header set if a request is given.

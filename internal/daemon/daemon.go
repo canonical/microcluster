@@ -23,6 +23,7 @@ import (
 
 	"github.com/canonical/microcluster/client"
 	"github.com/canonical/microcluster/cluster"
+	"github.com/canonical/microcluster/config"
 	"github.com/canonical/microcluster/internal/db"
 	"github.com/canonical/microcluster/internal/db/update"
 	"github.com/canonical/microcluster/internal/endpoints"
@@ -51,7 +52,7 @@ type Daemon struct {
 	fsWatcher  *sys.Watcher
 	trustStore *trust.Store
 
-	initHook func(state *state.State, bootstrap bool) error // Hook to be called upon initializing the daemon for the first time.
+	hooks config.Hooks // Hooks to be called upon various daemon actions.
 
 	ReadyChan      chan struct{}      // Closed when the daemon is fully ready.
 	ShutdownCtx    context.Context    // Cancelled when shutdown starts.
@@ -71,7 +72,7 @@ func NewDaemon(ctx context.Context) *Daemon {
 }
 
 // Init initializes the Daemon with the given configuration, and starts the database.
-func (d *Daemon) Init(stateDir string, extendedEndpoints []rest.Endpoint, schemaExtensions map[int]schema.Update, initHook func(state *state.State, bootstrap bool) error) error {
+func (d *Daemon) Init(stateDir string, extendedEndpoints []rest.Endpoint, schemaExtensions map[int]schema.Update, hooks config.Hooks) error {
 	if stateDir == "" {
 		stateDir = os.Getenv(sys.StateDir)
 	}
@@ -91,9 +92,14 @@ func (d *Daemon) Init(stateDir string, extendedEndpoints []rest.Endpoint, schema
 		return fmt.Errorf("Failed to initialize directory structure: %w", err)
 	}
 
-	err = d.init(extendedEndpoints, schemaExtensions, initHook)
+	err = d.init(extendedEndpoints, schemaExtensions, hooks)
 	if err != nil {
 		return fmt.Errorf("Daemon failed to start: %w", err)
+	}
+
+	err = d.hooks.OnStartHook(d.State())
+	if err != nil {
+		return fmt.Errorf("Failed to run post-start hook: %w", err)
 	}
 
 	close(d.ReadyChan)
@@ -101,7 +107,14 @@ func (d *Daemon) Init(stateDir string, extendedEndpoints []rest.Endpoint, schema
 	return nil
 }
 
-func (d *Daemon) init(extendedEndpoints []rest.Endpoint, schemaExtensions map[int]schema.Update, initHook func(state *state.State, bootstrap bool) error) error {
+func (d *Daemon) init(extendedEndpoints []rest.Endpoint, schemaExtensions map[int]schema.Update, hooks config.Hooks) error {
+	// Apply the default empty hooks if no hooks are given.
+	if hooks != nil {
+		d.hooks = hooks
+	} else {
+		d.hooks = defaultHooks{}
+	}
+
 	var err error
 	d.serverCert, err = util.LoadServerCert(d.os.StateDir)
 	if err != nil {
@@ -137,8 +150,6 @@ func (d *Daemon) init(extendedEndpoints []rest.Endpoint, schemaExtensions map[in
 		return err
 	}
 
-	d.initHook = initHook
-
 	return nil
 }
 
@@ -168,7 +179,7 @@ func (d *Daemon) reloadIfBootstrapped() error {
 		return fmt.Errorf("Failed to retrieve daemon configuration yaml: %w", err)
 	}
 
-	err = d.StartAPI(false, false, nil)
+	err = d.StartAPI(false, nil)
 	if err != nil {
 		return err
 	}
@@ -238,7 +249,7 @@ func (d *Daemon) initServer(resources ...*resources.Resources) *http.Server {
 
 // StartAPI starts up the admin and consumer APIs, and generates a cluster cert
 // if we are bootstrapping the first node.
-func (d *Daemon) StartAPI(bootstrap bool, runHook bool, newConfig *trust.Location, joinAddresses ...string) error {
+func (d *Daemon) StartAPI(bootstrap bool, newConfig *trust.Location, joinAddresses ...string) error {
 	if newConfig != nil {
 		err := d.setDaemonConfig(newConfig)
 		if err != nil {
@@ -315,11 +326,7 @@ func (d *Daemon) StartAPI(bootstrap bool, runHook bool, newConfig *trust.Locatio
 			return err
 		}
 
-		if runHook && d.initHook != nil {
-			return d.initHook(d.State(), bootstrap)
-		}
-
-		return nil
+		return d.hooks.OnBootstrapHook(d.State())
 	}
 
 	if len(joinAddresses) != 0 {
@@ -396,8 +403,8 @@ func (d *Daemon) StartAPI(bootstrap bool, runHook bool, newConfig *trust.Locatio
 		return err
 	}
 
-	if runHook && d.initHook != nil {
-		return d.initHook(d.State(), bootstrap)
+	if len(joinAddresses) > 0 {
+		return d.hooks.OnJoinHook(d.State())
 	}
 
 	return nil
@@ -426,6 +433,9 @@ func (d *Daemon) Name() string {
 
 // State creates a State instance with the daemon's stateful components.
 func (d *Daemon) State() *state.State {
+	state.OnRemoveHook = d.hooks.OnRemoveHook
+	state.OnHeartbeatHook = d.hooks.OnHeartbeatHook
+
 	state := &state.State{
 		Context:        d.ShutdownCtx,
 		ReadyCh:        d.ReadyChan,

@@ -23,6 +23,8 @@ import (
 )
 
 var controlCmd = rest.Endpoint{
+	AllowedBeforeInit: true,
+
 	Post: rest.EndpointAction{Handler: controlPost, AccessHandler: access.AllowAuthenticated},
 }
 

@@ -12,7 +12,8 @@ import (
 )
 
 var shutdownCmd = rest.Endpoint{
-	Path: "shutdown",
+	AllowedBeforeInit: true,
+	Path:              "shutdown",
 
 	Post: rest.EndpointAction{Handler: shutdownPost, AccessHandler: access.AllowAuthenticated},
 }

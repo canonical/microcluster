@@ -12,7 +12,8 @@ import (
 )
 
 var databaseCmd = rest.Endpoint{
-	Path: "database",
+	AllowedBeforeInit: true,
+	Path:              "database",
 
 	Post:  rest.EndpointAction{Handler: databasePost},
 	Patch: rest.EndpointAction{Handler: databasePatch},

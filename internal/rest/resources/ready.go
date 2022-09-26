@@ -12,7 +12,8 @@ import (
 )
 
 var readyCmd = rest.Endpoint{
-	Path: "ready",
+	AllowedBeforeInit: true,
+	Path:              "ready",
 
 	Get: rest.EndpointAction{Handler: getWaitReady, AccessHandler: access.AllowAuthenticated},
 }

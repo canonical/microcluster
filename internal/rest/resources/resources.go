@@ -11,18 +11,11 @@ type Resources struct {
 	Endpoints []rest.Endpoint
 }
 
-// ControlEndpoints are the endpoints available over the unix socket.
-var ControlEndpoints = &Resources{
+// UnixEndpoints are the endpoints available over the unix socket.
+var UnixEndpoints = &Resources{
 	Path: client.ControlEndpoint,
 	Endpoints: []rest.Endpoint{
 		controlCmd,
-		sqlCmd,
-		readyCmd,
-		tokensCmd,
-		tokenCmd,
-		clusterCmd,
-		clusterMemberCmd,
-		heartbeatCmd,
 		shutdownCmd,
 	},
 }

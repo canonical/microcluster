@@ -246,9 +246,9 @@ func (m *MicroCluster) LocalClient() (*client.Client, error) {
 	return &client.Client{Client: *c}, nil
 }
 
-// Client gets a client for the specified cluster member URL. The filesystem will be parsed for the cluster and server
-// certificates.
-func (m *MicroCluster) Client(address string) (*client.Client, error) {
+// RemoteClient gets a client for the specified cluster member URL.
+// The filesystem will be parsed for the cluster and server certificates.
+func (m *MicroCluster) RemoteClient(address string) (*client.Client, error) {
 	serverCert, err := m.FileSystem.ServerCert()
 	if err != nil {
 		return nil, err

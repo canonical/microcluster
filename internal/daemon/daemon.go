@@ -128,7 +128,10 @@ func (d *Daemon) init(extendedEndpoints []rest.Endpoint, schemaExtensions map[in
 
 	d.db = db.NewDB(d.ShutdownCtx, d.serverCert, d.os)
 
-	ctlServer := d.initServer(resources.ControlEndpoints)
+	// Apply extensions to API/Schema.
+	resources.ExtendedEndpoints.Endpoints = append(resources.ExtendedEndpoints.Endpoints, extendedEndpoints...)
+
+	ctlServer := d.initServer(resources.UnixEndpoints, resources.InternalEndpoints, resources.PublicEndpoints, resources.ExtendedEndpoints)
 	ctl := endpoints.NewSocket(d.ShutdownCtx, ctlServer, d.os.ControlSocket(), "") // TODO: add socket group.
 	d.endpoints = endpoints.NewEndpoints(d.ShutdownCtx, ctl)
 	err = d.endpoints.Up()
@@ -136,8 +139,6 @@ func (d *Daemon) init(extendedEndpoints []rest.Endpoint, schemaExtensions map[in
 		return err
 	}
 
-	// Apply extensions to API/Schema.
-	resources.ExtendedEndpoints.Endpoints = append(resources.ExtendedEndpoints.Endpoints, extendedEndpoints...)
 	update.AppendSchema(schemaExtensions)
 
 	err = d.reloadIfBootstrapped()

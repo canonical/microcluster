@@ -227,7 +227,7 @@ func beginHeartbeat(s *state.State, r *http.Request) response.Response {
 			return nil
 		}
 
-		err := c.SendHeartbeat(ctx, hbInfo)
+		err := c.Heartbeat(ctx, hbInfo)
 		if err != nil {
 			logger.Error("Received error sending heartbeat to cluster member", logger.Ctx{"target": addr, "error": err})
 			return nil

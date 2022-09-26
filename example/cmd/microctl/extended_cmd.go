@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	microClient "github.com/canonical/microcluster/client"
 	"github.com/canonical/microcluster/example/client"
 	"github.com/canonical/microcluster/microcluster"
 	"github.com/spf13/cobra"
@@ -24,7 +25,7 @@ func (c *cmdExtended) Command() *cobra.Command {
 }
 
 func (c *cmdExtended) Run(cmd *cobra.Command, args []string) error {
-	if len(args) != 1 {
+	if len(args) > 1 {
 		return cmd.Help()
 	}
 
@@ -33,7 +34,13 @@ func (c *cmdExtended) Run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	cli, err := m.Client(args[0])
+	var cli *microClient.Client
+	if len(args) == 1 {
+		cli, err = m.RemoteClient(args[0])
+	} else {
+		cli, err = m.LocalClient()
+	}
+
 	if err != nil {
 		return err
 	}

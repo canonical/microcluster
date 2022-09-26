@@ -63,7 +63,7 @@ func (c *cmdClusterMembersList) Run(cmd *cobra.Command, args []string) error {
 
 	// Get a local client connected to the unix socket if no address is specified.
 	if len(args) == 1 {
-		client, err = m.Client(args[0])
+		client, err = m.RemoteClient(args[0])
 		if err != nil {
 			return err
 		}

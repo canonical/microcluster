@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"github.com/canonical/microcluster/internal/rest/types"
@@ -25,42 +24,27 @@ func (c *Client) AddClusterMember(ctx context.Context, args types.ClusterMember)
 
 // GetClusterMembers returns the database record of cluster members.
 func (c *Client) GetClusterMembers(ctx context.Context) ([]types.ClusterMember, error) {
-	endpoint := PublicEndpoint
-	if strings.HasSuffix(c.url.String(), "control.socket") {
-		endpoint = ControlEndpoint
-	}
-
 	queryCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	clusterMembers := []types.ClusterMember{}
-	err := c.QueryStruct(queryCtx, "GET", endpoint, api.NewURL().Path("cluster"), nil, &clusterMembers)
+	err := c.QueryStruct(queryCtx, "GET", PublicEndpoint, api.NewURL().Path("cluster"), nil, &clusterMembers)
 
 	return clusterMembers, err
 }
 
 // DeleteClusterMember deletes the cluster member with the given name.
 func (c *Client) DeleteClusterMember(ctx context.Context, name string) error {
-	endpoint := PublicEndpoint
-	if strings.HasSuffix(c.url.String(), "control.socket") {
-		endpoint = ControlEndpoint
-	}
-
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	return c.QueryStruct(queryCtx, "DELETE", endpoint, api.NewURL().Path("cluster", name), nil, nil)
+	return c.QueryStruct(queryCtx, "DELETE", PublicEndpoint, api.NewURL().Path("cluster", name), nil, nil)
 }
 
 // ResetClusterMember clears the state directory of the cluster member, and re-execs its daemon.
 func (c *Client) ResetClusterMember(ctx context.Context, name string) error {
-	endpoint := PublicEndpoint
-	if strings.HasSuffix(c.url.String(), "control.socket") {
-		endpoint = ControlEndpoint
-	}
-
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	return c.QueryStruct(queryCtx, "PUT", endpoint, api.NewURL().Path("cluster", name), nil, nil)
+	return c.QueryStruct(queryCtx, "PUT", PublicEndpoint, api.NewURL().Path("cluster", name), nil, nil)
 }

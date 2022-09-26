@@ -44,7 +44,12 @@ func handleAPIRequest(action rest.EndpointAction, state *internalState.State, w 
 			return accessResp
 		}
 	} else if !action.AllowUntrusted {
-		return response.Forbidden(nil)
+		// Set the default access handler if one isn't specified.
+		action.AccessHandler = access.AllowAuthenticated
+		accessResp := action.AccessHandler(state, r)
+		if accessResp != response.EmptySyncResponse {
+			return accessResp
+		}
 	}
 
 	return action.Handler(state, r)

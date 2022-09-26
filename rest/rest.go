@@ -33,4 +33,5 @@ type Endpoint struct {
 	Patch   EndpointAction
 
 	AllowedDuringShutdown bool // Whether we should return Unavailable Error (503) if daemon is shutting down.
+	AllowedBeforeInit     bool // Whether we should return Unavailabel Error (503) if the daemon has not been initialized (is not yet part of a cluster).
 }

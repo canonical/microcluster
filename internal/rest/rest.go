@@ -115,6 +115,17 @@ func HandleEndpoint(state *internalState.State, mux *mux.Router, version string,
 			return
 		}
 
+		if !e.AllowedBeforeInit {
+			if !state.Database.IsOpen() {
+				err := response.Unavailable(fmt.Errorf("Daemon not yet initialized")).Render(w)
+				if err != nil {
+					logger.Error("Failed to write HTTP response", logger.Ctx{"url": r.URL, "err": err})
+				}
+
+				return
+			}
+		}
+
 		// If the request is a database request, the connection should be hijacked.
 		handleRequest := handleAPIRequest
 		if e.Path == "database" {

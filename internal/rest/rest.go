@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 
 	"github.com/gorilla/mux"
-	"github.com/lxc/lxd/lxd/rbac"
 	"github.com/lxc/lxd/lxd/request"
 	"github.com/lxc/lxd/lxd/response"
 	"github.com/lxc/lxd/lxd/util"
@@ -45,10 +44,7 @@ func handleAPIRequest(action rest.EndpointAction, state *internalState.State, w 
 			return accessResp
 		}
 	} else if !action.AllowUntrusted {
-		// Require admin privileges.
-		if !rbac.UserIsAdmin(r) {
-			return response.Forbidden(nil)
-		}
+		return response.Forbidden(nil)
 	}
 
 	return action.Handler(state, r)

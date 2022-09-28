@@ -4,21 +4,21 @@ import (
 	"github.com/canonical/microcluster/internal/state"
 )
 
-// Hooks is an interface representing customizable functions that can be called at varying points by the daemon to
+// Hooks holds customizable functions that can be called at varying points by the daemon to.
 // integrate with other tools.
-type Hooks interface {
-	// OnBootstrapHook is run after the daemon is initialized and bootstrapped.
-	OnBootstrapHook(s *state.State) error
+type Hooks struct {
+	// OnBootstrap is run after the daemon is initialized and bootstrapped.
+	OnBootstrap func(s *state.State) error
 
-	// OnStartHook is run after the daemon is started.
-	OnStartHook(s *state.State) error
+	// OnStart is run after the daemon is started.
+	OnStart func(s *state.State) error
 
-	// OnJoinHook is run after the daemon is initialized and joins a cluster.
-	OnJoinHook(s *state.State) error
+	// OnJoin is run after the daemon is initialized and joins a cluster.
+	OnJoin func(s *state.State) error
 
-	// OnRemoveHook is run after the daemon is removed from a cluster.
-	OnRemoveHook(s *state.State) error
+	// OnRemove is run after the daemon is removed from a cluster.
+	OnRemove func(s *state.State) error
 
-	// OnHeartbeatHook is run after a successful heartbeat round.
-	OnHeartbeatHook(s *state.State) error
+	// OnHeartbeat is run after a successful heartbeat round.
+	OnHeartbeat func(s *state.State) error
 }

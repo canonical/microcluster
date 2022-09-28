@@ -9,7 +9,7 @@ import (
 
 // ControlDaemon posts control data to the daemon.
 func (c *Client) ControlDaemon(ctx context.Context, args types.Control, timeout time.Duration) error {
-	if timeout != 0 {
+	if timeout == 0 {
 		return c.QueryStruct(ctx, "POST", ControlEndpoint, nil, args, nil)
 	}
 

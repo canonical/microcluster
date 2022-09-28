@@ -72,7 +72,7 @@ func NewDaemon(ctx context.Context) *Daemon {
 }
 
 // Init initializes the Daemon with the given configuration, and starts the database.
-func (d *Daemon) Init(stateDir string, extendedEndpoints []rest.Endpoint, schemaExtensions map[int]schema.Update, hooks config.Hooks) error {
+func (d *Daemon) Init(stateDir string, extendedEndpoints []rest.Endpoint, schemaExtensions map[int]schema.Update, hooks *config.Hooks) error {
 	if stateDir == "" {
 		stateDir = os.Getenv(sys.StateDir)
 	}
@@ -97,7 +97,7 @@ func (d *Daemon) Init(stateDir string, extendedEndpoints []rest.Endpoint, schema
 		return fmt.Errorf("Daemon failed to start: %w", err)
 	}
 
-	err = d.hooks.OnStartHook(d.State())
+	err = d.hooks.OnStart(d.State())
 	if err != nil {
 		return fmt.Errorf("Failed to run post-start hook: %w", err)
 	}
@@ -107,13 +107,8 @@ func (d *Daemon) Init(stateDir string, extendedEndpoints []rest.Endpoint, schema
 	return nil
 }
 
-func (d *Daemon) init(extendedEndpoints []rest.Endpoint, schemaExtensions map[int]schema.Update, hooks config.Hooks) error {
-	// Apply the default empty hooks if no hooks are given.
-	if hooks != nil {
-		d.hooks = hooks
-	} else {
-		d.hooks = defaultHooks{}
-	}
+func (d *Daemon) init(extendedEndpoints []rest.Endpoint, schemaExtensions map[int]schema.Update, hooks *config.Hooks) error {
+	d.applyHooks(hooks)
 
 	var err error
 	d.serverCert, err = util.LoadServerCert(d.os.StateDir)
@@ -152,6 +147,37 @@ func (d *Daemon) init(extendedEndpoints []rest.Endpoint, schemaExtensions map[in
 	}
 
 	return nil
+}
+
+func (d *Daemon) applyHooks(hooks *config.Hooks) {
+	// Apply a no-op hook for any missing hooks.
+	noOpHook := func(s *state.State) error { return nil }
+
+	if hooks == nil {
+		d.hooks = config.Hooks{}
+	} else {
+		d.hooks = *hooks
+	}
+
+	if d.hooks.OnBootstrap == nil {
+		d.hooks.OnBootstrap = noOpHook
+	}
+
+	if d.hooks.OnJoin == nil {
+		d.hooks.OnJoin = noOpHook
+	}
+
+	if d.hooks.OnStart == nil {
+		d.hooks.OnStart = noOpHook
+	}
+
+	if d.hooks.OnHeartbeat == nil {
+		d.hooks.OnHeartbeat = noOpHook
+	}
+
+	if d.hooks.OnRemove == nil {
+		d.hooks.OnRemove = noOpHook
+	}
 }
 
 func (d *Daemon) reloadIfBootstrapped() error {
@@ -327,7 +353,7 @@ func (d *Daemon) StartAPI(bootstrap bool, newConfig *trust.Location, joinAddress
 			return err
 		}
 
-		return d.hooks.OnBootstrapHook(d.State())
+		return d.hooks.OnBootstrap(d.State())
 	}
 
 	if len(joinAddresses) != 0 {
@@ -405,7 +431,7 @@ func (d *Daemon) StartAPI(bootstrap bool, newConfig *trust.Location, joinAddress
 	}
 
 	if len(joinAddresses) > 0 {
-		return d.hooks.OnJoinHook(d.State())
+		return d.hooks.OnJoin(d.State())
 	}
 
 	return nil
@@ -434,8 +460,8 @@ func (d *Daemon) Name() string {
 
 // State creates a State instance with the daemon's stateful components.
 func (d *Daemon) State() *state.State {
-	state.OnRemoveHook = d.hooks.OnRemoveHook
-	state.OnHeartbeatHook = d.hooks.OnHeartbeatHook
+	state.OnRemoveHook = d.hooks.OnRemove
+	state.OnHeartbeatHook = d.hooks.OnHeartbeat
 
 	state := &state.State{
 		Context:        d.ShutdownCtx,

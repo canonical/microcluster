@@ -249,8 +249,13 @@ func (c *Client) rawQuery(ctx context.Context, method string, url *api.URL, data
 		}
 	}
 
+	return c.MakeRequest(req)
+}
+
+// MakeRequest performs a request and parses the response into an api.Response.
+func (c *Client) MakeRequest(r *http.Request) (*api.Response, error) {
 	// Send the request
-	resp, err := c.Do(req)
+	resp, err := c.Do(r)
 	if err != nil {
 		return nil, err
 	}
@@ -285,6 +290,7 @@ func (c *Client) QueryStruct(ctx context.Context, method string, endpointType En
 	localURL.URL.Host = c.url.URL.Host
 	localURL.URL.Scheme = c.url.URL.Scheme
 	localURL.URL.Path = "/" + string(endpointType) + localURL.URL.Path
+	localURL.URL.RawQuery = c.url.URL.RawQuery
 
 	// Send the actual query through.
 	resp, err := c.rawQuery(ctx, method, localURL, data)
@@ -307,4 +313,19 @@ func (c *Client) QueryStruct(ctx context.Context, method string, endpointType En
 // URL returns the address used for the client.
 func (c *Client) URL() api.URL {
 	return c.url
+}
+
+// UseTarget returns a new client with the query "?target=name" set.
+func (c *Client) UseTarget(name string) *Client {
+	localURL := api.NewURL()
+	localURL.URL.Host = c.url.URL.Host
+	localURL.URL.Scheme = c.url.URL.Scheme
+	localURL.URL.Path = c.url.URL.Path
+	localURL.URL.RawQuery = c.url.URL.RawQuery
+	localURL = localURL.WithQuery("target", name)
+
+	return &Client{
+		Client: c.Client,
+		url:    *localURL,
+	}
 }

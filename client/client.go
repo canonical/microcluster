@@ -28,3 +28,10 @@ func (c *Client) Query(ctx context.Context, method string, path *api.URL, in any
 
 	return c.QueryStruct(queryCtx, method, client.ExtendedEndpoint, path, in, &out)
 }
+
+// UseTarget returns a new client with the query "?target=name" set.
+func (c *Client) UseTarget(name string) *Client {
+	newClient := c.Client.UseTarget(name)
+
+	return &Client{Client: *newClient}
+}

@@ -231,6 +231,11 @@ func clusterMemberPut(s *state.State, r *http.Request) response.Response {
 		return response.SmartError(fmt.Errorf("Failed shutting down database: %w", err))
 	}
 
+	err = state.StopListeners()
+	if err != nil {
+		return response.SmartError(fmt.Errorf("Failed shutting down listeners: %w", err))
+	}
+
 	err = os.RemoveAll(s.OS.StateDir)
 	if err != nil {
 		return response.SmartError(fmt.Errorf("Failed to remove the s directory: %w", err))

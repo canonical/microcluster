@@ -3,13 +3,13 @@ module github.com/canonical/microcluster
 go 1.18
 
 require (
-	github.com/canonical/go-dqlite v1.11.4
+	github.com/canonical/go-dqlite v1.11.5
 	github.com/fsnotify/fsnotify v1.5.4
 	github.com/gorilla/mux v1.8.0
-	github.com/lxc/lxd v0.0.0-20220920134511-00e47079022e
+	github.com/lxc/lxd v0.0.0-20220929220622-06be220e0938
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/spf13/cobra v1.5.0
-	golang.org/x/sys v0.0.0-20220919091848-fb04ddd9f9c8
+	golang.org/x/sys v0.0.0-20220928140112-f11e5e49a4ec
 	gopkg.in/yaml.v2 v2.4.0
 )
 
@@ -44,9 +44,9 @@ require (
 	github.com/sirupsen/logrus v1.9.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stretchr/testify v1.8.0 // indirect
-	golang.org/x/crypto v0.0.0-20220919173607-35f4265a4bc0 // indirect
-	golang.org/x/net v0.0.0-20220920152717-4a395b0a80a1 // indirect
-	golang.org/x/sync v0.0.0-20220907140024-f12130a52804 // indirect
+	golang.org/x/crypto v0.0.0-20220926161630-eccd6366d1be // indirect
+	golang.org/x/net v0.0.0-20220927171203-f486391704dc // indirect
+	golang.org/x/sync v0.0.0-20220929204114-8fcdb60fdcc0 // indirect
 	golang.org/x/term v0.0.0-20220919170432-7a66f970e087 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect

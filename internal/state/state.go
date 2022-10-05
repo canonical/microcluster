@@ -59,11 +59,14 @@ type State struct {
 	Stop func() error
 }
 
-// OnRemoveHook is a post-action hook that is run on the leader when a cluster member is removed.
+// OnRemoveHook is a post-action hook that is run on all cluster members when a cluster member is removed.
 var OnRemoveHook func(state *State) error
 
 // OnHeartbeatHook is a post-action hook that is run on the leader after a successful heartbeat round.
 var OnHeartbeatHook func(state *State) error
+
+// OnNewMemberHook is a post-action hook that is run on all cluster members when a new cluster member joins the cluster.
+var OnNewMemberHook func(state *State) error
 
 // Cluster returns a client for every member of a cluster, except
 // this one, with the UserAgentNotifier header set if a request is given.

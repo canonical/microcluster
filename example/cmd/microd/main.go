@@ -90,7 +90,7 @@ func (c *cmdDaemon) Run(cmd *cobra.Command, args []string) error {
 
 		// OnRemove is run after the daemon is removed from a cluster.
 		OnRemove: func(s *state.State) error {
-			logger.Info("This is a hook that is run on the dqlite leader after a cluster member is removed")
+			logger.Infof("This is a hook that is run on peer %q after a cluster member is removed", s.Name())
 
 			return nil
 		},
@@ -98,6 +98,13 @@ func (c *cmdDaemon) Run(cmd *cobra.Command, args []string) error {
 		// OnHeartbeat is run after a successful heartbeat round.
 		OnHeartbeat: func(s *state.State) error {
 			logger.Info("This is a hook that is run on the dqlite leader after a successful heartbeat")
+
+			return nil
+		},
+
+		// OnNewMember is run after a new member has joined.
+		OnNewMember: func(s *state.State) error {
+			logger.Infof("This is a hook that is run on peer %q when a new cluster member has joined", s.Name())
 
 			return nil
 		},

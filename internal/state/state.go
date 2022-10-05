@@ -59,6 +59,9 @@ type State struct {
 	Stop func() error
 }
 
+// StopListeners stops the network listeners and the fsnotify listener.
+var StopListeners func() error
+
 // OnRemoveHook is a post-action hook that is run on all cluster members when a cluster member is removed.
 var OnRemoveHook func(state *State) error
 

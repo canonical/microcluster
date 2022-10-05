@@ -472,6 +472,14 @@ func (d *Daemon) State() *state.State {
 	state.OnRemoveHook = d.hooks.OnRemove
 	state.OnHeartbeatHook = d.hooks.OnHeartbeat
 	state.OnNewMemberHook = d.hooks.OnNewMember
+	state.StopListeners = func() error {
+		err := d.fsWatcher.Close()
+		if err != nil {
+			return err
+		}
+
+		return d.endpoints.Down()
+	}
 
 	state := &state.State{
 		Context:        d.ShutdownCtx,

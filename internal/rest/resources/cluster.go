@@ -283,6 +283,17 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
+	// If we received a forwarded request, assume the new member was successfully removed on the leader,
+	// and execute the post-remove hook.
+	if client.IsForwardedRequest(r) {
+		err := state.OnRemoveHook(s)
+		if err != nil {
+			return response.SmartError(fmt.Errorf("Failed to run post cluster member remove actions: %w", err))
+		}
+
+		return response.EmptySyncResponse
+	}
+
 	allRemotes := s.Remotes().RemotesByName()
 	remote, ok := allRemotes[name]
 	if !ok {
@@ -515,11 +526,19 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
+	cluster, err := s.Cluster(nil)
 	if err != nil {
 		return response.SmartError(err)
 	}
 
 	err = state.OnRemoveHook(s)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	err = cluster.Query(s.Context, true, func(ctx context.Context, c *client.Client) error {
+		return c.DeleteClusterMember(ctx, name)
+	})
 	if err != nil {
 		return response.SmartError(err)
 	}

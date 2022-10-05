@@ -20,9 +20,10 @@ import (
 	"github.com/lxc/lxd/shared/logger"
 	"golang.org/x/sys/unix"
 
+	"github.com/canonical/microcluster/client"
 	"github.com/canonical/microcluster/cluster"
 	"github.com/canonical/microcluster/internal/rest/access"
-	"github.com/canonical/microcluster/internal/rest/client"
+	internalClient "github.com/canonical/microcluster/internal/rest/client"
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/rest/types"
 
@@ -46,6 +47,17 @@ var clusterMemberCmd = rest.Endpoint{
 }
 
 func clusterPost(s *state.State, r *http.Request) response.Response {
+	// If we received a forwarded request, assume the new member was successfully added on the leader,
+	// and execute the new member hook.
+	if client.IsForwardedRequest(r) {
+		err := state.OnNewMemberHook(s)
+		if err != nil {
+			return response.SmartError(fmt.Errorf("Failed to run post cluster member add actions: %w", err))
+		}
+
+		return response.EmptySyncResponse
+	}
+
 	req := internalTypes.ClusterMember{}
 
 	// Parse the request.
@@ -191,7 +203,7 @@ func clusterGet(s *state.State, r *http.Request) response.Response {
 	// Send a small request to each node to ensure they are reachable.
 	for i, clusterMember := range apiClusterMembers {
 		addr := api.NewURL().Scheme("https").Host(clusterMember.Address.String())
-		d, err := client.New(*addr, s.ServerCert(), clusterCert, false)
+		d, err := internalClient.New(*addr, s.ServerCert(), clusterCert, false)
 		if err != nil {
 			return response.SmartError(fmt.Errorf("Failed to create HTTPS client for cluster member with address %q: %w", addr.String(), err))
 		}
@@ -217,6 +229,11 @@ func clusterMemberPut(s *state.State, r *http.Request) response.Response {
 	err := s.Database.Stop()
 	if err != nil {
 		return response.SmartError(fmt.Errorf("Failed shutting down database: %w", err))
+	}
+
+	err = state.StopListeners()
+	if err != nil {
+		return response.SmartError(fmt.Errorf("Failed shutting down listeners: %w", err))
 	}
 
 	err = os.RemoveAll(s.OS.StateDir)
@@ -269,6 +286,17 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 	name, err := url.PathUnescape(mux.Vars(r)["name"])
 	if err != nil {
 		return response.SmartError(err)
+	}
+
+	// If we received a forwarded request, assume the new member was successfully removed on the leader,
+	// and execute the post-remove hook.
+	if client.IsForwardedRequest(r) {
+		err := state.OnRemoveHook(s)
+		if err != nil {
+			return response.SmartError(fmt.Errorf("Failed to run post cluster member remove actions: %w", err))
+		}
+
+		return response.EmptySyncResponse
 	}
 
 	allRemotes := s.Remotes().RemotesByName()
@@ -366,7 +394,7 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 		return response.SmartError(fmt.Errorf("No dqlite cluster member exists with the given name %q", name))
 	}
 
-	localClient, err := client.New(s.OS.ControlSocket(), nil, nil, false)
+	localClient, err := internalClient.New(s.OS.ControlSocket(), nil, nil, false)
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -493,17 +521,29 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	client, err := client.New(remote.URL(), s.ServerCert(), publicKey, false)
+	c, err := internalClient.New(remote.URL(), s.ServerCert(), publicKey, false)
 	if err != nil {
 		return response.SmartError(err)
 	}
 
-	err = client.ResetClusterMember(s.Context, name)
+	err = c.ResetClusterMember(s.Context, name)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	cluster, err := s.Cluster(nil)
 	if err != nil {
 		return response.SmartError(err)
 	}
 
 	err = state.OnRemoveHook(s)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	err = cluster.Query(s.Context, true, func(ctx context.Context, c *client.Client) error {
+		return c.DeleteClusterMember(ctx, name)
+	})
 	if err != nil {
 		return response.SmartError(err)
 	}

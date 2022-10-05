@@ -21,4 +21,7 @@ type Hooks struct {
 
 	// OnHeartbeat is run after a successful heartbeat round.
 	OnHeartbeat func(s *state.State) error
+
+	// OnNewMember is run on each peer after a new cluster member has joined.
+	OnNewMember func(s *state.State) error
 }

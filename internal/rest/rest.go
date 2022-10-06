@@ -3,17 +3,22 @@ package rest
 import (
 	"context"
 	"crypto/x509"
+	"database/sql"
 	"fmt"
 	"net/http"
+	"net/url"
 	"path/filepath"
 
 	"github.com/gorilla/mux"
 	"github.com/lxc/lxd/lxd/request"
 	"github.com/lxc/lxd/lxd/response"
 	"github.com/lxc/lxd/lxd/util"
+	"github.com/lxc/lxd/shared/api"
 	"github.com/lxc/lxd/shared/logger"
 
+	"github.com/canonical/microcluster/cluster"
 	"github.com/canonical/microcluster/internal/rest/access"
+	"github.com/canonical/microcluster/internal/rest/client"
 	internalState "github.com/canonical/microcluster/internal/state"
 	"github.com/canonical/microcluster/rest"
 )
@@ -52,7 +57,74 @@ func handleAPIRequest(action rest.EndpointAction, state *internalState.State, w 
 		}
 	}
 
+	if action.ProxyTarget {
+		return proxyTarget(action, state, r)
+	}
+
 	return action.Handler(state, r)
+}
+
+func proxyTarget(action rest.EndpointAction, s *internalState.State, r *http.Request) response.Response {
+	if !s.Database.IsOpen() {
+		return response.Unavailable(fmt.Errorf("Cannot send request to target. Daemon not yet initialized"))
+	}
+
+	if r.URL == nil {
+		return action.Handler(s, r)
+	}
+
+	values, err := url.ParseQuery(r.URL.RawQuery)
+	if err != nil {
+		logger.Warnf("Failed to parse query string %q: %v", r.URL.RawQuery, err)
+	}
+
+	var target string
+	if values != nil {
+		target = values.Get("target")
+	}
+
+	if target == "" || target == s.Name() {
+		return action.Handler(s, r)
+	}
+
+	var targetURL *api.URL
+	err = s.Database.Transaction(s.Context, func(ctx context.Context, tx *sql.Tx) error {
+		clusterMember, err := cluster.GetInternalClusterMember(ctx, tx, target)
+		if err != nil {
+			return fmt.Errorf("Failed to get cluster member for request target name %q: %w", target, err)
+		}
+
+		targetURL = api.NewURL().Scheme("https").Host(clusterMember.Address).Path(r.URL.Path)
+
+		return nil
+	})
+	if err != nil {
+		return response.BadRequest(err)
+	}
+
+	clusterCert, err := s.ClusterCert().PublicKeyX509()
+	if err != nil {
+		return response.InternalError(fmt.Errorf("Failed to parse cluster certificate for request: %w", err))
+	}
+
+	client, err := client.New(*targetURL, s.ServerCert(), clusterCert, false)
+	if err != nil {
+		return response.InternalError(fmt.Errorf("Failed to get a client for the target %q at address %q: %w", target, targetURL.String(), err))
+	}
+
+	// Update request URL.
+	r.RequestURI = ""
+	r.URL.Scheme = targetURL.URL.Scheme
+	r.URL.Host = targetURL.URL.Host
+	r.Host = targetURL.URL.Host
+
+	logger.Info("Forwarding request to specified target", logger.Ctx{"source": s.Name(), "target": target})
+	resp, err := client.MakeRequest(r)
+	if err != nil {
+		return response.SmartError(fmt.Errorf("Failed to send request to target %q: %w", target, err))
+	}
+
+	return response.SyncResponse(true, resp.Metadata)
 }
 
 func handleDatabaseRequest(action rest.EndpointAction, state *internalState.State, w http.ResponseWriter, r *http.Request) response.Response {

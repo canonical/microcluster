@@ -34,11 +34,16 @@ func (c *Client) GetClusterMembers(ctx context.Context) ([]types.ClusterMember, 
 }
 
 // DeleteClusterMember deletes the cluster member with the given name.
-func (c *Client) DeleteClusterMember(ctx context.Context, name string) error {
+func (c *Client) DeleteClusterMember(ctx context.Context, name string, force bool) error {
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	return c.QueryStruct(queryCtx, "DELETE", PublicEndpoint, api.NewURL().Path("cluster", name), nil, nil)
+	endpoint := api.NewURL().Path("cluster", name)
+	if force {
+		endpoint = endpoint.WithQuery("force", "1")
+	}
+
+	return c.QueryStruct(queryCtx, "DELETE", PublicEndpoint, endpoint, nil, nil)
 }
 
 // ResetClusterMember clears the state directory of the cluster member, and re-execs its daemon.

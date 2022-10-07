@@ -92,6 +92,8 @@ func (c *cmdClusterMembersList) Run(cmd *cobra.Command, args []string) error {
 
 type cmdClusterMemberRemove struct {
 	common *CmdControl
+
+	flagForce bool
 }
 
 func (c *cmdClusterMemberRemove) Command() *cobra.Command {
@@ -100,6 +102,8 @@ func (c *cmdClusterMemberRemove) Command() *cobra.Command {
 		Short: "Remove the cluster member with the given name.",
 		RunE:  c.Run,
 	}
+
+	cmd.Flags().BoolVarP(&c.flagForce, "force", "f", false, "Forcibly remove the cluster member")
 
 	return cmd
 }
@@ -119,7 +123,7 @@ func (c *cmdClusterMemberRemove) Run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	err = client.DeleteClusterMember(context.Background(), args[0])
+	err = client.DeleteClusterMember(context.Background(), args[0], c.flagForce)
 	if err != nil {
 		return err
 	}

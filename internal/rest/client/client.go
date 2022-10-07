@@ -290,7 +290,14 @@ func (c *Client) QueryStruct(ctx context.Context, method string, endpointType En
 	localURL.URL.Host = c.url.URL.Host
 	localURL.URL.Scheme = c.url.URL.Scheme
 	localURL.URL.Path = "/" + string(endpointType) + localURL.URL.Path
-	localURL.URL.RawQuery = c.url.URL.RawQuery
+
+	localQuery := localURL.URL.Query()
+	clientQuery := c.url.URL.Query()
+	for k := range localQuery {
+		clientQuery.Set(k, localQuery.Get(k))
+	}
+
+	localURL.URL.RawQuery = clientQuery.Encode()
 
 	// Send the actual query through.
 	resp, err := c.rawQuery(ctx, method, localURL, data)

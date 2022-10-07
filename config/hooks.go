@@ -16,8 +16,11 @@ type Hooks struct {
 	// OnJoin is run after the daemon is initialized and joins a cluster.
 	OnJoin func(s *state.State) error
 
-	// OnRemove is run after the daemon is removed from a cluster.
-	OnRemove func(s *state.State) error
+	// PreRemove is run on a cluster member just before it is removed from the cluster.
+	PreRemove func(s *state.State) error
+
+	// PostRemove is run on all other peers after one is removed from the cluster.
+	PostRemove func(s *state.State) error
 
 	// OnHeartbeat is run after a successful heartbeat round.
 	OnHeartbeat func(s *state.State) error

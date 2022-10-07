@@ -176,12 +176,16 @@ func (d *Daemon) applyHooks(hooks *config.Hooks) {
 		d.hooks.OnHeartbeat = noOpHook
 	}
 
-	if d.hooks.OnRemove == nil {
-		d.hooks.OnRemove = noOpHook
-	}
-
 	if d.hooks.OnNewMember == nil {
 		d.hooks.OnNewMember = noOpHook
+	}
+
+	if d.hooks.PreRemove == nil {
+		d.hooks.PreRemove = noOpHook
+	}
+
+	if d.hooks.PostRemove == nil {
+		d.hooks.PostRemove = noOpHook
 	}
 }
 
@@ -473,7 +477,8 @@ func (d *Daemon) Name() string {
 
 // State creates a State instance with the daemon's stateful components.
 func (d *Daemon) State() *state.State {
-	state.OnRemoveHook = d.hooks.OnRemove
+	state.PreRemoveHook = d.hooks.PreRemove
+	state.PostRemoveHook = d.hooks.PostRemove
 	state.OnHeartbeatHook = d.hooks.OnHeartbeat
 	state.OnNewMemberHook = d.hooks.OnNewMember
 	state.StopListeners = func() error {

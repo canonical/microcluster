@@ -179,6 +179,10 @@ func (d *Daemon) applyHooks(hooks *config.Hooks) {
 	if d.hooks.OnRemove == nil {
 		d.hooks.OnRemove = noOpHook
 	}
+
+	if d.hooks.OnNewMember == nil {
+		d.hooks.OnNewMember = noOpHook
+	}
 }
 
 func (d *Daemon) reloadIfBootstrapped() error {

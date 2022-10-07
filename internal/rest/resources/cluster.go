@@ -226,6 +226,16 @@ var clusterDisableMu sync.Mutex
 
 // Re-execs the daemon of the cluster member with a fresh s.
 func clusterMemberPut(s *state.State, r *http.Request) response.Response {
+	// If we received a cluster notification, run the pre-removal hook and return.
+	if client.IsForwardedRequest(r) {
+		err := state.PreRemoveHook(s)
+		if err != nil {
+			return response.SmartError(fmt.Errorf("Failed to run pre-removal hook: %w", err))
+		}
+
+		return response.EmptySyncResponse
+	}
+
 	err := s.Database.Stop()
 	if err != nil {
 		return response.SmartError(fmt.Errorf("Failed shutting down database: %w", err))
@@ -283,6 +293,7 @@ func clusterMemberPut(s *state.State, r *http.Request) response.Response {
 
 // clusterMemberDelete Removes a cluster member from dqlite and re-execs its daemon.
 func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
+	force := r.URL.Query().Get("force") == "1"
 	name, err := url.PathUnescape(mux.Vars(r)["name"])
 	if err != nil {
 		return response.SmartError(err)
@@ -291,7 +302,7 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 	// If we received a forwarded request, assume the new member was successfully removed on the leader,
 	// and execute the post-remove hook.
 	if client.IsForwardedRequest(r) {
-		err := state.OnRemoveHook(s)
+		err := state.PostRemoveHook(s)
 		if err != nil {
 			return response.SmartError(fmt.Errorf("Failed to run post cluster member remove actions: %w", err))
 		}
@@ -341,7 +352,7 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 			return response.SmartError(err)
 		}
 
-		err = client.DeleteClusterMember(s.Context, name)
+		err = client.DeleteClusterMember(s.Context, name, force)
 		if err != nil {
 			return response.SmartError(err)
 		}
@@ -465,7 +476,7 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 			clusterDisableMu.Unlock()
 		}()
 
-		err = client.DeleteClusterMember(s.Context, name)
+		err = client.DeleteClusterMember(s.Context, name, force)
 		if err != nil {
 			return response.SmartError(err)
 		}
@@ -494,6 +505,24 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 	})
 	if err != nil {
 		return response.SmartError(err)
+	}
+
+	// If ?force=1 is not set, send a notification to run the PreRemoveHook.
+	if !force {
+		publicKey, err := s.ClusterCert().PublicKeyX509()
+		if err != nil {
+			return response.SmartError(err)
+		}
+
+		c, err := internalClient.New(remote.URL(), s.ServerCert(), publicKey, true)
+		if err != nil {
+			return response.SmartError(err)
+		}
+
+		err = c.ResetClusterMember(s.Context, name)
+		if err != nil {
+			return response.SmartError(err)
+		}
 	}
 
 	// Remove the node from dqlite.
@@ -536,13 +565,13 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	err = state.OnRemoveHook(s)
+	err = state.PostRemoveHook(s)
 	if err != nil {
 		return response.SmartError(err)
 	}
 
 	err = cluster.Query(s.Context, true, func(ctx context.Context, c *client.Client) error {
-		return c.DeleteClusterMember(ctx, name)
+		return c.DeleteClusterMember(ctx, name, force)
 	})
 	if err != nil {
 		return response.SmartError(err)

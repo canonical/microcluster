@@ -61,6 +61,10 @@ func Load(dir string) (*Remotes, error) {
 			return nil, fmt.Errorf("Unable to parse yaml for %q: %w", fileName, err)
 		}
 
+		if remote.Certificate.Certificate == nil {
+			return nil, fmt.Errorf("Failed to parse local record %q. Found empty certificate", remote.Name)
+		}
+
 		remotes.data[remote.Name] = *remote
 	}
 
@@ -73,10 +77,15 @@ func (r *Remotes) Add(dir string, remotes ...Remote) error {
 	defer r.updateMu.Unlock()
 
 	for _, remote := range remotes {
+		if remote.Certificate.Certificate == nil {
+			return fmt.Errorf("Failed to parse local record %q. Found empty certificate", remote.Name)
+		}
+
 		_, ok := r.data[remote.Name]
 		if ok {
 			return fmt.Errorf("A remote with name %q already exists", remote.Name)
 		}
+
 		bytes, err := yaml.Marshal(remote)
 		if err != nil {
 			return fmt.Errorf("Failed to parse remote %q to yaml: %w", remote.Name, err)
@@ -123,6 +132,11 @@ func (r *Remotes) Replace(dir string, newRemotes ...internalTypes.ClusterMember)
 			Location:    Location{Name: remote.Name, Address: remote.Address},
 			Certificate: remote.Certificate,
 		}
+
+		if remote.Certificate.Certificate == nil {
+			return fmt.Errorf("Failed to parse local record %q. Found empty certificate", remote.Name)
+		}
+
 		bytes, err := yaml.Marshal(newRemote)
 		if err != nil {
 			return fmt.Errorf("Failed to parse remote %q to yaml: %w", remote.Name, err)

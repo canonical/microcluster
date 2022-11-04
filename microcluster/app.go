@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"time"
@@ -26,15 +28,28 @@ import (
 // MicroCluster contains some basic filesystem information for interacting with the MicroCluster daemon.
 type MicroCluster struct {
 	FileSystem *sys.OS
+	ctx        context.Context
 
-	debug   bool
-	verbose bool
-	ctx     context.Context
+	args Args
+}
+
+// Args contains options for configuring MicroCluster.
+type Args struct {
+	Verbose  bool
+	Debug    bool
+	StateDir string
+
+	Client *client.Client
+	Proxy  func(*http.Request) (*url.URL, error)
 }
 
 // App returns an instance of MicroCluster with a newly initialized filesystem if one does not exist.
-func App(ctx context.Context, stateDir string, verbose bool, debug bool) (*MicroCluster, error) {
-	os, err := sys.DefaultOS(stateDir, true)
+func App(ctx context.Context, args Args) (*MicroCluster, error) {
+	if args.StateDir == "" {
+		return nil, fmt.Errorf("Missing state directory")
+	}
+
+	os, err := sys.DefaultOS(args.StateDir, true)
 	if err != nil {
 		return nil, err
 	}
@@ -42,8 +57,7 @@ func App(ctx context.Context, stateDir string, verbose bool, debug bool) (*Micro
 	return &MicroCluster{
 		FileSystem: os,
 		ctx:        ctx,
-		verbose:    verbose,
-		debug:      debug,
+		args:       args,
 	}, nil
 }
 
@@ -51,7 +65,7 @@ func App(ctx context.Context, stateDir string, verbose bool, debug bool) (*Micro
 // database exists yet. Any api or schema extensions can be applied here.
 func (m *MicroCluster) Start(apiEndpoints []rest.Endpoint, schemaExtensions map[int]schema.Update, hooks *config.Hooks) error {
 	// Initialize the logger.
-	err := logger.InitLogger(m.FileSystem.LogFile, "", m.verbose, m.debug, nil)
+	err := logger.InitLogger(m.FileSystem.LogFile, "", m.args.Verbose, m.args.Debug, nil)
 	if err != nil {
 		return err
 	}
@@ -193,7 +207,7 @@ func (m *MicroCluster) JoinCluster(name string, address string, token string, ti
 // Join tokens are tied to the server certificate of the joining node, and will be deleted once the node has joined the
 // cluster.
 func (m *MicroCluster) NewJoinToken(name string) (string, error) {
-	c, err := internalClient.New(m.FileSystem.ControlSocket(), nil, nil, false)
+	c, err := m.LocalClient()
 	if err != nil {
 		return "", err
 	}
@@ -208,7 +222,7 @@ func (m *MicroCluster) NewJoinToken(name string) (string, error) {
 
 // ListJoinTokens lists all the join tokens currently available for use.
 func (m *MicroCluster) ListJoinTokens() ([]internalTypes.TokenRecord, error) {
-	c, err := internalClient.New(m.FileSystem.ControlSocket(), nil, nil, false)
+	c, err := m.LocalClient()
 	if err != nil {
 		return nil, err
 	}
@@ -223,7 +237,7 @@ func (m *MicroCluster) ListJoinTokens() ([]internalTypes.TokenRecord, error) {
 
 // RevokeJoinToken revokes the token record stored under the given name.
 func (m *MicroCluster) RevokeJoinToken(name string) error {
-	c, err := internalClient.New(m.FileSystem.ControlSocket(), nil, nil, false)
+	c, err := m.LocalClient()
 	if err != nil {
 		return err
 	}
@@ -238,39 +252,61 @@ func (m *MicroCluster) RevokeJoinToken(name string) error {
 
 // LocalClient returns a client connected to the local control socket.
 func (m *MicroCluster) LocalClient() (*client.Client, error) {
-	c, err := internalClient.New(m.FileSystem.ControlSocket(), nil, nil, false)
-	if err != nil {
-		return nil, err
+	c := m.args.Client
+	if c == nil {
+		internalClient, err := internalClient.New(m.FileSystem.ControlSocket(), nil, nil, false)
+		if err != nil {
+			return nil, err
+		}
+
+		c = &client.Client{Client: *internalClient}
 	}
 
-	return &client.Client{Client: *c}, nil
+	if m.args.Proxy != nil {
+		tx := c.Client.Client.Transport.(*http.Transport)
+		tx.Proxy = m.args.Proxy
+		c.Client.Client.Transport = tx
+	}
+
+	return c, nil
 }
 
 // RemoteClient gets a client for the specified cluster member URL.
 // The filesystem will be parsed for the cluster and server certificates.
 func (m *MicroCluster) RemoteClient(address string) (*client.Client, error) {
-	serverCert, err := m.FileSystem.ServerCert()
-	if err != nil {
-		return nil, err
+	c := m.args.Client
+	if c == nil {
+		serverCert, err := m.FileSystem.ServerCert()
+		if err != nil {
+			return nil, err
+		}
+
+		clusterCert, err := m.FileSystem.ClusterCert()
+		if err != nil {
+			return nil, err
+		}
+
+		publicKey, err := clusterCert.PublicKeyX509()
+		if err != nil {
+			return nil, err
+		}
+
+		url := api.NewURL().Scheme("https").Host(address)
+		internalClient, err := internalClient.New(*url, serverCert, publicKey, false)
+		if err != nil {
+			return nil, err
+		}
+
+		c = &client.Client{Client: *internalClient}
 	}
 
-	clusterCert, err := m.FileSystem.ClusterCert()
-	if err != nil {
-		return nil, err
+	if m.args.Proxy != nil {
+		tx := c.Client.Client.Transport.(*http.Transport)
+		tx.Proxy = m.args.Proxy
+		c.Client.Client.Transport = tx
 	}
 
-	publicKey, err := clusterCert.PublicKeyX509()
-	if err != nil {
-		return nil, err
-	}
-
-	url := api.NewURL().Scheme("https").Host(address)
-	c, err := internalClient.New(*url, serverCert, publicKey, false)
-	if err != nil {
-		return nil, err
-	}
-
-	return &client.Client{Client: *c}, nil
+	return c, nil
 }
 
 // SQL performs either a GET or POST on /internal/sql with a given query. This is a useful helper for using direct SQL.

@@ -303,7 +303,7 @@ func dqliteNetworkDial(ctx context.Context, addr string, db *DB) (net.Conn, erro
 	if err != nil {
 		logCtx.Error("Failed extracting TCP connection from remote connection", logger.Ctx{"error": err})
 	} else {
-		err := tcp.SetTimeouts(remoteTCP)
+		err := tcp.SetTimeouts(remoteTCP, 0)
 		if err != nil {
 			logCtx.Error("Failed setting TCP timeouts on remote connection", logger.Ctx{"error": err})
 		}

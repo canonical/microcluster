@@ -141,7 +141,7 @@ func tlsHTTPClient(clientCert *shared.CertInfo, remoteCert *x509.Certificate, pr
 				return nil, err
 			}
 
-			err = tcp.SetTimeouts(tcpConn)
+			err = tcp.SetTimeouts(tcpConn, 0)
 			if err != nil {
 				return nil, err
 			}

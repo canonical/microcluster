@@ -24,6 +24,7 @@ var UnixEndpoints = &Resources{
 var PublicEndpoints = &Resources{
 	Path: client.PublicEndpoint,
 	Endpoints: []rest.Endpoint{
+		api10Cmd,
 		clusterCmd,
 		clusterMemberCmd,
 		tokensCmd,

@@ -107,6 +107,22 @@ func (m *MicroCluster) Start(apiEndpoints []rest.Endpoint, schemaExtensions map[
 	}
 }
 
+// Status returns basic status information about the cluster.
+func (m *MicroCluster) Status() (*internalTypes.Server, error) {
+	c, err := m.LocalClient()
+	if err != nil {
+		return nil, err
+	}
+
+	server := internalTypes.Server{}
+	err = c.QueryStruct(m.ctx, "GET", internalClient.PublicEndpoint, nil, nil, &server)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to get cluster status: %w", err)
+	}
+
+	return &server, nil
+}
+
 // Ready waits for the daemon to report it has finished initial setup and is ready to be bootstrapped or join an
 // existing cluster.
 func (m *MicroCluster) Ready(timeoutSeconds int) error {

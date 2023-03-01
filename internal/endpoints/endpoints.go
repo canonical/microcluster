@@ -88,15 +88,24 @@ func (e *Endpoints) up(listeners map[EndpointType]Endpoint) error {
 	return nil
 }
 
-// Down closes all of the configured listeners.
-func (e *Endpoints) Down() error {
+// Down closes all of the configured listeners, or any for the type specifically supplied.
+func (e *Endpoints) Down(types ...EndpointType) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
 	for _, listener := range e.listeners {
-		err := listener.Close()
-		if err != nil {
-			return err
+		remove := false
+		for _, endpoint := range types {
+			if listener.Type() == endpoint {
+				remove = true
+			}
+		}
+
+		if types == nil || remove {
+			err := listener.Close()
+			if err != nil {
+				return err
+			}
 		}
 	}
 

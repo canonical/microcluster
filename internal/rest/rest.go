@@ -65,10 +65,6 @@ func handleAPIRequest(action rest.EndpointAction, state *internalState.State, w 
 }
 
 func proxyTarget(action rest.EndpointAction, s *internalState.State, r *http.Request) response.Response {
-	if !s.Database.IsOpen() {
-		return response.Unavailable(fmt.Errorf("Cannot send request to target. Daemon not yet initialized"))
-	}
-
 	if r.URL == nil {
 		return action.Handler(s, r)
 	}
@@ -251,6 +247,11 @@ func HandleEndpoint(state *internalState.State, mux *mux.Router, version string,
 // - HTTP requests require our cluster cert, or remote certs.
 func authenticate(state *internalState.State, r *http.Request) (bool, error) {
 	if r.RemoteAddr == "@" {
+		return true, nil
+	}
+
+	if state.Address().URL.Host == "" {
+		logger.Info("Allowing unauthenticated request to un-initialized system")
 		return true, nil
 	}
 

@@ -39,8 +39,9 @@ type Args struct {
 	Debug    bool
 	StateDir string
 
-	Client *client.Client
-	Proxy  func(*http.Request) (*url.URL, error)
+	ListenPort string
+	Client     *client.Client
+	Proxy      func(*http.Request) (*url.URL, error)
 }
 
 // App returns an instance of MicroCluster with a newly initialized filesystem if one does not exist.
@@ -83,7 +84,7 @@ func (m *MicroCluster) Start(apiEndpoints []rest.Endpoint, schemaExtensions map[
 	chIgnore := make(chan os.Signal, 1)
 	signal.Notify(chIgnore, unix.SIGHUP)
 
-	err = d.Init(m.FileSystem.StateDir, apiEndpoints, schemaExtensions, hooks)
+	err = d.Init(m.args.ListenPort, m.FileSystem.StateDir, apiEndpoints, schemaExtensions, hooks)
 	if err != nil {
 		return fmt.Errorf("Unable to start daemon: %w", err)
 	}

@@ -73,7 +73,7 @@ func NewDaemon(ctx context.Context) *Daemon {
 }
 
 // Init initializes the Daemon with the given configuration, and starts the database.
-func (d *Daemon) Init(stateDir string, extendedEndpoints []rest.Endpoint, schemaExtensions map[int]schema.Update, hooks *config.Hooks) error {
+func (d *Daemon) Init(listenPort string, stateDir string, extendedEndpoints []rest.Endpoint, schemaExtensions map[int]schema.Update, hooks *config.Hooks) error {
 	if stateDir == "" {
 		stateDir = os.Getenv(sys.StateDir)
 	}
@@ -93,7 +93,7 @@ func (d *Daemon) Init(stateDir string, extendedEndpoints []rest.Endpoint, schema
 		return fmt.Errorf("Failed to initialize directory structure: %w", err)
 	}
 
-	err = d.init(extendedEndpoints, schemaExtensions, hooks)
+	err = d.init(listenPort, extendedEndpoints, schemaExtensions, hooks)
 	if err != nil {
 		return fmt.Errorf("Daemon failed to start: %w", err)
 	}
@@ -108,7 +108,7 @@ func (d *Daemon) Init(stateDir string, extendedEndpoints []rest.Endpoint, schema
 	return nil
 }
 
-func (d *Daemon) init(extendedEndpoints []rest.Endpoint, schemaExtensions map[int]schema.Update, hooks *config.Hooks) error {
+func (d *Daemon) init(listenPort string, extendedEndpoints []rest.Endpoint, schemaExtensions map[int]schema.Update, hooks *config.Hooks) error {
 	d.applyHooks(hooks)
 
 	var err error
@@ -133,6 +133,16 @@ func (d *Daemon) init(extendedEndpoints []rest.Endpoint, schemaExtensions map[in
 	err = d.endpoints.Up()
 	if err != nil {
 		return err
+	}
+
+	if listenPort != "" {
+		server := d.initServer(resources.PublicEndpoints, resources.ExtendedEndpoints)
+		url := api.NewURL().Host(fmt.Sprintf(":%s", listenPort))
+		network := endpoints.NewNetwork(d.ShutdownCtx, endpoints.EndpointNetwork, server, *url, d.serverCert)
+		err = d.endpoints.Add(network)
+		if err != nil {
+			return err
+		}
 	}
 
 	update.AppendSchema(schemaExtensions)
@@ -326,6 +336,10 @@ func (d *Daemon) StartAPI(bootstrap bool, newConfig *trust.Location, joinAddress
 
 	server := d.initServer(resources.InternalEndpoints, resources.PublicEndpoints, resources.ExtendedEndpoints)
 	network := endpoints.NewNetwork(d.ShutdownCtx, endpoints.EndpointNetwork, server, d.address, d.clusterCert)
+	err = d.endpoints.Down(endpoints.EndpointNetwork)
+	if err != nil {
+		return err
+	}
 
 	err = d.endpoints.Add(network)
 	if err != nil {

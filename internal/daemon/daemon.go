@@ -112,6 +112,11 @@ func (d *Daemon) init(listenPort string, extendedEndpoints []rest.Endpoint, sche
 	d.applyHooks(hooks)
 
 	var err error
+	d.name, err = os.Hostname()
+	if err != nil {
+		return fmt.Errorf("Failed to assign default system name: %w", err)
+	}
+
 	d.serverCert, err = util.LoadServerCert(d.os.StateDir)
 	if err != nil {
 		return err

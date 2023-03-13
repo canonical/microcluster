@@ -62,7 +62,7 @@ func (db *DB) Accept(conn net.Conn) {
 
 // NewDB creates an empty db struct with no dqlite connection.
 func NewDB(ctx context.Context, serverCert *shared.CertInfo, os *sys.OS) *DB {
-	shitdownCtx, shutdownCancel := context.WithCancel(ctx)
+	shutdownCtx, shutdownCancel := context.WithCancel(ctx)
 
 	return &DB{
 		serverCert:    serverCert,
@@ -70,7 +70,7 @@ func NewDB(ctx context.Context, serverCert *shared.CertInfo, os *sys.OS) *DB {
 		os:            os,
 		acceptCh:      make(chan net.Conn),
 		upgradeCh:     make(chan struct{}),
-		ctx:           shitdownCtx,
+		ctx:           shutdownCtx,
 		cancel:        shutdownCancel,
 		openCanceller: cancel.New(context.Background()),
 	}

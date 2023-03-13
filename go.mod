@@ -6,7 +6,7 @@ require (
 	github.com/canonical/go-dqlite v1.11.6
 	github.com/fsnotify/fsnotify v1.6.0
 	github.com/gorilla/mux v1.8.0
-	github.com/lxc/lxd v0.0.0-20230216063302-656f222ebcf9
+	github.com/lxc/lxd v0.0.0-20230217031332-3ee687474e01
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/spf13/cobra v1.6.1
 	golang.org/x/sys v0.5.0

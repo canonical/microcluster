@@ -22,7 +22,7 @@ import (
 // Open opens the dqlite database and loads the schema.
 // Returns true if we need to wait for other nodes to catch up to our version.
 func (db *DB) Open(bootstrap bool) error {
-	ctx, cancel := context.WithTimeout(db.ctx, 10*time.Second)
+	ctx, cancel := context.WithTimeout(db.ctx, 30*time.Second)
 	defer cancel()
 
 	err := db.dqlite.Ready(ctx)

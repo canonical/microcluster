@@ -28,7 +28,7 @@ var sqlCmd = rest.Endpoint{
 
 // Perform a database dump.
 func sqlGet(state *state.State, r *http.Request) response.Response {
-	parentCtx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	parentCtx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
 	schemaOnly, err := strconv.Atoi(r.FormValue("schema"))
@@ -54,7 +54,7 @@ func sqlGet(state *state.State, r *http.Request) response.Response {
 
 // Execute queries.
 func sqlPost(state *state.State, r *http.Request) response.Response {
-	parentCtx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	parentCtx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 	req := &types.SQLQuery{}
 	// Parse the request.

@@ -216,7 +216,7 @@ func (db *DB) heartbeat(ctx context.Context) {
 	defer db.heartbeatLock.Unlock()
 
 	// Use a 5 second timeout in case dqlite locks up.
-	dqliteCtx, cancel := context.WithTimeout(db.ctx, time.Second*5)
+	dqliteCtx, cancel := context.WithTimeout(db.ctx, time.Second*30)
 	defer cancel()
 
 	leaderClient, err := db.dqlite.Leader(dqliteCtx)

@@ -10,7 +10,7 @@ import (
 
 // RequestToken requests a join token with the given name.
 func (c *Client) RequestToken(ctx context.Context, name string) (string, error) {
-	queryCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	var token string
@@ -22,7 +22,7 @@ func (c *Client) RequestToken(ctx context.Context, name string) (string, error) 
 
 // DeleteTokenRecord deletes the toekn record.
 func (c *Client) DeleteTokenRecord(ctx context.Context, name string) error {
-	queryCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	err := c.QueryStruct(queryCtx, "DELETE", InternalEndpoint, api.NewURL().Path("tokens", name), nil, nil)
@@ -32,7 +32,7 @@ func (c *Client) DeleteTokenRecord(ctx context.Context, name string) error {
 
 // GetTokenRecords returns the token records.
 func (c *Client) GetTokenRecords(ctx context.Context) ([]types.TokenRecord, error) {
-	queryCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	tokenRecords := []types.TokenRecord{}

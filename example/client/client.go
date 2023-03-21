@@ -16,7 +16,7 @@ import (
 // client. This function is expected to be called from an api endpoint handler, which gives us access to the
 // daemon state, from which we can create a client.
 func ExtendedPostCmd(ctx context.Context, c *client.Client, data *types.ExtendedType) (string, error) {
-	queryCtx, cancel := context.WithTimeout(ctx, time.Second*5)
+	queryCtx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
 
 	var outStr string

@@ -85,7 +85,7 @@ func heartbeatPost(s *state.State, r *http.Request) response.Response {
 // recently.
 func beginHeartbeat(s *state.State, r *http.Request) response.Response {
 	// Set a 5 second timeout in case dqlite locks up.
-	ctx, cancel := context.WithTimeout(s.Context, time.Second*5)
+	ctx, cancel := context.WithTimeout(s.Context, time.Second*30)
 	defer cancel()
 
 	// Only a leader can begin a heartbeat round.
@@ -128,7 +128,7 @@ func beginHeartbeat(s *state.State, r *http.Request) response.Response {
 	}
 
 	// Set a 5 second timeout in case dqlite locks up.
-	ctx, cancel = context.WithTimeout(s.Context, time.Second*5)
+	ctx, cancel = context.WithTimeout(s.Context, time.Second*30)
 	defer cancel()
 
 	// Get dqlite record of cluster members.

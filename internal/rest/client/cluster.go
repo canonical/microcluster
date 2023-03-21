@@ -10,7 +10,7 @@ import (
 
 // AddClusterMember records a new cluster member in the trust store of each current cluster member.
 func (c *Client) AddClusterMember(ctx context.Context, args types.ClusterMember) (*types.TokenResponse, error) {
-	queryCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	tokenResponse := types.TokenResponse{}
@@ -24,7 +24,7 @@ func (c *Client) AddClusterMember(ctx context.Context, args types.ClusterMember)
 
 // GetClusterMembers returns the database record of cluster members.
 func (c *Client) GetClusterMembers(ctx context.Context) ([]types.ClusterMember, error) {
-	queryCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	clusterMembers := []types.ClusterMember{}

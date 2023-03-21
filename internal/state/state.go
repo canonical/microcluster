@@ -116,7 +116,7 @@ func (s *State) Cluster(r *http.Request) (client.Cluster, error) {
 
 // Leader returns a client connected to the dqlite leader.
 func (s *State) Leader() (*client.Client, error) {
-	ctx, cancel := context.WithTimeout(s.Context, time.Second*5)
+	ctx, cancel := context.WithTimeout(s.Context, time.Second*30)
 	defer cancel()
 
 	leaderClient, err := s.Database.Leader(ctx)

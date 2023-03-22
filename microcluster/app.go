@@ -2,6 +2,7 @@ package microcluster
 
 import (
 	"context"
+	"crypto/x509"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -298,14 +299,13 @@ func (m *MicroCluster) RemoteClient(address string) (*client.Client, error) {
 			return nil, err
 		}
 
+		var publicKey *x509.Certificate
 		clusterCert, err := m.FileSystem.ClusterCert()
-		if err != nil {
-			return nil, err
-		}
-
-		publicKey, err := clusterCert.PublicKeyX509()
-		if err != nil {
-			return nil, err
+		if err == nil {
+			publicKey, err = clusterCert.PublicKeyX509()
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		url := api.NewURL().Scheme("https").Host(address)

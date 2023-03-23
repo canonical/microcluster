@@ -20,36 +20,31 @@ type Store struct {
 // Init initializes the remotes in the truststore, seeds the rand package for selecting remotes at random, and watches
 // the truststore directory for updates.
 func Init(watcher *sys.Watcher, onUpdate func(oldRemotes, newRemotes Remotes) error, dir string) (*Store, error) {
-	ts := &Store{}
+	ts := &Store{remotes: &Remotes{}}
+	ts.remotesMu.Lock()
+	defer ts.remotesMu.Unlock()
 
-	ts.refresh = func(path string) error {
-		remotes, err := Load(dir)
-		if err != nil {
-			return fmt.Errorf("Unable to refresh remotes in path %q: %w", path, err)
-		}
-
-		ts.remotesMu.Lock()
-		defer ts.remotesMu.Unlock()
-
-		ts.remotes = remotes
-
-		return nil
-	}
-
-	remotes, err := Load(dir)
+	err := ts.remotes.Load(dir)
 	if err != nil {
 		return nil, err
 	}
 
-	ts.remotesMu.Lock()
-	ts.remotes = remotes
-	ts.remotesMu.Unlock()
+	ts.refresh = func(path string) error {
+		ts.remotesMu.Lock()
+		defer func() {
+			ts.remotesMu.Unlock()
+		}()
+
+		err := ts.remotes.Load(dir)
+		if err != nil {
+			return fmt.Errorf("Unable to refresh remotes in path %q: %w", path, err)
+		}
+
+		return nil
+	}
 
 	// Watch on the truststore directory for yaml updates.
 	watcher.Watch(dir, "yaml", func(path string, event fsnotify.Op) error {
-		ts.remotes.updateMu.Lock()
-		defer ts.remotes.updateMu.Unlock()
-
 		return ts.refresh(path)
 	})
 

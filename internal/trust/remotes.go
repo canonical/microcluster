@@ -37,13 +37,16 @@ type Location struct {
 }
 
 // Load reads any yaml files in the given directory and parses them into a set of Remotes.
-func Load(dir string) (*Remotes, error) {
+func (r *Remotes) Load(dir string) error {
+	r.updateMu.Lock()
+	defer r.updateMu.Unlock()
+
 	files, err := os.ReadDir(dir)
 	if err != nil {
-		return nil, fmt.Errorf("Unable to read trust directory: %q: %w", dir, err)
+		return fmt.Errorf("Unable to read trust directory: %q: %w", dir, err)
 	}
 
-	remotes := &Remotes{data: map[string]Remote{}}
+	r.data = map[string]Remote{}
 	for _, file := range files {
 		fileName := file.Name()
 		if file.IsDir() || !strings.HasSuffix(fileName, ".yaml") {
@@ -52,23 +55,23 @@ func Load(dir string) (*Remotes, error) {
 
 		content, err := os.ReadFile(filepath.Join(dir, fileName))
 		if err != nil {
-			return nil, fmt.Errorf("Unable to read file %q: %w", fileName, err)
+			return fmt.Errorf("Unable to read file %q: %w", fileName, err)
 		}
 
 		remote := &Remote{}
 		err = yaml.Unmarshal(content, remote)
 		if err != nil {
-			return nil, fmt.Errorf("Unable to parse yaml for %q: %w", fileName, err)
+			return fmt.Errorf("Unable to parse yaml for %q: %w", fileName, err)
 		}
 
 		if remote.Certificate.Certificate == nil {
-			return nil, fmt.Errorf("Failed to parse local record %q. Found empty certificate", remote.Name)
+			return fmt.Errorf("Failed to parse local record %q. Found empty certificate", remote.Name)
 		}
 
-		remotes.data[remote.Name] = *remote
+		r.data[remote.Name] = *remote
 	}
 
-	return remotes, nil
+	return nil
 }
 
 // Add adds a new local cluster member record for the remotes.

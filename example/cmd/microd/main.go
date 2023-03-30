@@ -44,7 +44,8 @@ func (c *cmdGlobal) Run(cmd *cobra.Command, args []string) error {
 type cmdDaemon struct {
 	global *cmdGlobal
 
-	flagStateDir string
+	flagStateDir    string
+	flagSocketGroup string
 }
 
 func (c *cmdDaemon) Command() *cobra.Command {
@@ -60,7 +61,7 @@ func (c *cmdDaemon) Command() *cobra.Command {
 }
 
 func (c *cmdDaemon) Run(cmd *cobra.Command, args []string) error {
-	m, err := microcluster.App(context.Background(), microcluster.Args{StateDir: c.flagStateDir, Verbose: c.global.flagLogVerbose, Debug: c.global.flagLogDebug})
+	m, err := microcluster.App(context.Background(), microcluster.Args{StateDir: c.flagStateDir, SocketGroup: c.flagSocketGroup, Verbose: c.global.flagLogVerbose, Debug: c.global.flagLogDebug})
 	if err != nil {
 		return err
 	}
@@ -136,6 +137,7 @@ func main() {
 	app.PersistentFlags().BoolVarP(&daemonCmd.global.flagLogVerbose, "verbose", "v", false, "Show all information messages")
 
 	app.PersistentFlags().StringVar(&daemonCmd.flagStateDir, "state-dir", "", "Path to store state information"+"``")
+	app.PersistentFlags().StringVar(&daemonCmd.flagSocketGroup, "socket-group", "", "Group to set socket's group ownership to")
 
 	app.SetVersionTemplate("{{.Version}}\n")
 

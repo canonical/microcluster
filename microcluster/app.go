@@ -36,9 +36,10 @@ type MicroCluster struct {
 
 // Args contains options for configuring MicroCluster.
 type Args struct {
-	Verbose  bool
-	Debug    bool
-	StateDir string
+	Verbose     bool
+	Debug       bool
+	StateDir    string
+	SocketGroup string
 
 	ListenPort string
 	Client     *client.Client
@@ -51,7 +52,7 @@ func App(ctx context.Context, args Args) (*MicroCluster, error) {
 		return nil, fmt.Errorf("Missing state directory")
 	}
 
-	os, err := sys.DefaultOS(args.StateDir, true)
+	os, err := sys.DefaultOS(args.StateDir, args.SocketGroup, true)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +86,7 @@ func (m *MicroCluster) Start(apiEndpoints []rest.Endpoint, schemaExtensions map[
 	chIgnore := make(chan os.Signal, 1)
 	signal.Notify(chIgnore, unix.SIGHUP)
 
-	err = d.Init(m.args.ListenPort, m.FileSystem.StateDir, apiEndpoints, schemaExtensions, hooks)
+	err = d.Init(m.args.ListenPort, m.FileSystem.StateDir, m.FileSystem.SocketGroup, apiEndpoints, schemaExtensions, hooks)
 	if err != nil {
 		return fmt.Errorf("Unable to start daemon: %w", err)
 	}

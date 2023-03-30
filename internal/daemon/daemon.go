@@ -73,7 +73,7 @@ func NewDaemon(ctx context.Context) *Daemon {
 }
 
 // Init initializes the Daemon with the given configuration, and starts the database.
-func (d *Daemon) Init(listenPort string, stateDir string, extendedEndpoints []rest.Endpoint, schemaExtensions map[int]schema.Update, hooks *config.Hooks) error {
+func (d *Daemon) Init(listenPort string, stateDir string, socketGroup string, extendedEndpoints []rest.Endpoint, schemaExtensions map[int]schema.Update, hooks *config.Hooks) error {
 	if stateDir == "" {
 		stateDir = os.Getenv(sys.StateDir)
 	}
@@ -88,7 +88,7 @@ func (d *Daemon) Init(listenPort string, stateDir string, extendedEndpoints []re
 	}
 
 	// TODO: Check if already running.
-	d.os, err = sys.DefaultOS(stateDir, true)
+	d.os, err = sys.DefaultOS(stateDir, socketGroup, true)
 	if err != nil {
 		return fmt.Errorf("Failed to initialize directory structure: %w", err)
 	}
@@ -133,7 +133,7 @@ func (d *Daemon) init(listenPort string, extendedEndpoints []rest.Endpoint, sche
 	resources.ExtendedEndpoints.Endpoints = append(resources.ExtendedEndpoints.Endpoints, extendedEndpoints...)
 
 	ctlServer := d.initServer(resources.UnixEndpoints, resources.InternalEndpoints, resources.PublicEndpoints, resources.ExtendedEndpoints)
-	ctl := endpoints.NewSocket(d.ShutdownCtx, ctlServer, d.os.ControlSocket(), "") // TODO: add socket group.
+	ctl := endpoints.NewSocket(d.ShutdownCtx, ctlServer, d.os.ControlSocket(), d.os.SocketGroup)
 	d.endpoints = endpoints.NewEndpoints(d.ShutdownCtx, ctl)
 	err = d.endpoints.Up()
 	if err != nil {

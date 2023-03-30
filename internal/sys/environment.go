@@ -9,4 +9,7 @@ const (
 
 	// SchemaUpdate is the path to the schema update to run.
 	SchemaUpdate = "SCHEMA_UPDATE"
+
+	// SocketGroup is the configurable group of the socket.
+	SocketGroup = "SOCKET_GROUP"
 )

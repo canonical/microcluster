@@ -127,12 +127,8 @@ func beginHeartbeat(s *state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	// Set a 5 second timeout in case dqlite locks up.
-	ctx, cancel = context.WithTimeout(s.Context, time.Second*30)
-	defer cancel()
-
 	// Get dqlite record of cluster members.
-	dqliteCluster, err := s.Database.Cluster(ctx)
+	dqliteCluster, err := s.Database.Cluster(ctx, leader)
 	if err != nil {
 		return response.SmartError(err)
 	}

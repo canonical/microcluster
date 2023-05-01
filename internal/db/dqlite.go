@@ -154,13 +154,8 @@ func (db *DB) Leader(ctx context.Context) (*dqliteClient.Client, error) {
 }
 
 // Cluster returns information about dqlite cluster members.
-func (db *DB) Cluster(ctx context.Context) ([]dqliteClient.NodeInfo, error) {
-	leader, err := db.dqlite.Leader(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to get dqlite leader: %w", err)
-	}
-
-	members, err := leader.Cluster(ctx)
+func (db *DB) Cluster(ctx context.Context, client *dqliteClient.Client) ([]dqliteClient.NodeInfo, error) {
+	members, err := client.Cluster(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get dqlite cluster information: %w", err)
 	}
@@ -215,27 +210,6 @@ func (db *DB) heartbeat(ctx context.Context) {
 	db.heartbeatLock.Lock()
 	defer db.heartbeatLock.Unlock()
 
-	// Use a 5 second timeout in case dqlite locks up.
-	dqliteCtx, cancel := context.WithTimeout(db.ctx, time.Second*30)
-	defer cancel()
-
-	leaderClient, err := db.dqlite.Leader(dqliteCtx)
-	if err != nil {
-		logger.Error("Failed to get dqlite leader", logger.Ctx{"address": db.listenAddr.String(), "error": err})
-		return
-	}
-
-	leaderInfo, err := leaderClient.Leader(dqliteCtx)
-	if err != nil {
-		logger.Error("Failed to get dqlite leader info", logger.Ctx{"address": db.listenAddr.String(), "error": err})
-		return
-	}
-
-	// Only send heartbeats from the leader.
-	if leaderInfo.Address != db.dqlite.Address() {
-		return
-	}
-
 	client, err := client.New(db.os.ControlSocket(), nil, nil, false)
 	if err != nil {
 		logger.Error("Failed to get local client", logger.Ctx{"address": db.listenAddr.String(), "error": err})
@@ -244,7 +218,7 @@ func (db *DB) heartbeat(ctx context.Context) {
 
 	// Initiate a heartbeat from this node.
 	err = client.Heartbeat(ctx, internalTypes.HeartbeatInfo{BeginRound: true})
-	if err != nil {
+	if err != nil && err.Error() != "Attempt to initiate heartbeat from non-leader" {
 		logger.Error("Failed to initiate heartbeat round", logger.Ctx{"address": db.dqlite.Address(), "error": err})
 		return
 	}

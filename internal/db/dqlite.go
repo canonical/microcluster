@@ -196,7 +196,7 @@ func (db *DB) dialFunc() dqliteClient.DialFunc {
 func (db *DB) loopHeartbeat() {
 	for {
 		db.heartbeat(db.ctx)
-		time.Sleep(1 * time.Second)
+		time.Sleep(10 * time.Second)
 	}
 }
 

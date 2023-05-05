@@ -179,8 +179,9 @@ func (d *Daemon) applyHooks(hooks *config.Hooks) {
 		d.hooks.OnBootstrap = noOpHook
 	}
 
-	if d.hooks.OnJoin == nil {
-		d.hooks.OnJoin = noOpHook
+	if d.hooks.PostJoin == nil {
+		d.hooks.PostJoin = noOpHook
+	}
 	}
 
 	if d.hooks.OnStart == nil {
@@ -467,7 +468,7 @@ func (d *Daemon) StartAPI(bootstrap bool, newConfig *trust.Location, joinAddress
 	}
 
 	if len(joinAddresses) > 0 {
-		return d.hooks.OnJoin(d.State())
+		return d.hooks.PostJoin(d.State())
 	}
 
 	return nil

@@ -82,9 +82,12 @@ func (c *cmdDaemon) Run(cmd *cobra.Command, args []string) error {
 			return nil
 		},
 
-		// OnJoin is run after the daemon is initialized and joins a cluster.
-		OnJoin: func(s *state.State) error {
-			logger.Info("This is a hook that runs after the daemon is initialized and joins an existing cluster")
+		// PostJoin is run after the daemon is initialized and joins a cluster.
+		PostJoin: func(s *state.State) error {
+			logger.Info("This is a hook that runs after the daemon is initialized and joins an existing cluster, after OnNewMember runs on all peers")
+
+			return nil
+		},
 
 			return nil
 		},

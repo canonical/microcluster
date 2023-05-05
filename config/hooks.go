@@ -13,8 +13,8 @@ type Hooks struct {
 	// OnStart is run after the daemon is started.
 	OnStart func(s *state.State) error
 
-	// OnJoin is run after the daemon is initialized and joins a cluster.
-	OnJoin func(s *state.State) error
+	// PostJoin is run after the daemon is initialized and joins a cluster.
+	PostJoin func(s *state.State) error
 
 	// PreRemove is run on a cluster member just before it is removed from the cluster.
 	PreRemove func(s *state.State) error

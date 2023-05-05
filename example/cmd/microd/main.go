@@ -89,6 +89,10 @@ func (c *cmdDaemon) Run(cmd *cobra.Command, args []string) error {
 			return nil
 		},
 
+		// PreJoin is run after the daemon is initialized and joins a cluster.
+		PreJoin: func(s *state.State) error {
+			logger.Info("This is a hook that runs after the daemon is initialized and joins an existing cluster, before OnNewMember runs on all peers")
+
 			return nil
 		},
 

@@ -182,6 +182,9 @@ func (d *Daemon) applyHooks(hooks *config.Hooks) {
 	if d.hooks.PostJoin == nil {
 		d.hooks.PostJoin = noOpHook
 	}
+
+	if d.hooks.PreJoin == nil {
+		d.hooks.PreJoin = noOpHook
 	}
 
 	if d.hooks.OnStart == nil {
@@ -421,6 +424,13 @@ func (d *Daemon) StartAPI(bootstrap bool, newConfig *trust.Location, joinAddress
 		}
 
 		cluster = append(cluster, client.Client{Client: *c})
+	}
+
+	if len(joinAddresses) > 0 {
+		err = d.hooks.PreJoin(d.State())
+		if err != nil {
+			return err
+		}
 	}
 
 	// Send notification that this node is upgraded to all other cluster members.

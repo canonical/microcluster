@@ -16,6 +16,9 @@ type Hooks struct {
 	// PostJoin is run after the daemon is initialized and joins a cluster.
 	PostJoin func(s *state.State) error
 
+	// PreJoin is run after the daemon is initialized and joins a cluster.
+	PreJoin func(s *state.State) error
+
 	// PreRemove is run on a cluster member just before it is removed from the cluster.
 	PreRemove func(s *state.State) error
 

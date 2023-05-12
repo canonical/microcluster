@@ -13,10 +13,12 @@ type Hooks struct {
 	// OnStart is run after the daemon is started.
 	OnStart func(s *state.State) error
 
-	// PostJoin is run after the daemon is initialized and joins a cluster.
+	// PostJoin is run after the daemon is initialized, joined the cluster and existing members triggered
+	// their 'OnNewMember' hooks.
 	PostJoin func(s *state.State) error
 
-	// PreJoin is run after the daemon is initialized and joins a cluster.
+	// PreJoin is run after the daemon is initialized and joined the cluster but before existing members triggered
+	// their 'OnNewMember' hooks.
 	PreJoin func(s *state.State) error
 
 	// PreRemove is run on a cluster member just before it is removed from the cluster.
@@ -28,6 +30,6 @@ type Hooks struct {
 	// OnHeartbeat is run after a successful heartbeat round.
 	OnHeartbeat func(s *state.State) error
 
-	// OnNewMember is run on each peer after a new cluster member has joined.
+	// OnNewMember is run on each peer after a new cluster member has joined and executed their 'PreJoin' hook.
 	OnNewMember func(s *state.State) error
 }

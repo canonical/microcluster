@@ -46,7 +46,7 @@ func (r *Remotes) Load(dir string) error {
 		return fmt.Errorf("Unable to read trust directory: %q: %w", dir, err)
 	}
 
-	r.data = map[string]Remote{}
+	remoteData := map[string]Remote{}
 	for _, file := range files {
 		fileName := file.Name()
 		if file.IsDir() || !strings.HasSuffix(fileName, ".yaml") {
@@ -68,8 +68,14 @@ func (r *Remotes) Load(dir string) error {
 			return fmt.Errorf("Failed to parse local record %q. Found empty certificate", remote.Name)
 		}
 
-		r.data[remote.Name] = *remote
+		remoteData[remote.Name] = *remote
 	}
+
+	if len(remoteData) == 0 {
+		return fmt.Errorf("Failed to parse new remotes from truststore")
+	}
+
+	r.data = remoteData
 
 	return nil
 }
@@ -129,7 +135,11 @@ func (r *Remotes) Replace(dir string, newRemotes ...internalTypes.ClusterMember)
 		}
 	}
 
-	r.data = map[string]Remote{}
+	if len(newRemotes) == 0 {
+		return fmt.Errorf("Received empty remotes")
+	}
+
+	remoteData := map[string]Remote{}
 	for _, remote := range newRemotes {
 		newRemote := Remote{
 			Location:    Location{Name: remote.Name, Address: remote.Address},
@@ -151,8 +161,14 @@ func (r *Remotes) Replace(dir string, newRemotes ...internalTypes.ClusterMember)
 			return fmt.Errorf("Failed to write %q: %w", remotePath, err)
 		}
 
-		r.data[remote.Name] = newRemote
+		remoteData[remote.Name] = newRemote
 	}
+
+	if len(remoteData) == 0 {
+		return fmt.Errorf("Failed to parse new remotes")
+	}
+
+	r.data = remoteData
 
 	return nil
 }

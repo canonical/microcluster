@@ -133,6 +133,11 @@ func beginHeartbeat(s *state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
+	if len(clusterMembers) == 0 || len(dqliteCluster) == 0 {
+		logger.Info("Skipping heartbeat as the cluster is still initializing")
+		return response.EmptySyncResponse
+	}
+
 	dqliteMap := map[string]string{}
 	for _, member := range dqliteCluster {
 		dqliteMap[member.Address] = member.Role.String()
@@ -177,6 +182,7 @@ func beginHeartbeat(s *state.State, r *http.Request) response.Response {
 
 		return response.EmptySyncResponse
 	}
+
 	logger.Debug("Beginning new heartbeat round", logger.Ctx{"address": s.Address().URL.Host})
 
 	// Update local record of cluster members from the database, including any pending nodes for authentication.

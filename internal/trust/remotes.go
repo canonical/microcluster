@@ -12,6 +12,7 @@ import (
 
 	"github.com/lxc/lxd/shared"
 	"github.com/lxc/lxd/shared/api"
+	"github.com/lxc/lxd/shared/logger"
 	"gopkg.in/yaml.v2"
 
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
@@ -72,7 +73,9 @@ func (r *Remotes) Load(dir string) error {
 	}
 
 	if len(remoteData) == 0 {
-		return fmt.Errorf("Failed to parse new remotes from truststore")
+		logger.Warn("Failed to parse new remotes from truststore")
+
+		return nil
 	}
 
 	r.data = remoteData

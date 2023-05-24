@@ -280,7 +280,7 @@ func dqliteNetworkDial(ctx context.Context, addr string, db *DB) (net.Conn, erro
 	}
 
 	revert.Add(func() { conn.Close() })
-	logCtx := logger.AddContext(nil, logger.Ctx{"local": conn.LocalAddr().String(), "remote": conn.RemoteAddr().String()})
+	logCtx := logger.AddContext(logger.Ctx{"local": conn.LocalAddr().String(), "remote": conn.RemoteAddr().String()})
 	logCtx.Debug("Dqlite connected outbound")
 
 	// Set outbound timeouts.

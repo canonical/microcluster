@@ -26,6 +26,7 @@ import (
 	"github.com/lxc/lxd/shared/logger"
 	"github.com/lxc/lxd/shared/tcp"
 
+	"github.com/canonical/microcluster/cluster"
 	"github.com/canonical/microcluster/internal/rest/client"
 	internalClient "github.com/canonical/microcluster/internal/rest/client"
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
@@ -77,7 +78,7 @@ func NewDB(ctx context.Context, serverCert *shared.CertInfo, os *sys.OS) *DB {
 }
 
 // Bootstrap dqlite.
-func (db *DB) Bootstrap(addr api.URL, clusterCert *shared.CertInfo) error {
+func (db *DB) Bootstrap(addr api.URL, clusterCert *shared.CertInfo, clusterRecord cluster.InternalClusterMember) error {
 	var err error
 	db.listenAddr = addr
 	db.clusterCert = clusterCert
@@ -90,6 +91,16 @@ func (db *DB) Bootstrap(addr api.URL, clusterCert *shared.CertInfo) error {
 	}
 
 	err = db.Open(true)
+	if err != nil {
+		return err
+	}
+
+	err = db.Transaction(db.ctx, func(ctx context.Context, tx *sql.Tx) error {
+
+		_, err := cluster.CreateInternalClusterMember(ctx, tx, clusterRecord)
+
+		return err
+	})
 	if err != nil {
 		return err
 	}
@@ -269,7 +280,7 @@ func dqliteNetworkDial(ctx context.Context, addr string, db *DB) (net.Conn, erro
 	}
 
 	revert.Add(func() { conn.Close() })
-	logCtx := logger.AddContext(nil, logger.Ctx{"local": conn.LocalAddr().String(), "remote": conn.RemoteAddr().String()})
+	logCtx := logger.AddContext(logger.Ctx{"local": conn.LocalAddr().String(), "remote": conn.RemoteAddr().String()})
 	logCtx.Debug("Dqlite connected outbound")
 
 	// Set outbound timeouts.

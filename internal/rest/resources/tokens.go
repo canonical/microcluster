@@ -10,6 +10,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/lxc/lxd/lxd/response"
 	"github.com/lxc/lxd/shared"
+	"github.com/lxc/lxd/shared/logger"
 
 	"github.com/canonical/microcluster/cluster"
 	"github.com/canonical/microcluster/internal/rest/access"
@@ -56,6 +57,14 @@ func tokensPost(state *state.State, r *http.Request) response.Response {
 	joinAddresses := []types.AddrPort{}
 	for _, addr := range state.Remotes().Addresses() {
 		joinAddresses = append(joinAddresses, addr)
+	}
+
+	if len(joinAddresses) == 0 {
+		logger.Warnf("Failed to check trust store for eligible join addresses. Issuing token with join address %q", state.Address().URL.Host)
+		joinAddresses, err = types.ParseAddrPorts([]string{state.Address().URL.Host})
+		if err != nil {
+			return response.SmartError(err)
+		}
 	}
 
 	token := internalTypes.Token{

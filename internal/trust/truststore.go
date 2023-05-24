@@ -24,6 +24,7 @@ func Init(watcher *sys.Watcher, onUpdate func(oldRemotes, newRemotes Remotes) er
 	ts.remotesMu.Lock()
 	defer ts.remotesMu.Unlock()
 
+	ts.remotes.data = map[string]Remote{}
 	err := ts.remotes.Load(dir)
 	if err != nil {
 		return nil, err

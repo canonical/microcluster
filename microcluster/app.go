@@ -94,7 +94,7 @@ func (m *MicroCluster) Start(apiEndpoints []rest.Endpoint, schemaExtensions map[
 	for {
 		select {
 		case sig := <-sigCh:
-			logCtx := logger.AddContext(nil, logger.Ctx{"signal": sig})
+			logCtx := logger.AddContext(logger.Ctx{"signal": sig})
 			logCtx.Info("Received signal")
 			if d.ShutdownCtx.Err() != nil {
 				logCtx.Warn("Ignoring signal, shutdown already in progress")

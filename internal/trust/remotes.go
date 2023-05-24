@@ -260,11 +260,17 @@ func (r *Remotes) Count() int {
 	return len(r.data)
 }
 
+// RemotesByName returns a copy of the list of peers, keyed by each system's name.
 func (r *Remotes) RemotesByName() map[string]Remote {
 	r.updateMu.RLock()
 	defer r.updateMu.RUnlock()
 
-	return r.data
+	remoteData := make(map[string]Remote, len(r.data))
+	for name, data := range r.data {
+		remoteData[name] = data
+	}
+
+	return remoteData
 }
 
 // URL returns the parsed URL of the Remote.

@@ -17,6 +17,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/canonical/microcluster/client"
+	"github.com/canonical/microcluster/cluster"
 	"github.com/canonical/microcluster/config"
 	"github.com/canonical/microcluster/internal/daemon"
 	internalClient "github.com/canonical/microcluster/internal/rest/client"
@@ -75,7 +76,7 @@ func (m *MicroCluster) Start(apiEndpoints []rest.Endpoint, schemaExtensions map[
 
 	// Start up a daemon with a basic control socket.
 	defer logger.Info("Daemon stopped")
-	d := daemon.NewDaemon(m.ctx)
+	d := daemon.NewDaemon(m.ctx, cluster.GetCallerProject())
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, unix.SIGPWR)

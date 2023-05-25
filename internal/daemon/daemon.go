@@ -39,6 +39,8 @@ import (
 
 // Daemon holds information for the microcluster daemon.
 type Daemon struct {
+	project string // The project refers to the name of the go-project that is calling MicroCluster.
+
 	address api.URL // Listen Address.
 	name    string  // Name of the cluster member.
 
@@ -61,13 +63,14 @@ type Daemon struct {
 }
 
 // NewDaemon initializes the Daemon context and channels.
-func NewDaemon(ctx context.Context) *Daemon {
+func NewDaemon(ctx context.Context, project string) *Daemon {
 	ctx, cancel := context.WithCancel(ctx)
 	return &Daemon{
 		ShutdownCtx:    ctx,
 		ShutdownCancel: cancel,
 		ShutdownDoneCh: make(chan error),
 		ReadyChan:      make(chan struct{}),
+		project:        project,
 	}
 }
 
@@ -365,7 +368,7 @@ func (d *Daemon) StartAPI(bootstrap bool, newConfig *trust.Location, joinAddress
 			Role:        cluster.Pending,
 		}
 
-		err = d.db.Bootstrap(d.address, d.ClusterCert(), clusterMember)
+		err = d.db.Bootstrap(d.project, d.address, d.ClusterCert(), clusterMember)
 		if err != nil {
 			return err
 		}
@@ -379,12 +382,12 @@ func (d *Daemon) StartAPI(bootstrap bool, newConfig *trust.Location, joinAddress
 	}
 
 	if len(joinAddresses) != 0 {
-		err = d.db.Join(d.address, d.ClusterCert(), joinAddresses...)
+		err = d.db.Join(d.project, d.address, d.ClusterCert(), joinAddresses...)
 		if err != nil {
 			return fmt.Errorf("Failed to join cluster: %w", err)
 		}
 	} else {
-		err = d.db.StartWithCluster(d.address, d.trustStore.Remotes().Addresses(), d.clusterCert)
+		err = d.db.StartWithCluster(d.project, d.address, d.trustStore.Remotes().Addresses(), d.clusterCert)
 		if err != nil {
 			return fmt.Errorf("Failed to re-establish cluster connection: %w", err)
 		}

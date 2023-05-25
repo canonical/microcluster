@@ -78,7 +78,7 @@ func NewDB(ctx context.Context, serverCert *shared.CertInfo, os *sys.OS) *DB {
 }
 
 // Bootstrap dqlite.
-func (db *DB) Bootstrap(addr api.URL, clusterCert *shared.CertInfo, clusterRecord cluster.InternalClusterMember) error {
+func (db *DB) Bootstrap(project string, addr api.URL, clusterCert *shared.CertInfo, clusterRecord cluster.InternalClusterMember) error {
 	var err error
 	db.listenAddr = addr
 	db.clusterCert = clusterCert
@@ -90,7 +90,7 @@ func (db *DB) Bootstrap(addr api.URL, clusterCert *shared.CertInfo, clusterRecor
 		return fmt.Errorf("Failed to bootstrap dqlite: %w", err)
 	}
 
-	err = db.Open(true)
+	err = db.Open(true, project)
 	if err != nil {
 		return err
 	}
@@ -111,7 +111,7 @@ func (db *DB) Bootstrap(addr api.URL, clusterCert *shared.CertInfo, clusterRecor
 }
 
 // Join a dqlite cluster with the address of a member.
-func (db *DB) Join(addr api.URL, clusterCert *shared.CertInfo, joinAddresses ...string) error {
+func (db *DB) Join(project string, addr api.URL, clusterCert *shared.CertInfo, joinAddresses ...string) error {
 	for {
 		var err error
 		db.clusterCert = clusterCert
@@ -125,7 +125,7 @@ func (db *DB) Join(addr api.URL, clusterCert *shared.CertInfo, joinAddresses ...
 			return fmt.Errorf("Failed to join dqlite cluster %w", err)
 		}
 
-		err = db.Open(false)
+		err = db.Open(false, project)
 		if err == nil {
 			break
 		}
@@ -150,13 +150,13 @@ func (db *DB) Join(addr api.URL, clusterCert *shared.CertInfo, joinAddresses ...
 }
 
 // StartWithCluster starts up dqlite and joins the cluster.
-func (db *DB) StartWithCluster(addr api.URL, clusterMembers map[string]types.AddrPort, clusterCert *shared.CertInfo) error {
+func (db *DB) StartWithCluster(project string, addr api.URL, clusterMembers map[string]types.AddrPort, clusterCert *shared.CertInfo) error {
 	allClusterAddrs := []string{}
 	for _, clusterMemberAddrs := range clusterMembers {
 		allClusterAddrs = append(allClusterAddrs, clusterMemberAddrs.String())
 	}
 
-	return db.Join(addr, clusterCert, allClusterAddrs...)
+	return db.Join(project, addr, clusterCert, allClusterAddrs...)
 }
 
 // Leader returns a client connected to the leader of the dqlite cluster.

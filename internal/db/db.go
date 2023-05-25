@@ -21,7 +21,7 @@ import (
 
 // Open opens the dqlite database and loads the schema.
 // Returns true if we need to wait for other nodes to catch up to our version.
-func (db *DB) Open(bootstrap bool) error {
+func (db *DB) Open(bootstrap bool, project string) error {
 	ctx, cancel := context.WithTimeout(db.ctx, 30*time.Second)
 	defer cancel()
 
@@ -101,7 +101,7 @@ func (db *DB) Open(bootstrap bool) error {
 		return err
 	}
 
-	err = cluster.PrepareStmts(db.db, false)
+	err = cluster.PrepareStmts(db.db, project, false)
 	if err != nil {
 		return err
 	}

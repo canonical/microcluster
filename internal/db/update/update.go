@@ -40,7 +40,8 @@ func Schema() *SchemaUpdate {
 
 func AppendSchema(extensions map[int]schema.Update) {
 	currentVersion := len(updates)
-	for _, extension := range extensions {
+	schema := NewFromMap(extensions)
+	for _, extension := range schema.updates {
 		updates[currentVersion+1] = extension
 		currentVersion = len(updates)
 	}

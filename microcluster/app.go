@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"time"
 
 	"github.com/lxc/lxd/lxd/db/schema"
@@ -52,8 +53,11 @@ func App(ctx context.Context, args Args) (*MicroCluster, error) {
 	if args.StateDir == "" {
 		return nil, fmt.Errorf("Missing state directory")
 	}
-
-	os, err := sys.DefaultOS(args.StateDir, args.SocketGroup, true)
+	stateDir, err := filepath.Abs(args.StateDir)
+	if err != nil {
+		return nil, fmt.Errorf("Missing absolute state directory: %w", err)
+	}
+	os, err := sys.DefaultOS(stateDir, args.SocketGroup, true)
 	if err != nil {
 		return nil, err
 	}

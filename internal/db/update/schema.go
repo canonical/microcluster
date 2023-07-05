@@ -9,9 +9,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/lxc/lxd/lxd/db/query"
-	"github.com/lxc/lxd/lxd/db/schema"
-	"github.com/lxc/lxd/shared"
+	"github.com/canonical/lxd/lxd/db/query"
+	"github.com/canonical/lxd/lxd/db/schema"
+	"github.com/canonical/lxd/shared"
 )
 
 type SchemaUpdate struct {

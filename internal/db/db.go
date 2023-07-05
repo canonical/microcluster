@@ -9,10 +9,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/lxc/lxd/lxd/db/query"
-	"github.com/lxc/lxd/lxd/db/schema"
-	"github.com/lxc/lxd/shared"
-	"github.com/lxc/lxd/shared/logger"
+	"github.com/canonical/lxd/lxd/db/query"
+	"github.com/canonical/lxd/lxd/db/schema"
+	"github.com/canonical/lxd/shared"
+	"github.com/canonical/lxd/shared/logger"
 
 	"github.com/canonical/microcluster/cluster"
 	"github.com/canonical/microcluster/internal/db/update"

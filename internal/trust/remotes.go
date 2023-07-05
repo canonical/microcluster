@@ -249,8 +249,8 @@ func (r *Remotes) CertificatesNative() map[string]x509.Certificate {
 	defer r.updateMu.RUnlock()
 
 	certMap := map[string]x509.Certificate{}
-	for k, v := range r.Certificates() {
-		certMap[k] = *v.Certificate
+	for _, remote := range r.data {
+		certMap[shared.CertFingerprint(remote.Certificate.Certificate)] = *remote.Certificate.Certificate
 	}
 
 	return certMap

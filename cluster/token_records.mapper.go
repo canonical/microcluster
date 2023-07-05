@@ -10,8 +10,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/lxc/lxd/lxd/db/query"
-	"github.com/lxc/lxd/shared/api"
+	"github.com/canonical/lxd/lxd/db/query"
+	"github.com/canonical/lxd/shared/api"
 )
 
 var _ = api.ServerEnvironment{}
@@ -131,7 +131,7 @@ func getInternalTokenRecords(ctx context.Context, stmt *sql.Stmt, args ...any) (
 	return objects, nil
 }
 
-// getInternalTokenRecords can be used to run handwritten query strings to return a slice of objects.
+// getInternalTokenRecordsRaw can be used to run handwritten query strings to return a slice of objects.
 func getInternalTokenRecordsRaw(ctx context.Context, tx *sql.Tx, sql string, args ...any) ([]InternalTokenRecord, error) {
 	objects := make([]InternalTokenRecord, 0)
 

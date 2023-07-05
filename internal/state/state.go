@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/lxc/lxd/lxd/cluster/request"
-	"github.com/lxc/lxd/shared"
-	"github.com/lxc/lxd/shared/api"
+	"github.com/canonical/lxd/lxd/cluster/request"
+	"github.com/canonical/lxd/shared"
+	"github.com/canonical/lxd/shared/api"
 
 	"github.com/canonical/microcluster/client"
 	"github.com/canonical/microcluster/internal/db"

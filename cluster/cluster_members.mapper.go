@@ -10,8 +10,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/lxc/lxd/lxd/db/query"
-	"github.com/lxc/lxd/shared/api"
+	"github.com/canonical/lxd/lxd/db/query"
+	"github.com/canonical/lxd/shared/api"
 )
 
 var _ = api.ServerEnvironment{}
@@ -86,7 +86,7 @@ func getInternalClusterMembers(ctx context.Context, stmt *sql.Stmt, args ...any)
 	return objects, nil
 }
 
-// getInternalClusterMembers can be used to run handwritten query strings to return a slice of objects.
+// getInternalClusterMembersRaw can be used to run handwritten query strings to return a slice of objects.
 func getInternalClusterMembersRaw(ctx context.Context, tx *sql.Tx, sql string, args ...any) ([]InternalClusterMember, error) {
 	objects := make([]InternalClusterMember, 0)
 

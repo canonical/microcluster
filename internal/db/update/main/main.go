@@ -13,5 +13,5 @@ func main() {
 		return
 	}
 
-  fmt.Println("Schema updated successfully")
+	fmt.Println("Schema updated successfully")
 }

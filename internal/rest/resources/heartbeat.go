@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lxc/lxd/lxd/response"
-	"github.com/lxc/lxd/shared/logger"
+	"github.com/canonical/lxd/lxd/response"
+	"github.com/canonical/lxd/shared/logger"
 
 	"github.com/canonical/microcluster/client"
 	"github.com/canonical/microcluster/cluster"

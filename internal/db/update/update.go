@@ -8,7 +8,7 @@ import (
 	"path"
 	"runtime"
 
-	"github.com/lxc/lxd/lxd/db/schema"
+	"github.com/canonical/lxd/lxd/db/schema"
 )
 
 // CreateSchema is the default schema applied when bootstrapping the database.

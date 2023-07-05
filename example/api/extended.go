@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/lxc/lxd/lxd/response"
+	"github.com/canonical/lxd/lxd/response"
 
 	"github.com/canonical/microcluster/client"
 	extendedTypes "github.com/canonical/microcluster/example/api/types"

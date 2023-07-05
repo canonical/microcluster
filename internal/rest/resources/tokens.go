@@ -7,10 +7,10 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/canonical/lxd/lxd/response"
+	"github.com/canonical/lxd/shared"
+	"github.com/canonical/lxd/shared/logger"
 	"github.com/gorilla/mux"
-	"github.com/lxc/lxd/lxd/response"
-	"github.com/lxc/lxd/shared"
-	"github.com/lxc/lxd/shared/logger"
 
 	"github.com/canonical/microcluster/cluster"
 	"github.com/canonical/microcluster/internal/rest/access"

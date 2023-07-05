@@ -8,9 +8,9 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/canonical/lxd/shared"
+	"github.com/canonical/lxd/shared/logger"
 	"github.com/fsnotify/fsnotify"
-	"github.com/lxc/lxd/shared"
-	"github.com/lxc/lxd/shared/logger"
 )
 
 // Watcher represents an fsnotify watcher.

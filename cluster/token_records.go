@@ -3,9 +3,9 @@ package cluster
 import (
 	"crypto/x509"
 
+	"github.com/canonical/lxd/shared"
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/rest/types"
-	"github.com/lxc/lxd/shared"
 )
 
 // Code generation directives.

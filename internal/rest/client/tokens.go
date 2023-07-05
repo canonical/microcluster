@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/canonical/lxd/shared/api"
 	"github.com/canonical/microcluster/internal/rest/types"
-	"github.com/lxc/lxd/shared/api"
 )
 
 // RequestToken requests a join token with the given name.

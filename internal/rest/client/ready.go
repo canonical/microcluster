@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/lxc/lxd/shared/api"
+	"github.com/canonical/lxd/shared/api"
 )
 
 // CheckReady returns once the daemon has signalled to the ready channel that it is done setting up.

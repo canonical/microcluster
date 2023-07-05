@@ -4,8 +4,8 @@ import (
 	"context"
 	"net/http"
 
-	clusterRequest "github.com/lxc/lxd/lxd/cluster/request"
-	"github.com/lxc/lxd/shared/api"
+	clusterRequest "github.com/canonical/lxd/lxd/cluster/request"
+	"github.com/canonical/lxd/shared/api"
 
 	"github.com/canonical/microcluster/internal/rest/client"
 )

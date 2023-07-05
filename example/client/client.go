@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/lxc/lxd/shared/api"
+	"github.com/canonical/lxd/shared/api"
 
 	"github.com/canonical/microcluster/client"
 	"github.com/canonical/microcluster/example/api/types"

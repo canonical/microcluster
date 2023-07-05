@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/lxc/lxd/shared/logger"
+	"github.com/canonical/lxd/shared/logger"
 )
 
 // Endpoints represents all listeners and servers for the microcluster daemon REST API.

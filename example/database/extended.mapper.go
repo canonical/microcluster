@@ -10,9 +10,9 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/canonical/lxd/lxd/db/query"
+	"github.com/canonical/lxd/shared/api"
 	"github.com/canonical/microcluster/cluster"
-	"github.com/lxc/lxd/lxd/db/query"
-	"github.com/lxc/lxd/shared/api"
 )
 
 var _ = api.ServerEnvironment{}

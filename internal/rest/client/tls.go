@@ -5,7 +5,7 @@ import (
 	"crypto/x509"
 	"fmt"
 
-	"github.com/lxc/lxd/shared"
+	"github.com/canonical/lxd/shared"
 )
 
 // TLSClientConfig returns a TLS configuration suitable for establishing horizontal and vertical connections.

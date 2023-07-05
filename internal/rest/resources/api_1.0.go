@@ -3,7 +3,7 @@ package resources
 import (
 	"net/http"
 
-	"github.com/lxc/lxd/lxd/response"
+	"github.com/canonical/lxd/lxd/response"
 
 	"github.com/canonical/microcluster/internal/rest/access"
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"

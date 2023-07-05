@@ -9,12 +9,12 @@ import (
 	"net/url"
 	"path/filepath"
 
+	"github.com/canonical/lxd/lxd/request"
+	"github.com/canonical/lxd/lxd/response"
+	"github.com/canonical/lxd/lxd/util"
+	"github.com/canonical/lxd/shared/api"
+	"github.com/canonical/lxd/shared/logger"
 	"github.com/gorilla/mux"
-	"github.com/lxc/lxd/lxd/request"
-	"github.com/lxc/lxd/lxd/response"
-	"github.com/lxc/lxd/lxd/util"
-	"github.com/lxc/lxd/shared/api"
-	"github.com/lxc/lxd/shared/logger"
 
 	"github.com/canonical/microcluster/cluster"
 	"github.com/canonical/microcluster/internal/rest/access"

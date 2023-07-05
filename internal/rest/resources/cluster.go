@@ -14,10 +14,10 @@ import (
 	"time"
 
 	dqliteClient "github.com/canonical/go-dqlite/client"
+	"github.com/canonical/lxd/lxd/response"
+	"github.com/canonical/lxd/shared/api"
+	"github.com/canonical/lxd/shared/logger"
 	"github.com/gorilla/mux"
-	"github.com/lxc/lxd/lxd/response"
-	"github.com/lxc/lxd/shared/api"
-	"github.com/lxc/lxd/shared/logger"
 	"golang.org/x/sys/unix"
 
 	"github.com/canonical/microcluster/client"

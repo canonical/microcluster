@@ -16,12 +16,12 @@ import (
 	"strings"
 	"time"
 
-	clusterRequest "github.com/lxc/lxd/lxd/cluster/request"
-	"github.com/lxc/lxd/lxd/request"
-	"github.com/lxc/lxd/shared"
-	"github.com/lxc/lxd/shared/api"
-	"github.com/lxc/lxd/shared/logger"
-	"github.com/lxc/lxd/shared/tcp"
+	clusterRequest "github.com/canonical/lxd/lxd/cluster/request"
+	"github.com/canonical/lxd/lxd/request"
+	"github.com/canonical/lxd/shared"
+	"github.com/canonical/lxd/shared/api"
+	"github.com/canonical/lxd/shared/logger"
+	"github.com/canonical/lxd/shared/tcp"
 )
 
 // EndpointType is a type specifying the endpoint on with the resource exists.

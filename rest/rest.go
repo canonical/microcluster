@@ -3,7 +3,7 @@ package rest
 import (
 	"net/http"
 
-	"github.com/lxc/lxd/lxd/response"
+	"github.com/canonical/lxd/lxd/response"
 
 	"github.com/canonical/microcluster/state"
 )

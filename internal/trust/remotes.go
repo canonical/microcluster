@@ -13,6 +13,7 @@ import (
 	"github.com/canonical/lxd/shared"
 	"github.com/canonical/lxd/shared/api"
 	"github.com/canonical/lxd/shared/logger"
+	"github.com/google/renameio"
 	"gopkg.in/yaml.v2"
 
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
@@ -113,7 +114,7 @@ func (r *Remotes) Add(dir string, remotes ...Remote) error {
 			return fmt.Errorf("Failed to check remote path %q: %w", path, err)
 		}
 
-		err = os.WriteFile(path, bytes, 0644)
+		err = renameio.WriteFile(path, bytes, 0644)
 		if err != nil {
 			return fmt.Errorf("Failed to write %q: %w", path, err)
 		}
@@ -129,14 +130,6 @@ func (r *Remotes) Add(dir string, remotes ...Remote) error {
 func (r *Remotes) Replace(dir string, newRemotes ...internalTypes.ClusterMember) error {
 	r.updateMu.Lock()
 	defer r.updateMu.Unlock()
-
-	for _, remote := range r.data {
-		remotePath := filepath.Join(dir, fmt.Sprintf("%s.yaml", remote.Name))
-		err := os.Remove(remotePath)
-		if err != nil {
-			return err
-		}
-	}
 
 	if len(newRemotes) == 0 {
 		return fmt.Errorf("Received empty remotes")
@@ -159,12 +152,31 @@ func (r *Remotes) Replace(dir string, newRemotes ...internalTypes.ClusterMember)
 		}
 
 		remotePath := filepath.Join(dir, fmt.Sprintf("%s.yaml", remote.Name))
-		err = os.WriteFile(remotePath, bytes, 0644)
+		err = renameio.WriteFile(remotePath, bytes, 0644)
 		if err != nil {
 			return fmt.Errorf("Failed to write %q: %w", remotePath, err)
 		}
 
 		remoteData[remote.Name] = newRemote
+	}
+
+	allEntries, err := os.ReadDir(dir)
+	if err != nil {
+		return err
+	}
+
+	// Remove any outdated entries.
+	for _, entry := range allEntries {
+		name, _, _ := strings.Cut(entry.Name(), ".yaml")
+		_, ok := remoteData[name]
+
+		if !ok {
+			remotePath := filepath.Join(dir, fmt.Sprintf("%s.yaml", name))
+			err = os.Remove(remotePath)
+			if err != nil {
+				return err
+			}
+		}
 	}
 
 	if len(remoteData) == 0 {

@@ -518,22 +518,21 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	// If ?force=1 is not set, send a notification to run the PreRemoveHook.
-	if !force {
-		publicKey, err := s.ClusterCert().PublicKeyX509()
-		if err != nil {
-			return response.SmartError(err)
-		}
+	publicKey, err := s.ClusterCert().PublicKeyX509()
+	if err != nil {
+		return response.SmartError(err)
+	}
 
-		c, err := internalClient.New(remote.URL(), s.ServerCert(), publicKey, true)
-		if err != nil {
-			return response.SmartError(err)
-		}
+	// Set the forwarded flag so that the the system to be removed knows the removal is in progress.
+	c, err := internalClient.New(remote.URL(), s.ServerCert(), publicKey, true)
+	if err != nil {
+		return response.SmartError(err)
+	}
 
-		err = c.ResetClusterMember(s.Context, name, force)
-		if err != nil {
-			return response.SmartError(err)
-		}
+	// Tell the cluster member to run its PreRemove hook and return.
+	err = c.ResetClusterMember(s.Context, name, force)
+	if err != nil {
+		return response.SmartError(err)
 	}
 
 	// Remove the node from dqlite.
@@ -556,12 +555,7 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	publicKey, err := s.ClusterCert().PublicKeyX509()
-	if err != nil {
-		return response.SmartError(err)
-	}
-
-	c, err := internalClient.New(remote.URL(), s.ServerCert(), publicKey, false)
+	c, err = internalClient.New(remote.URL(), s.ServerCert(), publicKey, false)
 	if err != nil {
 		return response.SmartError(err)
 	}

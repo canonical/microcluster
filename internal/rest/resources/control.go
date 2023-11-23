@@ -45,7 +45,7 @@ func controlPost(state *state.State, r *http.Request) response.Response {
 	}
 
 	daemonConfig := &trust.Location{Address: req.Address, Name: req.Name}
-	err = state.StartAPI(req.Bootstrap, daemonConfig)
+	err = state.StartAPI(req.Bootstrap, req.InitConfig, daemonConfig)
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -138,7 +138,7 @@ func joinWithToken(state *state.State, req *internalTypes.Control) response.Resp
 	}
 
 	// Start the HTTPS listeners and join Dqlite.
-	err = state.StartAPI(false, daemonConfig, joinAddrs.Strings()...)
+	err = state.StartAPI(false, req.InitConfig, daemonConfig, joinAddrs.Strings()...)
 	if err != nil {
 		return response.SmartError(err)
 	}

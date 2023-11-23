@@ -170,6 +170,7 @@ func (d *Daemon) init(listenPort string, extendedEndpoints []rest.Endpoint, sche
 func (d *Daemon) applyHooks(hooks *config.Hooks) {
 	// Apply a no-op hooks for any missing hooks.
 	noOpHook := func(s *state.State) error { return nil }
+	noOpRemoveHook := func(s *state.State, force bool) error { return nil }
 	noOpInitHook := func(s *state.State, initConfig map[string]string) error { return nil }
 
 	if hooks == nil {
@@ -203,11 +204,11 @@ func (d *Daemon) applyHooks(hooks *config.Hooks) {
 	}
 
 	if d.hooks.PreRemove == nil {
-		d.hooks.PreRemove = noOpHook
+		d.hooks.PreRemove = noOpRemoveHook
 	}
 
 	if d.hooks.PostRemove == nil {
-		d.hooks.PostRemove = noOpHook
+		d.hooks.PostRemove = noOpRemoveHook
 	}
 }
 

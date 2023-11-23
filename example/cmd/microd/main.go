@@ -69,8 +69,14 @@ func (c *cmdDaemon) Run(cmd *cobra.Command, args []string) error {
 	// exampleHooks are some example post-action hooks that can be run by MicroCluster.
 	exampleHooks := &config.Hooks{
 		// OnBootstrap is run after the daemon is initialized and bootstrapped.
-		OnBootstrap: func(s *state.State) error {
+		OnBootstrap: func(s *state.State, initConfig map[string]string) error {
+			logCtx := logger.Ctx{}
+			for k, v := range initConfig {
+				logCtx[k] = v
+			}
+
 			logger.Info("This is a hook that runs after the daemon is initialized and bootstrapped")
+			logger.Info("Here are the extra configuration keys that were passed into the init --bootstrap command", logCtx)
 
 			return nil
 		},
@@ -83,15 +89,27 @@ func (c *cmdDaemon) Run(cmd *cobra.Command, args []string) error {
 		},
 
 		// PostJoin is run after the daemon is initialized and joins a cluster.
-		PostJoin: func(s *state.State) error {
+		PostJoin: func(s *state.State, initConfig map[string]string) error {
+			logCtx := logger.Ctx{}
+			for k, v := range initConfig {
+				logCtx[k] = v
+			}
+
 			logger.Info("This is a hook that runs after the daemon is initialized and joins an existing cluster, after OnNewMember runs on all peers")
+			logger.Info("Here are the extra configuration keys that were passed into the init --join command", logCtx)
 
 			return nil
 		},
 
 		// PreJoin is run after the daemon is initialized and joins a cluster.
-		PreJoin: func(s *state.State) error {
+		PreJoin: func(s *state.State, initConfig map[string]string) error {
+			logCtx := logger.Ctx{}
+			for k, v := range initConfig {
+				logCtx[k] = v
+			}
+
 			logger.Info("This is a hook that runs after the daemon is initialized and joins an existing cluster, before OnNewMember runs on all peers")
+			logger.Info("Here are the extra configuration keys that were passed into the init --join command", logCtx)
 
 			return nil
 		},

@@ -168,8 +168,9 @@ func (d *Daemon) init(listenPort string, extendedEndpoints []rest.Endpoint, sche
 }
 
 func (d *Daemon) applyHooks(hooks *config.Hooks) {
-	// Apply a no-op hook for any missing hooks.
+	// Apply a no-op hooks for any missing hooks.
 	noOpHook := func(s *state.State) error { return nil }
+	noOpInitHook := func(s *state.State, initConfig map[string]string) error { return nil }
 
 	if hooks == nil {
 		d.hooks = config.Hooks{}
@@ -178,15 +179,15 @@ func (d *Daemon) applyHooks(hooks *config.Hooks) {
 	}
 
 	if d.hooks.OnBootstrap == nil {
-		d.hooks.OnBootstrap = noOpHook
+		d.hooks.OnBootstrap = noOpInitHook
 	}
 
 	if d.hooks.PostJoin == nil {
-		d.hooks.PostJoin = noOpHook
+		d.hooks.PostJoin = noOpInitHook
 	}
 
 	if d.hooks.PreJoin == nil {
-		d.hooks.PreJoin = noOpHook
+		d.hooks.PreJoin = noOpInitHook
 	}
 
 	if d.hooks.OnStart == nil {
@@ -378,7 +379,7 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 			return err
 		}
 
-		return d.hooks.OnBootstrap(d.State())
+		return d.hooks.OnBootstrap(d.State(), initConfig)
 	}
 
 	if len(joinAddresses) != 0 {
@@ -420,7 +421,7 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 	}
 
 	if len(joinAddresses) > 0 {
-		err = d.hooks.PreJoin(d.State())
+		err = d.hooks.PreJoin(d.State(), initConfig)
 		if err != nil {
 			return err
 		}
@@ -471,7 +472,7 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 	}
 
 	if len(joinAddresses) > 0 {
-		return d.hooks.PostJoin(d.State())
+		return d.hooks.PostJoin(d.State(), initConfig)
 	}
 
 	return nil

@@ -23,11 +23,14 @@ type Network struct {
 	listener net.Listener
 	server   *http.Server
 
-	ctx context.Context
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 // NewNetwork assigns an address, certificate, and server to the Network.
 func NewNetwork(ctx context.Context, endpointType EndpointType, server *http.Server, address api.URL, cert *shared.CertInfo) *Network {
+	ctx, cancel := context.WithCancel(ctx)
+
 	return &Network{
 		address:     address,
 		cert:        cert,
@@ -35,6 +38,7 @@ func NewNetwork(ctx context.Context, endpointType EndpointType, server *http.Ser
 
 		server: server,
 		ctx:    ctx,
+		cancel: cancel,
 	}
 }
 
@@ -101,6 +105,7 @@ func (n *Network) Close() error {
 	}
 
 	logger.Info("Stopping REST API handler - closing https socket", logger.Ctx{"address": n.listener.Addr()})
+	n.cancel()
 
 	return n.listener.Close()
 }

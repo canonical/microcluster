@@ -235,9 +235,11 @@ var clusterDisableMu sync.Mutex
 
 // Re-execs the daemon of the cluster member with a fresh s.
 func clusterMemberPut(s *state.State, r *http.Request) response.Response {
+	force := r.URL.Query().Get("force") == "1"
+
 	// If we received a cluster notification, run the pre-removal hook and return.
 	if client.IsForwardedRequest(r) {
-		err := state.PreRemoveHook(s)
+		err := state.PreRemoveHook(s, force)
 		if err != nil {
 			return response.SmartError(fmt.Errorf("Failed to run pre-removal hook: %w", err))
 		}
@@ -311,7 +313,7 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 	// If we received a forwarded request, assume the new member was successfully removed on the leader,
 	// and execute the post-remove hook.
 	if client.IsForwardedRequest(r) {
-		err := state.PostRemoveHook(s)
+		err := state.PostRemoveHook(s, force)
 		if err != nil {
 			return response.SmartError(fmt.Errorf("Failed to run post cluster member remove actions: %w", err))
 		}
@@ -528,7 +530,7 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 			return response.SmartError(err)
 		}
 
-		err = c.ResetClusterMember(s.Context, name)
+		err = c.ResetClusterMember(s.Context, name, force)
 		if err != nil {
 			return response.SmartError(err)
 		}
@@ -564,7 +566,7 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	err = c.ResetClusterMember(s.Context, name)
+	err = c.ResetClusterMember(s.Context, name, force)
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -574,7 +576,7 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	err = state.PostRemoveHook(s)
+	err = state.PostRemoveHook(s, force)
 	if err != nil {
 		return response.SmartError(err)
 	}

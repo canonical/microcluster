@@ -198,7 +198,7 @@ func (m *MicroCluster) Ready(timeoutSeconds int) error {
 }
 
 // NewCluster bootstrapps a brand new cluster with this daemon as its only member.
-func (m *MicroCluster) NewCluster(name string, address string, timeout time.Duration) error {
+func (m *MicroCluster) NewCluster(name string, address string, config map[string]string, timeout time.Duration) error {
 	c, err := m.LocalClient()
 	if err != nil {
 		return err
@@ -209,11 +209,11 @@ func (m *MicroCluster) NewCluster(name string, address string, timeout time.Dura
 		return fmt.Errorf("Received invalid address %q: %w", address, err)
 	}
 
-	return c.ControlDaemon(m.ctx, internalTypes.Control{Bootstrap: true, Address: addr, Name: name}, timeout)
+	return c.ControlDaemon(m.ctx, internalTypes.Control{Bootstrap: true, Address: addr, Name: name, InitConfig: config}, timeout)
 }
 
 // JoinCluster joins an existing cluster with a join token supplied by an existing cluster member.
-func (m *MicroCluster) JoinCluster(name string, address string, token string, timeout time.Duration) error {
+func (m *MicroCluster) JoinCluster(name string, address string, token string, initConfig map[string]string, timeout time.Duration) error {
 	c, err := m.LocalClient()
 	if err != nil {
 		return err
@@ -224,7 +224,7 @@ func (m *MicroCluster) JoinCluster(name string, address string, token string, ti
 		return fmt.Errorf("Received invalid address %q: %w", address, err)
 	}
 
-	return c.ControlDaemon(m.ctx, internalTypes.Control{JoinToken: token, Address: addr, Name: name}, timeout)
+	return c.ControlDaemon(m.ctx, internalTypes.Control{JoinToken: token, Address: addr, Name: name, InitConfig: initConfig}, timeout)
 }
 
 // NewJoinToken creates and records a new join token containing all the necessary credentials for joining a cluster.

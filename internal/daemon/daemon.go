@@ -236,7 +236,7 @@ func (d *Daemon) reloadIfBootstrapped() error {
 		return fmt.Errorf("Failed to retrieve daemon configuration yaml: %w", err)
 	}
 
-	err = d.StartAPI(false, nil)
+	err = d.StartAPI(false, nil, nil)
 	if err != nil {
 		return err
 	}

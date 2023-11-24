@@ -22,17 +22,20 @@ type Socket struct {
 	listener *net.UnixListener
 	server   *http.Server
 
-	ctx context.Context
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 // NewSocket returns a Socket struct with no listener attached yet.
 func NewSocket(ctx context.Context, server *http.Server, path api.URL, group string) *Socket {
+	ctx, cancel := context.WithCancel(ctx)
 	return &Socket{
 		Path:  path.Hostname(),
 		Group: group,
 
 		server: server,
 		ctx:    ctx,
+		cancel: cancel,
 	}
 }
 
@@ -106,6 +109,7 @@ func (s *Socket) Close() error {
 	}
 
 	logger.Info("Stopping REST API handler - closing socket", logger.Ctx{"socket": s.listener.Addr()})
+	s.cancel()
 
 	return s.listener.Close()
 }

@@ -47,9 +47,14 @@ func (c *Client) DeleteClusterMember(ctx context.Context, name string, force boo
 }
 
 // ResetClusterMember clears the state directory of the cluster member, and re-execs its daemon.
-func (c *Client) ResetClusterMember(ctx context.Context, name string) error {
+func (c *Client) ResetClusterMember(ctx context.Context, name string, force bool) error {
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	return c.QueryStruct(queryCtx, "PUT", PublicEndpoint, api.NewURL().Path("cluster", name), nil, nil)
+	endpoint := api.NewURL().Path("cluster", name)
+	if force {
+		endpoint = endpoint.WithQuery("force", "1")
+	}
+
+	return c.QueryStruct(queryCtx, "PUT", PublicEndpoint, endpoint, nil, nil)
 }

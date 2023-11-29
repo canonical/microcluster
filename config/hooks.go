@@ -22,10 +22,10 @@ type Hooks struct {
 	PreJoin func(s *state.State, initConfig map[string]string) error
 
 	// PreRemove is run on a cluster member just before it is removed from the cluster.
-	PreRemove func(s *state.State) error
+	PreRemove func(s *state.State, force bool) error
 
 	// PostRemove is run on all other peers after one is removed from the cluster.
-	PostRemove func(s *state.State) error
+	PostRemove func(s *state.State, force bool) error
 
 	// OnHeartbeat is run after a successful heartbeat round.
 	OnHeartbeat func(s *state.State) error

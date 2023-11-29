@@ -115,15 +115,15 @@ func (c *cmdDaemon) Run(cmd *cobra.Command, args []string) error {
 		},
 
 		// PostRemove is run after the daemon is removed from a cluster.
-		PostRemove: func(s *state.State) error {
-			logger.Infof("This is a hook that is run on peer %q after a cluster member is removed", s.Name())
+		PostRemove: func(s *state.State, force bool) error {
+			logger.Infof("This is a hook that is run on peer %q after a cluster member is removed, with the force flag set to %v", s.Name(), force)
 
 			return nil
 		},
 
 		// PreRemove is run before the daemon is removed from the cluster.
-		PreRemove: func(s *state.State) error {
-			logger.Infof("This is a hook that is run on peer %q just before it is removed", s.Name())
+		PreRemove: func(s *state.State, force bool) error {
+			logger.Infof("This is a hook that is run on peer %q just before it is removed, with the force flag set to %v", s.Name(), force)
 
 			return nil
 		},

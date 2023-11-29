@@ -63,10 +63,10 @@ type State struct {
 var StopListeners func() error
 
 // PostRemoveHook is a post-action hook that is run on all cluster members when a cluster member is removed.
-var PostRemoveHook func(state *State) error
+var PostRemoveHook func(state *State, force bool) error
 
 // PreRemoveHook is a post-action hook that is run on a cluster member just before it is is removed.
-var PreRemoveHook func(state *State) error
+var PreRemoveHook func(state *State, force bool) error
 
 // OnHeartbeatHook is a post-action hook that is run on the leader after a successful heartbeat round.
 var OnHeartbeatHook func(state *State) error

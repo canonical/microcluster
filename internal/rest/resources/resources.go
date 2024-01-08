@@ -41,6 +41,8 @@ var InternalEndpoints = &Resources{
 		sqlCmd,
 		tokenCmd,
 		heartbeatCmd,
+		trustCmd,
+		trustEntryCmd,
 	},
 }
 

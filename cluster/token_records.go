@@ -31,6 +31,7 @@ type InternalTokenRecord struct {
 	ID     int
 	Secret string `db:"primary=yes"`
 	Name   string
+	Role   string
 }
 
 // InternalTokenRecordFilter is the filter struct for filtering results from generated methods.
@@ -38,11 +39,13 @@ type InternalTokenRecordFilter struct {
 	ID     *int
 	Secret *string
 	Name   *string
+	Role   *string
 }
 
 // ToAPI converts the InternalTokenRecord to a full token and returns an API compatible struct.
 func (t *InternalTokenRecord) ToAPI(clusterCert *x509.Certificate, joinAddresses []types.AddrPort) (*internalTypes.TokenRecord, error) {
 	token := internalTypes.Token{
+		Role:          t.Role,
 		Secret:        t.Secret,
 		Fingerprint:   shared.CertFingerprint(clusterCert),
 		JoinAddresses: joinAddresses,
@@ -56,5 +59,6 @@ func (t *InternalTokenRecord) ToAPI(clusterCert *x509.Certificate, joinAddresses
 	return &internalTypes.TokenRecord{
 		Token: tokenString,
 		Name:  t.Name,
+		Role:  t.Role,
 	}, nil
 }

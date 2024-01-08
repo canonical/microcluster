@@ -177,6 +177,11 @@ func tlsHTTPClient(clientCert *shared.CertInfo, remoteCert *x509.Certificate, pr
 	return client, nil
 }
 
+// SetClusterNotification sets the client's proxy to apply the forwarding headers to a request.
+func (c *Client) SetClusterNotification() {
+	c.Transport.(*http.Transport).Proxy = forwardingProxy
+}
+
 func forwardingProxy(r *http.Request) (*url.URL, error) {
 	r.Header.Set("User-Agent", clusterRequest.UserAgentNotifier)
 

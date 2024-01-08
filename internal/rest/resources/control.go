@@ -83,6 +83,7 @@ func joinWithToken(state *state.State, req *internalTypes.Control) response.Resp
 	}
 
 	// Get a client to the target address.
+	var lastErr error
 	var joinInfo *internalTypes.TokenResponse
 	for _, addr := range token.JoinAddresses {
 		url := api.NewURL().Scheme("https").Host(addr.String())
@@ -105,13 +106,14 @@ func joinWithToken(state *state.State, req *internalTypes.Control) response.Resp
 		joinInfo, err = d.AddClusterMember(context.Background(), newClusterMember)
 		if err != nil {
 			logger.Error("Unable to complete cluster join request", logger.Ctx{"address": addr.String(), "error": err})
+			lastErr = err
 		} else {
 			break
 		}
 	}
 
 	if joinInfo == nil {
-		return response.SmartError(fmt.Errorf("Failed to join cluster with the given join token"))
+		return response.SmartError(fmt.Errorf("%d join attempts were unsuccessful. Last error: %w", len(token.JoinAddresses), lastErr))
 	}
 
 	err = util.WriteCert(state.OS.StateDir, "cluster", []byte(joinInfo.ClusterCert.String()), []byte(joinInfo.ClusterKey), nil)

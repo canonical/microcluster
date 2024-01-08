@@ -17,6 +17,7 @@ import (
 	internalClient "github.com/canonical/microcluster/internal/rest/client"
 	"github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/internal/state"
+	"github.com/canonical/microcluster/internal/trust"
 	"github.com/canonical/microcluster/rest"
 )
 
@@ -203,7 +204,7 @@ func beginHeartbeat(s *state.State, r *http.Request) response.Response {
 		}
 	}
 
-	clusterClients, err := s.Cluster(nil)
+	clusterClients, err := s.Cluster(nil, trust.Cluster)
 	if err != nil {
 		return response.SmartError(err)
 	}

@@ -603,7 +603,7 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	cluster, err := s.Cluster(nil)
+	cluster, err := s.Cluster(nil, role)
 	if err != nil {
 		return response.SmartError(err)
 	}

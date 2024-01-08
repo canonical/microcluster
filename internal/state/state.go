@@ -2,6 +2,7 @@ package state
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/canonical/microcluster/internal/db"
 	"github.com/canonical/microcluster/internal/endpoints"
 	internalClient "github.com/canonical/microcluster/internal/rest/client"
+	"github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/internal/sys"
 	"github.com/canonical/microcluster/internal/trust"
 )
@@ -76,7 +78,7 @@ var OnNewMemberHook func(state *State) error
 
 // Cluster returns a client for every member of a cluster, except
 // this one, with the UserAgentNotifier header set if a request is given.
-func (s *State) Cluster(r *http.Request) (client.Cluster, error) {
+func (s *State) Cluster(r *http.Request, role trust.Role) (client.Cluster, error) {
 	if r != nil {
 		r.Header.Set("User-Agent", request.UserAgentNotifier)
 	}
@@ -86,9 +88,30 @@ func (s *State) Cluster(r *http.Request) (client.Cluster, error) {
 		return nil, err
 	}
 
-	clusterMembers, err := c.GetClusterMembers(s.Context)
-	if err != nil {
-		return nil, err
+	var clusterMembers []types.ClusterMemberLocal
+	switch role {
+	case trust.Cluster:
+		dqliteClusterMembers, err := c.GetClusterMembers(s.Context)
+		if err != nil {
+			return nil, err
+		}
+
+		clusterMembers = make([]types.ClusterMemberLocal, 0, len(dqliteClusterMembers))
+		for _, member := range dqliteClusterMembers {
+			clusterMembers = append(clusterMembers, member.ClusterMemberLocal)
+		}
+
+	case trust.NonCluster:
+		clusterMembers, err = c.GetNonClusterMembers(s.Context)
+		if err != nil {
+			return nil, err
+		}
+	default:
+		return nil, fmt.Errorf("%q is not a valid microcluster role", role)
+	}
+
+	if len(clusterMembers) == 0 {
+		return client.Cluster{}, nil
 	}
 
 	clients := make(client.Cluster, 0, len(clusterMembers)-1)

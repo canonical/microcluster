@@ -329,7 +329,7 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 	}
 
 	if bootstrap {
-		err = d.trustStore.Remotes().Add(d.os.TrustDir, localNode)
+		err = d.trustStore.Remotes(trust.Cluster).Add(d.os.TrustDir, localNode)
 		if err != nil {
 			return fmt.Errorf("Failed to initialize local remote entry: %w", err)
 		}

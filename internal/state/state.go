@@ -49,8 +49,8 @@ type State struct {
 	// Database.
 	Database *db.DB
 
-	// Remotes.
-	Remotes func() *trust.Remotes
+	// Returns the locally stored set of microcluster systems. If no role is specified, defaults to "cluster" for dqlite peers.
+	Remotes func(roles trust.Role) *trust.Remotes
 
 	// Initialize APIs and bootstrap/join database.
 	StartAPI func(bootstrap bool, initConfig map[string]string, newConfig *trust.Location, joinAddresses ...string) error

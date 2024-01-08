@@ -239,11 +239,6 @@ func (d *Daemon) reloadIfBootstrapped() error {
 		return err
 	}
 
-	err = d.setDaemonConfig(nil)
-	if err != nil {
-		return fmt.Errorf("Failed to retrieve daemon configuration yaml: %w", err)
-	}
-
 	err = d.StartAPI(false, nil, nil)
 	if err != nil {
 		return err
@@ -315,11 +310,9 @@ func (d *Daemon) initServer(resources ...*resources.Resources) *http.Server {
 // StartAPI starts up the admin and consumer APIs, and generates a cluster cert
 // if we are bootstrapping the first node.
 func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfig *trust.Location, joinAddresses ...string) error {
-	if newConfig != nil {
-		err := d.setDaemonConfig(newConfig)
-		if err != nil {
-			return fmt.Errorf("Failed to apply and save new daemon configuration: %w", err)
-		}
+	_, err := d.setDaemonConfig(newConfig)
+	if err != nil {
+		return fmt.Errorf("Failed to apply and save new daemon configuration: %w", err)
 	}
 
 	if bootstrap {
@@ -587,32 +580,32 @@ func (d *Daemon) Stop() error {
 
 // setDaemonConfig sets the daemon's address and name from the given location information. If none is supplied, the file
 // at `state-dir/daemon.yaml` will be read for the information.
-func (d *Daemon) setDaemonConfig(config *trust.Location) error {
+func (d *Daemon) setDaemonConfig(config *trust.Location) (*trust.Location, error) {
 	if config != nil {
 		bytes, err := yaml.Marshal(config)
 		if err != nil {
-			return fmt.Errorf("Failed to parse daemon config to yaml: %w", err)
+			return nil, fmt.Errorf("Failed to parse daemon config to yaml: %w", err)
 		}
 
 		err = os.WriteFile(filepath.Join(d.os.StateDir, "daemon.yaml"), bytes, 0644)
 		if err != nil {
-			return fmt.Errorf("Failed to write daemon configuration yaml: %w", err)
+			return nil, fmt.Errorf("Failed to write daemon configuration yaml: %w", err)
 		}
 	} else {
 		data, err := os.ReadFile(filepath.Join(d.os.StateDir, "daemon.yaml"))
 		if err != nil {
-			return fmt.Errorf("Failed to find daemon configuration: %w", err)
+			return nil, fmt.Errorf("Failed to find daemon configuration: %w", err)
 		}
 
 		config = &trust.Location{}
 		err = yaml.Unmarshal(data, config)
 		if err != nil {
-			return fmt.Errorf("Failed to parse daemon config from yaml: %w", err)
+			return nil, fmt.Errorf("Failed to parse daemon config from yaml: %w", err)
 		}
 	}
 
 	d.address = *api.NewURL().Scheme("https").Host(config.Address.String())
 	d.name = config.Name
 
-	return nil
+	return config, nil
 }

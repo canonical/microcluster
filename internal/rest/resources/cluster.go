@@ -33,10 +33,10 @@ import (
 )
 
 var clusterCmd = rest.Endpoint{
-	Path:              "cluster",
-	AllowedBeforeInit: true,
+	Path: "cluster",
 
-	Post: rest.EndpointAction{Handler: clusterPost, AllowUntrusted: true},
+	Put:  rest.EndpointAction{Handler: clusterPut, AccessHandler: access.AllowAuthenticated},
+	Post: rest.EndpointAction{Handler: clusterPost, AllowUntrusted: true, AccessHandler: access.RestrictNotification},
 	Get:  rest.EndpointAction{Handler: clusterGet, AccessHandler: access.AllowAuthenticated},
 }
 
@@ -48,33 +48,6 @@ var clusterMemberCmd = rest.Endpoint{
 }
 
 func clusterPost(s *state.State, r *http.Request) response.Response {
-	// If we received a forwarded request, assume the new member was successfully added on the leader,
-	// and execute the new member hook.
-	if client.IsForwardedRequest(r) {
-		ctx, cancel := context.WithTimeout(s.Context, 30*time.Second)
-		defer cancel()
-
-		// Wait for the database to be set up in case we received this request at the same time as joining ourselves.
-		for !s.Database.IsOpen() {
-			select {
-			case <-ctx.Done():
-				return response.SmartError(fmt.Errorf("Error waiting for peer to initialize: %w", ctx.Err()))
-			default:
-			}
-		}
-
-		err := state.OnNewMemberHook(s)
-		if err != nil {
-			return response.SmartError(fmt.Errorf("Failed to run post cluster member add actions: %w", err))
-		}
-
-		return response.EmptySyncResponse
-	}
-
-	if !s.Database.IsOpen() {
-		return response.Unavailable(fmt.Errorf("Daemon not yet initialized"))
-	}
-
 	req := internalTypes.ClusterMember{}
 
 	// Parse the request.
@@ -83,7 +56,17 @@ func clusterPost(s *state.State, r *http.Request) response.Response {
 		return response.BadRequest(err)
 	}
 
-	// Set a 5 second timeout in case dqlite locks up.
+	// If we received a forwarded request, assume the new member was successfully added on the leader,
+	// and execute the new member hook.
+	if client.IsForwardedRequest(r) {
+		err := state.OnNewMemberHook(s)
+		if err != nil {
+			return response.SmartError(fmt.Errorf("Failed to run post cluster member add actions: %w", err))
+		}
+
+		return response.EmptySyncResponse
+	}
+
 	ctx, cancel := context.WithTimeout(s.Context, time.Second*30)
 	defer cancel()
 
@@ -103,11 +86,6 @@ func clusterPost(s *state.State, r *http.Request) response.Response {
 		return response.SmartError(fmt.Errorf("Remote with address %q exists", req.Address.String()))
 	}
 
-	newRemote := trust.Remote{
-		Location:    trust.Location{Name: req.Name, Address: req.Address},
-		Certificate: req.Certificate,
-	}
-
 	// Forward request to leader.
 	if leaderInfo.Address != s.Address().URL.Host {
 		client, err := s.Leader()
@@ -116,12 +94,6 @@ func clusterPost(s *state.State, r *http.Request) response.Response {
 		}
 
 		tokenResponse, err := client.AddClusterMember(s.Context, req)
-		if err != nil {
-			return response.SmartError(err)
-		}
-
-		// If we are not the leader, just add the cluster member to our local store for authentication.
-		err = s.Remotes().Add(s.OS.TrustDir, newRemote)
 		if err != nil {
 			return response.SmartError(err)
 		}
@@ -177,6 +149,11 @@ func clusterPost(s *state.State, r *http.Request) response.Response {
 		ClusterKey:  string(s.ClusterCert().PrivateKey()),
 
 		ClusterMembers: clusterMembers,
+	}
+
+	newRemote := trust.Remote{
+		Location:    trust.Location{Name: req.Name, Address: req.Address},
+		Certificate: req.Certificate,
 	}
 
 	// Add the cluster member to our local store for authentication.
@@ -238,6 +215,55 @@ func clusterGet(s *state.State, r *http.Request) response.Response {
 	}
 
 	return response.SyncResponse(true, apiClusterMembers)
+}
+
+func clusterPut(s *state.State, r *http.Request) response.Response {
+	req := internalTypes.ClusterMember{}
+
+	// Parse the request.
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		return response.BadRequest(err)
+	}
+
+	newRemote := trust.Remote{
+		Location:    trust.Location{Name: req.Name, Address: req.Address},
+		Certificate: req.Certificate,
+	}
+
+	ctx, cancel := context.WithTimeout(s.Context, 30*time.Second)
+	defer cancel()
+
+	if !client.IsForwardedRequest(r) {
+		cluster, err := s.Cluster(r)
+		if err != nil {
+			return response.SmartError(err)
+		}
+
+		err = cluster.Query(ctx, true, func(ctx context.Context, c *client.Client) error {
+			// No need to send a request to ourselves, or to the node we are adding.
+			if s.Address().URL.Host == c.URL().URL.Host || req.Address.String() == c.URL().URL.Host {
+				return nil
+			}
+
+			return c.RegisterClusterMember(ctx, req)
+		})
+		if err != nil {
+			return response.SmartError(err)
+		}
+	}
+
+	// At this point, the node has joined dqlite so we can add a local record for it if we haven't already from a heartbeat (or if we are the leader).
+	remotes := s.Remotes()
+	_, ok := remotes.RemotesByName()[newRemote.Name]
+	if !ok {
+		err = remotes.Add(s.OS.TrustDir, newRemote)
+		if err != nil {
+			return response.SmartError(fmt.Errorf("Failed adding local record of newly joined node %q: %w", req.Name, err))
+		}
+	}
+
+	return response.EmptySyncResponse
 }
 
 // clusterDisableMu is used to prevent the daemon process from being replaced/stopped during removal from the

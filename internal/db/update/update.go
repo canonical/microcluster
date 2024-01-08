@@ -86,6 +86,36 @@ func SchemaDotGo() error {
 
 var updates = map[int]schema.Update{
 	1: updateFromV0,
+	2: updateFromV1,
+}
+
+func updateFromV1(ctx context.Context, tx *sql.Tx) error {
+	stmt := `
+CREATE TABLE internal_non_cluster_members (
+  id                   INTEGER   PRIMARY  KEY    AUTOINCREMENT  NOT  NULL,
+  name                 TEXT      NOT      NULL,
+  address              TEXT      NOT      NULL,
+  certificate          TEXT      NOT      NULL,
+  UNIQUE(name),
+  UNIQUE(certificate)
+);
+
+CREATE TABLE internal_token_records_new (
+  id           INTEGER         PRIMARY  KEY    AUTOINCREMENT  NOT  NULL,
+  name         TEXT            NOT      NULL,
+  secret       TEXT            NOT      NULL,
+  role         TEXT            NOT      NULL,
+  UNIQUE(name),
+  UNIQUE(secret)
+);
+
+INSERT INTO "internal_token_records_new" SELECT id,name,secret,"cluster" FROM "internal_token_records";
+
+DROP TABLE "internal_token_records";
+ALTER TABLE "internal_token_records_new" RENAME TO "internal_token_records";
+`
+	_, err := tx.ExecContext(ctx, stmt)
+	return err
 }
 
 func updateFromV0(ctx context.Context, tx *sql.Tx) error {

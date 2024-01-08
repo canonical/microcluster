@@ -133,8 +133,28 @@ func joinWithToken(state *state.State, req *internalTypes.Control) response.Resp
 		clusterMembers = append(clusterMembers, remote)
 	}
 
-	clusterMembers = append(clusterMembers, localClusterMember)
-	err = state.Remotes().Add(state.OS.TrustDir, clusterMembers...)
+	nonClusterMembers := make([]trust.Remote, 0, len(joinInfo.NonClusterMembers))
+	for _, nonClusterMember := range joinInfo.NonClusterMembers {
+		remote := trust.Remote{
+			Location:    trust.Location{Name: nonClusterMember.Name, Address: nonClusterMember.Address},
+			Certificate: nonClusterMember.Certificate,
+		}
+
+		nonClusterMembers = append(nonClusterMembers, remote)
+	}
+
+	if token.Role == string(trust.Cluster) {
+		clusterMembers = append(clusterMembers, localClusterMember)
+	} else {
+		nonClusterMembers = append(nonClusterMembers, localClusterMember)
+	}
+
+	err = state.Remotes(trust.Cluster).Add(state.OS.TrustDir, clusterMembers...)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	err = state.Remotes(trust.NonCluster).Add(state.OS.TrustDir, nonClusterMembers...)
 	if err != nil {
 		return response.SmartError(err)
 	}

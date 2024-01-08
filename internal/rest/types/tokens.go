@@ -9,22 +9,25 @@ import (
 
 // TokenRecord holds information for requesting a join token.
 type TokenRecord struct {
-	Name  string `json:"name" yaml:"name"`
+	Name  string `json:"name"  yaml:"name"`
 	Token string `json:"token" yaml:"token"`
+	Role  string `json:"role"  yaml:"role"`
 }
 
 // TokenResponse holds the information for connecting to a cluster by a node with a valid join token.
 type TokenResponse struct {
-	ClusterCert    types.X509Certificate `json:"cluster_cert" yaml:"cluster_cert"`
-	ClusterKey     string                `json:"cluster_key" yaml:"cluster_key"`
-	ClusterMembers []ClusterMemberLocal  `json:"cluster_members" yaml:"cluster_members"`
+	ClusterCert       types.X509Certificate `json:"cluster_cert"        yaml:"cluster_cert"`
+	ClusterKey        string                `json:"cluster_key"         yaml:"cluster_key"`
+	ClusterMembers    []ClusterMemberLocal  `json:"cluster_members"     yaml:"cluster_members"`
+	NonClusterMembers []ClusterMemberLocal  `json:"non_cluster_members" yaml:"non_cluster_members"`
 }
 
 // Token holds the information that is presented to the joining node when requesting a token.
 type Token struct {
-	Name          string           `json:"name" yaml:"name"`
-	Secret        string           `json:"secret" yaml:"secret"`
-	Fingerprint   string           `json:"fingerprint" yaml:"fingerprint"`
+	Role          string           `json:"role"           yaml:"role"`
+	Name          string           `json:"name"           yaml:"name"`
+	Secret        string           `json:"secret"         yaml:"secret"`
+	Fingerprint   string           `json:"fingerprint"    yaml:"fingerprint"`
 	JoinAddresses []types.AddrPort `json:"join_addresses" yaml:"join_addresses"`
 }
 

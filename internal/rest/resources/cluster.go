@@ -189,12 +189,34 @@ func clusterPost(s *state.State, r *http.Request) response.Response {
 }
 
 func clusterGet(s *state.State, r *http.Request) response.Response {
-	if !s.Database.IsOpen() {
-		return response.Unavailable(fmt.Errorf("Daemon not yet initialized"))
+	// Default to the cluster role if no role is specified.
+	role := trust.Role(r.URL.Query().Get("role"))
+	if role == "" {
+		role = trust.Cluster
 	}
 
+	var apiNonClusterMembers []internalTypes.ClusterMemberLocal
 	var apiClusterMembers []internalTypes.ClusterMember
 	err := s.Database.Transaction(s.Context, func(ctx context.Context, tx *sql.Tx) error {
+		if role == trust.NonCluster {
+			clusterMembers, err := cluster.GetInternalNonClusterMembers(ctx, tx)
+			if err != nil {
+				return err
+			}
+
+			apiNonClusterMembers = make([]internalTypes.ClusterMemberLocal, 0, len(clusterMembers))
+			for _, clusterMember := range clusterMembers {
+				apiClusterMember, err := clusterMember.ToAPI()
+				if err != nil {
+					return err
+				}
+
+				apiNonClusterMembers = append(apiNonClusterMembers, *apiClusterMember)
+			}
+
+			return nil
+		}
+
 		clusterMembers, err := cluster.GetInternalClusterMembers(ctx, tx)
 		if err != nil {
 			return err
@@ -214,6 +236,10 @@ func clusterGet(s *state.State, r *http.Request) response.Response {
 	})
 	if err != nil {
 		return response.SmartError(fmt.Errorf("Failed to get cluster members: %w", err))
+	}
+
+	if role == trust.NonCluster {
+		return response.SyncResponse(true, apiNonClusterMembers)
 	}
 
 	clusterCert, err := s.ClusterCert().PublicKeyX509()

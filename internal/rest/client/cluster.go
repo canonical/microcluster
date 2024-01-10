@@ -33,6 +33,17 @@ func (c *Client) GetClusterMembers(ctx context.Context) ([]types.ClusterMember, 
 	return clusterMembers, err
 }
 
+// GetNonClusterMembers returns the database record of non-cluster members.
+func (c *Client) GetNonClusterMembers(ctx context.Context) ([]types.ClusterMemberLocal, error) {
+	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	clusterMembers := []types.ClusterMemberLocal{}
+	err := c.QueryStruct(queryCtx, "GET", PublicEndpoint, api.NewURL().Path("cluster").WithQuery("role", "non-cluster"), nil, &clusterMembers)
+
+	return clusterMembers, err
+}
+
 // DeleteClusterMember deletes the cluster member with the given name.
 func (c *Client) DeleteClusterMember(ctx context.Context, name string, force bool) error {
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)

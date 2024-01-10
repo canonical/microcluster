@@ -8,6 +8,14 @@ import (
 	"github.com/canonical/microcluster/internal/rest/types"
 )
 
+// UpgradeClusterMember instructs the dqlite leader to inform all nodes that the node with the given name is to be upgraded to dqlite-member.
+func (c *Client) UpgradeClusterMember(ctx context.Context, args types.ClusterMemberUpgrade) error {
+	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	return c.QueryStruct(queryCtx, "PUT", PublicEndpoint, api.NewURL().Path("cluster", args.Name, "upgrade"), args, nil)
+}
+
 // AddClusterMember records a new cluster member in the trust store of each current cluster member.
 func (c *Client) AddClusterMember(ctx context.Context, args types.ClusterMember, upgrading bool) (*types.TokenResponse, error) {
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)

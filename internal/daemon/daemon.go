@@ -566,6 +566,7 @@ func (d *Daemon) State() *state.State {
 		OS:             d.os,
 		Address:        d.Address,
 		Name:           d.Name,
+		Role:           d.Role,
 		Endpoints:      d.endpoints,
 		ServerCert:     d.ServerCert,
 		ClusterCert:    d.ClusterCert,

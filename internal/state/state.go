@@ -39,6 +39,9 @@ type State struct {
 	// Name of the cluster member.
 	Name func() string
 
+	// Role of the cluster member, whether it is part of dqlite (cluster) or not (non-cluster).
+	Role func() trust.Role
+
 	// Server.
 	Endpoints *endpoints.Endpoints
 

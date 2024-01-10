@@ -209,6 +209,18 @@ func (d *Daemon) applyHooks(hooks *config.Hooks) {
 	if d.hooks.PostRemove == nil {
 		d.hooks.PostRemove = noOpRemoveHook
 	}
+
+	if d.hooks.OnUpgradedMember == nil {
+		d.hooks.OnNewMember = noOpHook
+	}
+
+	if d.hooks.PreUpgrade == nil {
+		d.hooks.PreUpgrade = noOpInitHook
+	}
+
+	if d.hooks.PostUpgrade == nil {
+		d.hooks.PostUpgrade = noOpInitHook
+	}
 }
 
 func (d *Daemon) reloadIfBootstrapped() error {
@@ -608,6 +620,10 @@ func (d *Daemon) State() *state.State {
 	state.PostRemoveHook = d.hooks.PostRemove
 	state.OnHeartbeatHook = d.hooks.OnHeartbeat
 	state.OnNewMemberHook = d.hooks.OnNewMember
+	state.OnUpgradedMemberHook = d.hooks.OnUpgradedMember
+	state.PreUpgradeHook = d.hooks.PreUpgrade
+	state.PostUpgradeHook = d.hooks.PostUpgrade
+
 	state.StopListeners = func() error {
 		err := d.fsWatcher.Close()
 		if err != nil {

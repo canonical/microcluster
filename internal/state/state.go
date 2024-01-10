@@ -82,6 +82,15 @@ var OnHeartbeatHook func(state *State) error
 // OnNewMemberHook is a post-action hook that is run on all cluster members when a new cluster member joins the cluster.
 var OnNewMemberHook func(state *State) error
 
+// OnUpgradedMemberHook is a hook that runs on all previously existing cluster members after a non-cluster member is upgraded to join dqlite, and runs its PreUpgradeHook.
+var OnUpgradedMemberHook func(state *State) error
+
+// PreUpgradeHook runs on a non-cluster member just before it upgrades its API and joins dqlite.
+var PreUpgradeHook func(state *State, initconfig map[string]string) error
+
+// PostUpgradeHook runs on a cluster member that just upgraded from a non-cluster role, after other nodes have run the OnUpgradedMemberHook.
+var PostUpgradeHook func(state *State, initconfig map[string]string) error
+
 // Cluster returns a client for every member of a cluster, except
 // this one, with the UserAgentNotifier header set if a request is given.
 func (s *State) Cluster(r *http.Request, role trust.Role) (client.Cluster, error) {

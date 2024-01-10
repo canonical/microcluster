@@ -2,6 +2,7 @@ package state
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -119,6 +120,10 @@ func (s *State) Cluster(r *http.Request) (client.Cluster, error) {
 
 // Leader returns a client connected to the dqlite leader.
 func (s *State) Leader() (*client.Client, error) {
+	if !s.Database.IsOpen() {
+		return nil, fmt.Errorf("Failed to check for database leader, the database is offline")
+	}
+
 	ctx, cancel := context.WithTimeout(s.Context, time.Second*30)
 	defer cancel()
 

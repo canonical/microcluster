@@ -65,7 +65,7 @@ func joinWithToken(state *state.State, req *internalTypes.Control) response.Resp
 	}
 
 	// Add the local node to the list of clusterMembers.
-	daemonConfig := &trust.Location{Address: req.Address, Name: req.Name}
+	daemonConfig := &trust.Location{Address: req.Address, Name: req.Name, Role: trust.Role(token.Role)}
 	localClusterMember := trust.Remote{
 		Location:    *daemonConfig,
 		Certificate: types.X509Certificate{Certificate: serverCert},

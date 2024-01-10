@@ -41,8 +41,7 @@ import (
 type Daemon struct {
 	project string // The project refers to the name of the go-project that is calling MicroCluster.
 
-	address api.URL // Listen Address.
-	name    string  // Name of the cluster member.
+	config trust.Location // Configurable information about the daemon.
 
 	os          *sys.OS
 	serverCert  *shared.CertInfo
@@ -114,7 +113,7 @@ func (d *Daemon) init(listenPort string, extendedEndpoints []rest.Endpoint, sche
 	d.applyHooks(hooks)
 
 	var err error
-	d.name, err = os.Hostname()
+	d.config.Name, err = os.Hostname()
 	if err != nil {
 		return fmt.Errorf("Failed to assign default system name: %w", err)
 	}
@@ -309,7 +308,7 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 		return fmt.Errorf("Failed to apply and save new daemon configuration: %w", err)
 	}
 
-	if d.address.URL.Host == "" || d.name == "" {
+	if d.Address().URL.Host == "" || d.Name() == "" || !shared.ValueInSlice[trust.Role](d.Role(), []trust.Role{trust.Cluster, trust.NonCluster}) {
 		return fmt.Errorf("Cannot start network API without valid daemon configuration")
 	}
 
@@ -318,13 +317,13 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 		return fmt.Errorf("Failed to parse server certificate when bootstrapping API: %w", err)
 	}
 
-	addrPort, err := types.ParseAddrPort(d.address.URL.Host)
+	addrPort, err := types.ParseAddrPort(d.Address().URL.Host)
 	if err != nil {
 		return fmt.Errorf("Failed to parse listen address when bootstrapping API: %w", err)
 	}
 
 	localNode := trust.Remote{
-		Location:    trust.Location{Name: d.name, Address: addrPort, Role: config.Role},
+		Location:    trust.Location{Name: d.Name(), Address: addrPort, Role: config.Role},
 		Certificate: types.X509Certificate{Certificate: serverCert},
 	}
 
@@ -348,7 +347,7 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 	}
 
 	server := d.initServer(availableEndpoints...)
-	network := endpoints.NewNetwork(d.ShutdownCtx, endpoints.EndpointNetwork, server, d.address, d.clusterCert)
+	network := endpoints.NewNetwork(d.ShutdownCtx, endpoints.EndpointNetwork, server, *d.Address(), d.clusterCert)
 	err = d.endpoints.Down(endpoints.EndpointNetwork)
 	if err != nil {
 		return err
@@ -370,7 +369,7 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 			Role:        cluster.Pending,
 		}
 
-		err = d.db.Bootstrap(d.project, d.address, d.ClusterCert(), clusterMember)
+		err = d.db.Bootstrap(d.project, *d.Address(), d.ClusterCert(), clusterMember)
 		if err != nil {
 			return err
 		}
@@ -385,12 +384,12 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 
 	if config.Role != trust.NonCluster {
 		if len(joinAddresses) != 0 {
-			err = d.db.Join(d.project, d.address, d.ClusterCert(), joinAddresses...)
+			err = d.db.Join(d.project, *d.Address(), d.ClusterCert(), joinAddresses...)
 			if err != nil {
 				return fmt.Errorf("Failed to join cluster: %w", err)
 			}
 		} else {
-			err = d.db.StartWithCluster(d.project, d.address, d.trustStore.Remotes().Addresses(), d.clusterCert)
+			err = d.db.StartWithCluster(d.project, *d.Address(), d.trustStore.Remotes(trust.Cluster).Addresses(), d.clusterCert)
 			if err != nil {
 				return fmt.Errorf("Failed to re-establish cluster connection: %w", err)
 			}
@@ -418,7 +417,7 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 	var lastErr error
 	err = cluster.Query(d.ShutdownCtx, false, func(ctx context.Context, c *client.Client) error {
 		// No need to send a request to ourselves.
-		if d.address.URL.Host == c.URL().URL.Host {
+		if d.Address().URL.Host == c.URL().URL.Host {
 			return nil
 		}
 
@@ -455,7 +454,7 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 		c.SetClusterNotification()
 
 		// No need to send a request to ourselves.
-		if d.address.URL.Host == c.URL().URL.Host {
+		if d.Address().URL.Host == c.URL().URL.Host {
 			return nil
 		}
 
@@ -532,13 +531,17 @@ func (d *Daemon) ServerCert() *shared.CertInfo {
 
 // Address ensures both the daemon and state have the same address.
 func (d *Daemon) Address() *api.URL {
-	copyURL := d.address
-	return &copyURL
+	return api.NewURL().Scheme("https").Host(d.config.Address.String())
 }
 
 // Name ensures both the daemon and state have the same name.
 func (d *Daemon) Name() string {
-	return d.name
+	return d.config.Name
+}
+
+// Role returns the cluster role of this daemon.
+func (d *Daemon) Role() trust.Role {
+	return d.config.Role
 }
 
 // State creates a State instance with the daemon's stateful components.
@@ -613,8 +616,12 @@ func (d *Daemon) setDaemonConfig(config *trust.Location) (*trust.Location, error
 		}
 	}
 
-	d.address = *api.NewURL().Scheme("https").Host(config.Address.String())
-	d.name = config.Name
+	// Default to Cluster if no role is set yet.
+	if config.Role == "" {
+		config.Role = trust.Cluster
+	}
+
+	d.config = *config
 
 	return config, nil
 }

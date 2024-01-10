@@ -22,14 +22,14 @@ import (
 
 	"github.com/canonical/microcluster/client"
 	"github.com/canonical/microcluster/cluster"
+	"github.com/canonical/microcluster/internal/db/update"
 	internalClient "github.com/canonical/microcluster/internal/rest/client"
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
-	"github.com/canonical/microcluster/rest/access"
-	"github.com/canonical/microcluster/rest/types"
-
 	"github.com/canonical/microcluster/internal/state"
 	"github.com/canonical/microcluster/internal/trust"
 	"github.com/canonical/microcluster/rest"
+	"github.com/canonical/microcluster/rest/access"
+	"github.com/canonical/microcluster/rest/types"
 )
 
 var clusterCmd = rest.Endpoint{
@@ -44,11 +44,239 @@ var clusterMemberCmd = rest.Endpoint{
 	Path: "cluster/{name}",
 
 	Put:    rest.EndpointAction{Handler: clusterMemberPut, AccessHandler: access.AllowAuthenticated},
-	Delete: rest.EndpointAction{Handler: clusterMemberDelete, AccessHandler: access.AllowAuthenticated},
+	Delete: rest.EndpointAction{Handler: clusterMemberDelete, AccessHandler: access.AllowClusterMembers},
+}
+
+var clusterMemberUpgradeCmd = rest.Endpoint{
+	Path: "cluster/{name}/upgrade",
+
+	Put: rest.EndpointAction{Handler: upgradeClusterMember, AccessHandler: access.AllowAuthenticated},
+}
+
+func upgradeClusterMember(s *state.State, r *http.Request) response.Response {
+	ctx, cancel := context.WithTimeout(s.Context, time.Second*30)
+	defer cancel()
+
+	req := internalTypes.ClusterMemberUpgrade{}
+
+	// Parse the request.
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		return response.BadRequest(err)
+	}
+
+	name, err := url.PathUnescape(mux.Vars(r)["name"])
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	clusterCert, err := s.ClusterCert().PublicKeyX509()
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	nonClusterRemotes := s.Remotes(trust.NonCluster)
+	clusterRemotes := s.Remotes(trust.Cluster)
+
+	remote := s.Remotes(trust.NonCluster).RemotesByName()[name]
+
+	if remote.Name == "" {
+		return response.SmartError(fmt.Errorf("Non-cluster member %q not found", name))
+	}
+
+	if clusterRemotes.RemotesByName()[name].Role == trust.Cluster {
+		return response.SmartError(fmt.Errorf("%q is already a cluster member", name))
+	}
+
+	// Forward the request to the node to be upgraded so it can properly set the schema version and run its hooks.
+	if s.Name() != name && !client.IsForwardedRequest(r) {
+		c, err := internalClient.New(remote.URL(), s.ServerCert(), clusterCert, false)
+		if err != nil {
+			return response.SmartError(err)
+		}
+
+		err = c.UpgradeClusterMember(ctx, req)
+		if err != nil {
+			return response.SmartError(err)
+		}
+
+		return response.EmptySyncResponse
+	}
+
+	// If we received a cluster notification, instruct the leader to register the node as a cluster member.
+	if s.Role() == trust.Cluster && client.IsForwardedRequest(r) {
+		leaderClient, err := s.Database.Leader(ctx)
+		if err != nil {
+			return response.SmartError(err)
+		}
+
+		leaderInfo, err := leaderClient.Leader(ctx)
+		if err != nil {
+			return response.SmartError(err)
+		}
+
+		// Forward the request to the leader.
+		if leaderInfo.Address != s.Address().URL.Host {
+			leader, err := s.Leader()
+			if err != nil {
+				return response.SmartError(err)
+			}
+
+			leader.SetClusterNotification()
+			err = leader.UpgradeClusterMember(ctx, req)
+			if err != nil {
+				return response.SmartError(err)
+			}
+
+			return response.EmptySyncResponse
+		}
+
+		clusterClients, err := s.Cluster(r, trust.Cluster)
+		if err != nil {
+			return response.SmartError(err)
+		}
+
+		// Fetch the clients now before we start changing the truststore.
+		nonCluster, err := s.Cluster(r, trust.NonCluster)
+		if err != nil {
+			return response.SmartError(err)
+		}
+
+		// Update the database.
+		err = s.Database.Transaction(ctx, func(ctx context.Context, tx *sql.Tx) error {
+			dbClusterMember := cluster.InternalClusterMember{
+				Name:        remote.Name,
+				Address:     remote.Address.String(),
+				Certificate: remote.Certificate.String(),
+				Schema:      req.SchemaVersion,
+				Heartbeat:   time.Time{},
+				Role:        cluster.Pending,
+			}
+
+			err = cluster.DeleteInternalNonClusterMember(ctx, tx, remote.Address.String())
+			if err != nil {
+				return err
+			}
+
+			_, err = cluster.CreateInternalClusterMember(ctx, tx, dbClusterMember)
+			if err != nil {
+				return err
+			}
+
+			return nil
+		})
+		if err != nil {
+			return response.SmartError(err)
+		}
+
+		// Update the truststore.
+		nonClusterRemotesMap := nonClusterRemotes.RemotesByName()
+
+		newRemote := nonClusterRemotesMap[name]
+		newRemote.Role = trust.Cluster
+		delete(nonClusterRemotesMap, name)
+
+		nonClusterList := make([]internalTypes.ClusterMember, 0, len(nonClusterRemotesMap))
+
+		for _, remote := range nonClusterRemotesMap {
+			nonClusterList = append(nonClusterList, internalTypes.ClusterMember{
+				ClusterMemberLocal: internalTypes.ClusterMemberLocal{
+					Name:        remote.Name,
+					Address:     remote.Address,
+					Certificate: remote.Certificate,
+				}})
+		}
+
+		err = s.Remotes(trust.NonCluster).Replace(s.OS.TrustDir, nonClusterList...)
+		if err != nil {
+			return response.SmartError(err)
+		}
+
+		err = s.Remotes(trust.Cluster).Add(s.OS.TrustDir, newRemote)
+		if err != nil {
+			return response.SmartError(err)
+		}
+
+		// Instruct all the other non-cluster members to update their local stores.
+		for _, c := range []client.Cluster{clusterClients, nonCluster} {
+			err = c.Query(ctx, true, func(ctx context.Context, c *client.Client) error {
+				// No need to send a request to ourselves, or to the node we are adding.
+				if s.Address().URL.Host == c.URL().URL.Host || remote.URL().URL.Host == c.URL().URL.Host {
+					return nil
+				}
+
+				info := internalTypes.ClusterMemberLocal{Name: remote.Name, Address: remote.Address, Certificate: remote.Certificate}
+				err := c.RegisterClusterMember(ctx, internalTypes.ClusterMember{ClusterMemberLocal: info}, string(trust.Cluster), true)
+				if err != nil {
+					return err
+				}
+
+				return nil
+			})
+			if err != nil {
+				return response.SmartError(err)
+			}
+		}
+
+		return response.EmptySyncResponse
+	}
+
+	err = state.PreUpgradeHook(s, req.InitConfig)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	// Instruct a random cluster member to upgrade our status.
+	randomRemote := s.Remotes(trust.Cluster).SelectRandom()
+	c, err := internalClient.New(randomRemote.URL(), s.ServerCert(), clusterCert, true)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	req.SchemaVersion = update.Schema().Version()
+	err = c.UpgradeClusterMember(ctx, req)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	err = s.UpgradeAPI(&remote.Location)
+
+	cluster, err := s.Cluster(r, trust.Cluster)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	// Instruct cluster nodes to run the OnUpgradedMember hook. hook.
+	err = cluster.Query(ctx, true, func(ctx context.Context, c *client.Client) error {
+		// No need to send a request to ourselves, or to the node we are adding.
+		if s.Address().URL.Host == c.URL().URL.Host || remote.URL().URL.Host == c.URL().URL.Host {
+			return nil
+		}
+
+		info := internalTypes.ClusterMemberLocal{Name: remote.Name, Address: remote.Address, Certificate: remote.Certificate}
+		_, err := c.AddClusterMember(ctx, internalTypes.ClusterMember{ClusterMemberLocal: info}, true)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	err = state.PostUpgradeHook(s, req.InitConfig)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	return response.EmptySyncResponse
 }
 
 func clusterPost(s *state.State, r *http.Request) response.Response {
 	req := internalTypes.ClusterMember{}
+
+	upgrading := r.URL.Query().Get("upgrade") == "1"
 
 	// Parse the request.
 	err := json.NewDecoder(r.Body).Decode(&req)
@@ -59,9 +287,16 @@ func clusterPost(s *state.State, r *http.Request) response.Response {
 	// If we received a forwarded request, assume the new member was successfully added on the leader,
 	// and execute the new member hook.
 	if client.IsForwardedRequest(r) {
-		err := state.OnNewMemberHook(s)
-		if err != nil {
-			return response.SmartError(fmt.Errorf("Failed to run post cluster member add actions: %w", err))
+		if upgrading {
+			err := state.OnUpgradedMemberHook(s)
+			if err != nil {
+				return response.SmartError(fmt.Errorf("Failed to run post cluster member upgrade actions: %w", err))
+			}
+		} else {
+			err := state.OnNewMemberHook(s)
+			if err != nil {
+				return response.SmartError(fmt.Errorf("Failed to run post cluster member add actions: %w", err))
+			}
 		}
 
 		return response.EmptySyncResponse
@@ -95,7 +330,7 @@ func clusterPost(s *state.State, r *http.Request) response.Response {
 			return response.SmartError(err)
 		}
 
-		tokenResponse, err := client.AddClusterMember(s.Context, req)
+		tokenResponse, err := client.AddClusterMember(s.Context, req, false)
 		if err != nil {
 			return response.SmartError(err)
 		}
@@ -265,6 +500,8 @@ func clusterGet(s *state.State, r *http.Request) response.Response {
 func clusterPut(s *state.State, r *http.Request) response.Response {
 	req := internalTypes.ClusterMember{}
 
+	upgrading := r.URL.Query().Get("upgrade") == "1"
+
 	// Default to the cluster role if no role is specified.
 	role := trust.Role(r.URL.Query().Get("role"))
 	if role == "" {
@@ -297,7 +534,7 @@ func clusterPut(s *state.State, r *http.Request) response.Response {
 				return nil
 			}
 
-			return c.RegisterClusterMember(ctx, req, string(role))
+			return c.RegisterClusterMember(ctx, req, string(role), false)
 		})
 
 		// Also add the remote to the other non-cluster members.
@@ -316,13 +553,43 @@ func clusterPut(s *state.State, r *http.Request) response.Response {
 		})
 	}
 
-	// At this point, the node has joined dqlite so we can add a local record for it if we haven't already from a heartbeat (or if we are the leader).
-	remotes := s.Remotes(role)
-	_, ok := remotes.RemotesByName()[newRemote.Name]
-	if !ok {
-		err = remotes.Add(s.OS.TrustDir, newRemote)
+	if !upgrading {
+		// At this point, the node has joined dqlite so we can add a local record for it if we haven't already from a heartbeat (or if we are the leader).
+		remotes := s.Remotes(role)
+		_, ok := remotes.RemotesByName()[newRemote.Name]
+		if !ok {
+			err = remotes.Add(s.OS.TrustDir, newRemote)
+			if err != nil {
+				return response.SmartError(fmt.Errorf("Failed adding local record of newly joined node %q: %w", req.Name, err))
+			}
+		}
+	} else {
+		nonClusterRemotes := s.Remotes(trust.NonCluster)
+		nonClusterRemotesMap := nonClusterRemotes.RemotesByName()
+
+		newRemote := nonClusterRemotesMap[req.Name]
+		newRemote.Role = trust.Cluster
+		delete(nonClusterRemotesMap, req.Name)
+
+		nonClusterList := make([]internalTypes.ClusterMember, 0, len(nonClusterRemotesMap))
+
+		for _, remote := range nonClusterRemotesMap {
+			nonClusterList = append(nonClusterList, internalTypes.ClusterMember{
+				ClusterMemberLocal: internalTypes.ClusterMemberLocal{
+					Name:        remote.Name,
+					Address:     remote.Address,
+					Certificate: remote.Certificate,
+				}})
+		}
+
+		err = s.Remotes(trust.NonCluster).Replace(s.OS.TrustDir, nonClusterList...)
 		if err != nil {
-			return response.SmartError(fmt.Errorf("Failed adding local record of newly joined node %q: %w", req.Name, err))
+			return response.SmartError(err)
+		}
+
+		err = s.Remotes(trust.Cluster).Add(s.OS.TrustDir, newRemote)
+		if err != nil {
+			return response.SmartError(err)
 		}
 	}
 

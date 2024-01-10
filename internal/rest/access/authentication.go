@@ -44,7 +44,12 @@ func Authenticate(state *state.State, r *http.Request) (bool, error) {
 	var trustedCerts map[string]x509.Certificate
 	switch r.Host {
 	case state.Address().URL.Host:
-		trustedCerts = state.Remotes().CertificatesNative()
+		trustedCerts = state.Remotes(trust.Cluster).CertificatesNative()
+		if !strings.HasPrefix(r.URL.Path, fmt.Sprintf("/%s", string(client.InternalEndpoint))) {
+			for k, v := range state.Remotes(trust.NonCluster).CertificatesNative() {
+				trustedCerts[k] = v
+			}
+		}
 	default:
 		return false, fmt.Errorf("Invalid request address %q", r.Host)
 	}

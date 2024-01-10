@@ -18,6 +18,7 @@ import (
 	internalAccess "github.com/canonical/microcluster/internal/rest/access"
 	"github.com/canonical/microcluster/internal/rest/client"
 	"github.com/canonical/microcluster/internal/state"
+	"github.com/canonical/microcluster/internal/trust"
 	"github.com/canonical/microcluster/rest"
 	"github.com/canonical/microcluster/rest/access"
 )
@@ -184,7 +185,7 @@ func HandleEndpoint(state *state.State, mux *mux.Router, version string, e rest.
 		}
 
 		if !e.AllowedBeforeInit {
-			if !state.Database.IsOpen() {
+			if !state.Database.IsOpen() && state.Role() == trust.Cluster {
 				err := response.Unavailable(fmt.Errorf("Daemon not yet initialized")).Render(w)
 				if err != nil {
 					logger.Error("Failed to write HTTP response", logger.Ctx{"url": r.URL, "err": err})

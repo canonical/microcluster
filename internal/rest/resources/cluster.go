@@ -81,9 +81,11 @@ func clusterPost(s *state.State, r *http.Request) response.Response {
 	}
 
 	// Check if any of the remote's addresses are currently in use.
-	existingRemote := s.Remotes().RemoteByAddress(req.Address)
-	if existingRemote != nil {
-		return response.SmartError(fmt.Errorf("Remote with address %q exists", req.Address.String()))
+	for _, role := range []trust.Role{trust.Cluster, trust.NonCluster} {
+		existingRemote := s.Remotes(role).RemoteByAddress(req.Address)
+		if existingRemote != nil {
+			return response.SmartError(fmt.Errorf("Remote with address %q exists", req.Address.String()))
+		}
 	}
 
 	// Forward request to leader.
@@ -101,6 +103,7 @@ func clusterPost(s *state.State, r *http.Request) response.Response {
 		return response.SyncResponse(true, tokenResponse)
 	}
 
+	clusterRole := trust.Cluster
 	err = s.Database.Transaction(s.Context, func(ctx context.Context, tx *sql.Tx) error {
 		dbClusterMember := cluster.InternalClusterMember{
 			Name:        req.Name,
@@ -116,9 +119,21 @@ func clusterPost(s *state.State, r *http.Request) response.Response {
 			return err
 		}
 
-		_, err = cluster.CreateInternalClusterMember(ctx, tx, dbClusterMember)
-		if err != nil {
-			return err
+		clusterRole = trust.Role(record.Role)
+		if clusterRole == trust.Cluster {
+			_, err = cluster.CreateInternalClusterMember(ctx, tx, dbClusterMember)
+			if err != nil {
+				return err
+			}
+		} else {
+			_, err = cluster.CreateInternalNonClusterMember(ctx, tx, cluster.InternalNonClusterMember{
+				Name:        dbClusterMember.Name,
+				Address:     dbClusterMember.Address,
+				Certificate: dbClusterMember.Certificate,
+			})
+			if err != nil {
+				return err
+			}
 		}
 
 		return cluster.DeleteInternalTokenRecord(ctx, tx, record.Name)
@@ -127,16 +142,19 @@ func clusterPost(s *state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	remotes := s.Remotes()
-	clusterMembers := make([]internalTypes.ClusterMemberLocal, 0, remotes.Count())
-	for _, clusterMember := range remotes.RemotesByName() {
-		clusterMember := internalTypes.ClusterMemberLocal{
-			Name:        clusterMember.Name,
-			Address:     clusterMember.Address,
-			Certificate: clusterMember.Certificate,
-		}
+	clusterMembers := map[trust.Role][]internalTypes.ClusterMemberLocal{}
+	for _, role := range []trust.Role{trust.Cluster, trust.NonCluster} {
+		remotes := s.Remotes(role)
+		clusterMembers[role] = make([]internalTypes.ClusterMemberLocal, 0, remotes.Count())
+		for _, clusterMember := range remotes.RemotesByName() {
+			clusterMember := internalTypes.ClusterMemberLocal{
+				Name:        clusterMember.Name,
+				Address:     clusterMember.Address,
+				Certificate: clusterMember.Certificate,
+			}
 
-		clusterMembers = append(clusterMembers, clusterMember)
+			clusterMembers[role] = append(clusterMembers[role], clusterMember)
+		}
 	}
 
 	clusterCert, err := s.ClusterCert().PublicKeyX509()
@@ -148,7 +166,8 @@ func clusterPost(s *state.State, r *http.Request) response.Response {
 		ClusterCert: types.X509Certificate{Certificate: clusterCert},
 		ClusterKey:  string(s.ClusterCert().PrivateKey()),
 
-		ClusterMembers: clusterMembers,
+		ClusterMembers:    clusterMembers[trust.Cluster],
+		NonClusterMembers: clusterMembers[trust.NonCluster],
 	}
 
 	newRemote := trust.Remote{
@@ -157,7 +176,7 @@ func clusterPost(s *state.State, r *http.Request) response.Response {
 	}
 
 	// Add the cluster member to our local store for authentication.
-	err = s.Remotes().Add(s.OS.TrustDir, newRemote)
+	err = s.Remotes(clusterRole).Add(s.OS.TrustDir, newRemote)
 	if err != nil {
 		return response.SmartError(err)
 	}

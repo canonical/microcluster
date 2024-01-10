@@ -324,7 +324,7 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 	}
 
 	localNode := trust.Remote{
-		Location:    trust.Location{Name: d.name, Address: addrPort},
+		Location:    trust.Location{Name: d.name, Address: addrPort, Role: config.Role},
 		Certificate: types.X509Certificate{Certificate: serverCert},
 	}
 
@@ -340,7 +340,14 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 		return err
 	}
 
-	server := d.initServer(resources.InternalEndpoints, resources.PublicEndpoints, resources.ExtendedEndpoints)
+	availableEndpoints := []*resources.Resources{resources.PublicEndpoints, resources.ExtendedEndpoints}
+
+	// Only expose internal endpoints if we are part of dqlite.
+	if config.Role != trust.NonCluster {
+		availableEndpoints = append(availableEndpoints, resources.InternalEndpoints)
+	}
+
+	server := d.initServer(availableEndpoints...)
 	network := endpoints.NewNetwork(d.ShutdownCtx, endpoints.EndpointNetwork, server, d.address, d.clusterCert)
 	err = d.endpoints.Down(endpoints.EndpointNetwork)
 	if err != nil {
@@ -376,15 +383,17 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 		return d.hooks.OnBootstrap(d.State(), initConfig)
 	}
 
-	if len(joinAddresses) != 0 {
-		err = d.db.Join(d.project, d.address, d.ClusterCert(), joinAddresses...)
-		if err != nil {
-			return fmt.Errorf("Failed to join cluster: %w", err)
-		}
-	} else {
-		err = d.db.StartWithCluster(d.project, d.address, d.trustStore.Remotes().Addresses(), d.clusterCert)
-		if err != nil {
-			return fmt.Errorf("Failed to re-establish cluster connection: %w", err)
+	if config.Role != trust.NonCluster {
+		if len(joinAddresses) != 0 {
+			err = d.db.Join(d.project, d.address, d.ClusterCert(), joinAddresses...)
+			if err != nil {
+				return fmt.Errorf("Failed to join cluster: %w", err)
+			}
+		} else {
+			err = d.db.StartWithCluster(d.project, d.address, d.trustStore.Remotes().Addresses(), d.clusterCert)
+			if err != nil {
+				return fmt.Errorf("Failed to re-establish cluster connection: %w", err)
+			}
 		}
 	}
 
@@ -450,10 +459,12 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 			return nil
 		}
 
-		// Send notification about this node's dqlite version to all other cluster members.
-		err = d.sendUpgradeNotification(ctx, c)
-		if err != nil {
-			return err
+		// Send notification about this node's dqlite version to all other cluster members, as we should be trusted now.
+		if config.Role != trust.NonCluster {
+			err = d.sendUpgradeNotification(ctx, c)
+			if err != nil {
+				return err
+			}
 		}
 
 		// If this was a join request, instruct all peers to run their OnNewMember hook.

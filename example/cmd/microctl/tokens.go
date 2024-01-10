@@ -39,6 +39,8 @@ func (c *cmdSecrets) Run(cmd *cobra.Command, args []string) error {
 
 type cmdTokensAdd struct {
 	common *CmdControl
+
+	flagNonCluster bool
 }
 
 func (c *cmdTokensAdd) Command() *cobra.Command {
@@ -47,6 +49,8 @@ func (c *cmdTokensAdd) Command() *cobra.Command {
 		Short: "Add a new join token under the given name",
 		RunE:  c.Run,
 	}
+
+	cmd.Flags().BoolVar(&c.flagNonCluster, "non-cluster", false, "Add a non-cluster token")
 
 	return cmd
 }
@@ -61,7 +65,7 @@ func (c *cmdTokensAdd) Run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	token, err := m.NewJoinToken(args[0])
+	token, err := m.NewJoinToken(args[0], c.flagNonCluster)
 	if err != nil {
 		return err
 	}
@@ -102,10 +106,10 @@ func (c *cmdTokensList) Run(cmd *cobra.Command, args []string) error {
 
 	data := make([][]string, len(records))
 	for i, record := range records {
-		data[i] = []string{record.Name, record.Token}
+		data[i] = []string{record.Name, record.Role, record.Token}
 	}
 
-	header := []string{"NAME", "TOKENS"}
+	header := []string{"NAME", "ROLE", "TOKEN"}
 	sort.Sort(cli.SortColumnsNaturally(data))
 
 	return cli.RenderTable(cli.TableFormatTable, header, data, records)

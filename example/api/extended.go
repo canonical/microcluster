@@ -11,6 +11,7 @@ import (
 	"github.com/canonical/microcluster/client"
 	extendedTypes "github.com/canonical/microcluster/example/api/types"
 	extendedClient "github.com/canonical/microcluster/example/client"
+	"github.com/canonical/microcluster/internal/trust"
 	"github.com/canonical/microcluster/rest"
 	"github.com/canonical/microcluster/rest/types"
 	"github.com/canonical/microcluster/state"
@@ -29,7 +30,7 @@ func cmdPost(state *state.State, r *http.Request) response.Response {
 	// Check the user agent header to check if we are the notifying cluster member.
 	if !client.IsForwardedRequest(r) {
 		// Get a collection of clients every other cluster member, with the notification user-agent set.
-		cluster, err := state.Cluster(r)
+		cluster, err := state.Cluster(r, trust.Cluster)
 		if err != nil {
 			return response.SmartError(fmt.Errorf("Failed to get a client for every cluster member: %w", err))
 		}

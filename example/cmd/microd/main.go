@@ -141,6 +141,39 @@ func (c *cmdDaemon) Run(cmd *cobra.Command, args []string) error {
 
 			return nil
 		},
+
+		// OnUpgradedMember is run after a non-cluster member has upgraded to join the dqlite cluster.
+		OnUpgradedMember: func(s *state.State) error {
+			logger.Infof("This is a hook that is run on peer %q when a non-cluster member has upgraded to join dqlite", s.Name())
+
+			return nil
+		},
+
+		// PreUpgrade is run just before a non-cluster member joins the dqlite database.
+		PreUpgrade: func(s *state.State, initConfig map[string]string) error {
+			logCtx := logger.Ctx{}
+			for k, v := range initConfig {
+				logCtx[k] = v
+			}
+
+			logger.Info("This is a hook that runs before the non-cluster daemon is re-initialized and joins an existing cluster, before OnUpgradedMember runs on all peers")
+			logger.Info("Here are the extra configuration keys that were passed into the cluster upgrade command", logCtx)
+
+			return nil
+		},
+
+		// PostUpgrade is run just after a non-cluster member joins the dqlite database.
+		PostUpgrade: func(s *state.State, initConfig map[string]string) error {
+			logCtx := logger.Ctx{}
+			for k, v := range initConfig {
+				logCtx[k] = v
+			}
+
+			logger.Info("This is a hook that runs after the non-cluster daemon is re-initialized and joins an existing cluster, after OnUpgradedMember runs on all peers")
+			logger.Info("Here are the extra configuration keys that were passed into the cluster upgrade command", logCtx)
+
+			return nil
+		},
 	}
 
 	return m.Start(api.Endpoints, database.SchemaExtensions, exampleHooks)

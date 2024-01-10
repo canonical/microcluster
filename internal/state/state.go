@@ -2,6 +2,7 @@ package state
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/canonical/microcluster/internal/db"
 	"github.com/canonical/microcluster/internal/endpoints"
 	internalClient "github.com/canonical/microcluster/internal/rest/client"
+	"github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/internal/sys"
 	"github.com/canonical/microcluster/internal/trust"
 )
@@ -37,6 +39,9 @@ type State struct {
 	// Name of the cluster member.
 	Name func() string
 
+	// Role of the cluster member, whether it is part of dqlite (cluster) or not (non-cluster).
+	Role func() trust.Role
+
 	// Server.
 	Endpoints *endpoints.Endpoints
 
@@ -49,11 +54,14 @@ type State struct {
 	// Database.
 	Database *db.DB
 
-	// Remotes.
-	Remotes func() *trust.Remotes
+	// Returns the locally stored set of microcluster systems. If no role is specified, defaults to "cluster" for dqlite peers.
+	Remotes func(roles trust.Role) *trust.Remotes
 
 	// Initialize APIs and bootstrap/join database.
 	StartAPI func(bootstrap bool, initConfig map[string]string, newConfig *trust.Location, joinAddresses ...string) error
+
+	// UpgradeAPI re-initializes the APIs and starts the database on a non-clustered node.
+	UpgradeAPI func(config *trust.Location) error
 
 	// Stop fully stops the daemon, its database, and all listeners.
 	Stop func() error
@@ -74,9 +82,18 @@ var OnHeartbeatHook func(state *State) error
 // OnNewMemberHook is a post-action hook that is run on all cluster members when a new cluster member joins the cluster.
 var OnNewMemberHook func(state *State) error
 
+// OnUpgradedMemberHook is a hook that runs on all previously existing cluster members after a non-cluster member is upgraded to join dqlite, and runs its PreUpgradeHook.
+var OnUpgradedMemberHook func(state *State) error
+
+// PreUpgradeHook runs on a non-cluster member just before it upgrades its API and joins dqlite.
+var PreUpgradeHook func(state *State, initconfig map[string]string) error
+
+// PostUpgradeHook runs on a cluster member that just upgraded from a non-cluster role, after other nodes have run the OnUpgradedMemberHook.
+var PostUpgradeHook func(state *State, initconfig map[string]string) error
+
 // Cluster returns a client for every member of a cluster, except
 // this one, with the UserAgentNotifier header set if a request is given.
-func (s *State) Cluster(r *http.Request) (client.Cluster, error) {
+func (s *State) Cluster(r *http.Request, role trust.Role) (client.Cluster, error) {
 	if r != nil {
 		r.Header.Set("User-Agent", request.UserAgentNotifier)
 	}
@@ -86,9 +103,30 @@ func (s *State) Cluster(r *http.Request) (client.Cluster, error) {
 		return nil, err
 	}
 
-	clusterMembers, err := c.GetClusterMembers(s.Context)
-	if err != nil {
-		return nil, err
+	var clusterMembers []types.ClusterMemberLocal
+	switch role {
+	case trust.Cluster:
+		dqliteClusterMembers, err := c.GetClusterMembers(s.Context)
+		if err != nil {
+			return nil, err
+		}
+
+		clusterMembers = make([]types.ClusterMemberLocal, 0, len(dqliteClusterMembers))
+		for _, member := range dqliteClusterMembers {
+			clusterMembers = append(clusterMembers, member.ClusterMemberLocal)
+		}
+
+	case trust.NonCluster:
+		clusterMembers, err = c.GetNonClusterMembers(s.Context)
+		if err != nil {
+			return nil, err
+		}
+	default:
+		return nil, fmt.Errorf("%q is not a valid microcluster role", role)
+	}
+
+	if len(clusterMembers) == 0 {
+		return client.Cluster{}, nil
 	}
 
 	clients := make(client.Cluster, 0, len(clusterMembers)-1)
@@ -116,6 +154,10 @@ func (s *State) Cluster(r *http.Request) (client.Cluster, error) {
 
 // Leader returns a client connected to the dqlite leader.
 func (s *State) Leader() (*client.Client, error) {
+	if !s.Database.IsOpen() {
+		return nil, fmt.Errorf("Failed to check for database leader, the database is offline")
+	}
+
 	ctx, cancel := context.WithTimeout(s.Context, time.Second*30)
 	defer cancel()
 

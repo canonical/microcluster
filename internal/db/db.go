@@ -113,6 +113,10 @@ func (db *DB) Open(bootstrap bool, project string) error {
 
 // Transaction handles performing a transaction on the dqlite database.
 func (db *DB) Transaction(ctx context.Context, f func(context.Context, *sql.Tx) error) error {
+	if !db.IsOpen() {
+		return fmt.Errorf("Cannot complete transaction, the database is not running")
+	}
+
 	return db.retry(func() error {
 		err := query.Transaction(ctx, db.db, f)
 		if errors.Is(err, context.DeadlineExceeded) {

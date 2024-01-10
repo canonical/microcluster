@@ -16,6 +16,8 @@ import (
 	"github.com/google/renameio"
 	"gopkg.in/yaml.v2"
 
+	"github.com/canonical/microcluster/client"
+	internalClient "github.com/canonical/microcluster/internal/rest/client"
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/rest/types"
 )
@@ -24,6 +26,8 @@ import (
 type Remotes struct {
 	data     map[string]Remote
 	updateMu sync.RWMutex
+
+	role Role
 }
 
 // Remote represents a yaml file with credentials to be read by the daemon.
@@ -36,6 +40,23 @@ type Remote struct {
 type Location struct {
 	Name    string         `yaml:"name"`
 	Address types.AddrPort `yaml:"address"`
+	Role    Role           `yaml:"role"`
+}
+
+// Role represents the type of role this Remote will have.
+type Role string
+
+const (
+	// Cluster represents a potential dqlite voter. This node will be represented in dqlite.
+	Cluster Role = "cluster"
+
+	// NonCluster represents a non-dqlite node that is not included in the dqlite cluster.
+	NonCluster Role = "non-cluster"
+)
+
+// Role returns the role assigned to the remotes set.
+func (r *Remotes) Role() Role {
+	return r.role
 }
 
 // Load reads any yaml files in the given directory and parses them into a set of Remotes.
@@ -66,6 +87,15 @@ func (r *Remotes) Load(dir string) error {
 			return fmt.Errorf("Unable to parse yaml for %q: %w", fileName, err)
 		}
 
+		// Default to Cluster if no role is set yet.
+		if remote.Role == "" {
+			remote.Role = Cluster
+		}
+
+		if remote.Role != r.role {
+			continue
+		}
+
 		if remote.Certificate.Certificate == nil {
 			return fmt.Errorf("Failed to parse local record %q. Found empty certificate", remote.Name)
 		}
@@ -73,7 +103,7 @@ func (r *Remotes) Load(dir string) error {
 		remoteData[remote.Name] = *remote
 	}
 
-	if len(remoteData) == 0 {
+	if len(remoteData) == 0 && len(r.data) > 0 {
 		logger.Warn("Failed to parse new remotes from truststore")
 
 		return nil
@@ -90,6 +120,8 @@ func (r *Remotes) Add(dir string, remotes ...Remote) error {
 	defer r.updateMu.Unlock()
 
 	for _, remote := range remotes {
+		remote.Role = r.role
+
 		if remote.Certificate.Certificate == nil {
 			return fmt.Errorf("Failed to parse local record %q. Found empty certificate", remote.Name)
 		}
@@ -131,14 +163,14 @@ func (r *Remotes) Replace(dir string, newRemotes ...internalTypes.ClusterMember)
 	r.updateMu.Lock()
 	defer r.updateMu.Unlock()
 
-	if len(newRemotes) == 0 {
+	if len(newRemotes) == 0 && r.role == Cluster {
 		return fmt.Errorf("Received empty remotes")
 	}
 
 	remoteData := map[string]Remote{}
 	for _, remote := range newRemotes {
 		newRemote := Remote{
-			Location:    Location{Name: remote.Name, Address: remote.Address},
+			Location:    Location{Name: remote.Name, Address: remote.Address, Role: r.role},
 			Certificate: remote.Certificate,
 		}
 
@@ -166,20 +198,39 @@ func (r *Remotes) Replace(dir string, newRemotes ...internalTypes.ClusterMember)
 	}
 
 	// Remove any outdated entries.
-	for _, entry := range allEntries {
-		name, _, _ := strings.Cut(entry.Name(), ".yaml")
-		_, ok := remoteData[name]
+	for _, file := range allEntries {
+		fileName := file.Name()
+		if file.IsDir() || !strings.HasSuffix(fileName, ".yaml") {
+			continue
+		}
 
-		if !ok {
-			remotePath := filepath.Join(dir, fmt.Sprintf("%s.yaml", name))
-			err = os.Remove(remotePath)
+		name, _, _ := strings.Cut(file.Name(), ".yaml")
+		_, ok := remoteData[name]
+		if ok {
+			continue
+		}
+
+		content, err := os.ReadFile(filepath.Join(dir, fileName))
+		if err != nil {
+			return fmt.Errorf("Unable to read file %q: %w", fileName, err)
+		}
+
+		remote := &Remote{}
+		err = yaml.Unmarshal(content, remote)
+		if err != nil {
+			return fmt.Errorf("Unable to parse yaml for %q: %w", fileName, err)
+		}
+
+		// Only remove remotes that correspond to the role we are replacing.
+		if remote.Role == r.role {
+			err = os.Remove(filepath.Join(dir, fmt.Sprintf("%s.yaml", name)))
 			if err != nil {
 				return err
 			}
 		}
 	}
 
-	if len(remoteData) == 0 {
+	if len(remoteData) == 0 && r.role == Cluster {
 		return fmt.Errorf("Failed to parse new remotes")
 	}
 
@@ -212,6 +263,22 @@ func (r *Remotes) Addresses() map[string]types.AddrPort {
 	}
 
 	return addrs
+}
+
+// Cluster returns a set of clients for every remote, which can be concurrently queried.
+func (r *Remotes) Cluster(isNotification bool, serverCert *shared.CertInfo, publicKey *x509.Certificate) (client.Cluster, error) {
+	cluster := make(client.Cluster, 0, r.Count()-1)
+	for _, addr := range r.Addresses() {
+		url := api.NewURL().Scheme("https").Host(addr.String())
+		c, err := internalClient.New(*url, serverCert, publicKey, isNotification)
+		if err != nil {
+			return nil, err
+		}
+
+		cluster = append(cluster, client.Client{Client: *c})
+	}
+
+	return cluster, nil
 }
 
 // RemoteByAddress returns a Remote matching the given host address (or nil if none are found).

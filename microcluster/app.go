@@ -24,6 +24,7 @@ import (
 	internalClient "github.com/canonical/microcluster/internal/rest/client"
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/internal/sys"
+	"github.com/canonical/microcluster/internal/trust"
 	"github.com/canonical/microcluster/rest"
 	"github.com/canonical/microcluster/rest/types"
 )
@@ -230,13 +231,18 @@ func (m *MicroCluster) JoinCluster(name string, address string, token string, in
 // NewJoinToken creates and records a new join token containing all the necessary credentials for joining a cluster.
 // Join tokens are tied to the server certificate of the joining node, and will be deleted once the node has joined the
 // cluster.
-func (m *MicroCluster) NewJoinToken(name string) (string, error) {
+func (m *MicroCluster) NewJoinToken(name string, nonCluster bool) (string, error) {
 	c, err := m.LocalClient()
 	if err != nil {
 		return "", err
 	}
 
-	secret, err := c.RequestToken(m.ctx, name)
+	role := trust.Cluster
+	if nonCluster {
+		role = trust.NonCluster
+	}
+
+	secret, err := c.RequestToken(m.ctx, name, string(role))
 	if err != nil {
 		return "", err
 	}

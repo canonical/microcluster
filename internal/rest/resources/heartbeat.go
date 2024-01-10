@@ -17,6 +17,7 @@ import (
 	internalClient "github.com/canonical/microcluster/internal/rest/client"
 	"github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/internal/state"
+	"github.com/canonical/microcluster/internal/trust"
 	"github.com/canonical/microcluster/rest"
 )
 
@@ -49,7 +50,7 @@ func heartbeatPost(s *state.State, r *http.Request) response.Response {
 		clusterMemberList = append(clusterMemberList, clusterMember)
 	}
 
-	err = s.Remotes().Replace(s.OS.TrustDir, clusterMemberList...)
+	err = s.Remotes(trust.Cluster).Replace(s.OS.TrustDir, clusterMemberList...)
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -186,7 +187,7 @@ func beginHeartbeat(s *state.State, r *http.Request) response.Response {
 	logger.Debug("Beginning new heartbeat round", logger.Ctx{"address": s.Address().URL.Host})
 
 	// Update local record of cluster members from the database, including any pending nodes for authentication.
-	err = s.Remotes().Replace(s.OS.TrustDir, clusterMembers...)
+	err = s.Remotes(trust.Cluster).Replace(s.OS.TrustDir, clusterMembers...)
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -203,7 +204,7 @@ func beginHeartbeat(s *state.State, r *http.Request) response.Response {
 		}
 	}
 
-	clusterClients, err := s.Cluster(nil)
+	clusterClients, err := s.Cluster(nil, trust.Cluster)
 	if err != nil {
 		return response.SmartError(err)
 	}

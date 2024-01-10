@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 
@@ -13,10 +14,11 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/canonical/microcluster/cluster"
-	"github.com/canonical/microcluster/internal/rest/access"
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/internal/state"
+	"github.com/canonical/microcluster/internal/trust"
 	"github.com/canonical/microcluster/rest"
+	"github.com/canonical/microcluster/rest/access"
 	"github.com/canonical/microcluster/rest/types"
 )
 
@@ -42,6 +44,10 @@ func tokensPost(state *state.State, r *http.Request) response.Response {
 		return response.BadRequest(err)
 	}
 
+	if !shared.ValueInSlice[trust.Role](trust.Role(req.Role), []trust.Role{trust.Cluster, trust.NonCluster}) {
+		return response.BadRequest(fmt.Errorf("Invalid cluster role: %s", req.Role))
+	}
+
 	// Generate join token for new member. This will be stored alongside the join
 	// address and cluster certificate to simplify setup.
 	tokenKey, err := shared.RandomCryptoString()
@@ -55,7 +61,7 @@ func tokensPost(state *state.State, r *http.Request) response.Response {
 	}
 
 	joinAddresses := []types.AddrPort{}
-	for _, addr := range state.Remotes().Addresses() {
+	for _, addr := range state.Remotes(trust.Cluster).Addresses() {
 		joinAddresses = append(joinAddresses, addr)
 	}
 
@@ -68,6 +74,7 @@ func tokensPost(state *state.State, r *http.Request) response.Response {
 	}
 
 	token := internalTypes.Token{
+		Role:          string(req.Role),
 		Name:          req.Name,
 		Secret:        tokenKey,
 		Fingerprint:   shared.CertFingerprint(clusterCert),
@@ -80,7 +87,7 @@ func tokensPost(state *state.State, r *http.Request) response.Response {
 	}
 
 	err = state.Database.Transaction(state.Context, func(ctx context.Context, tx *sql.Tx) error {
-		_, err = cluster.CreateInternalTokenRecord(ctx, tx, cluster.InternalTokenRecord{Name: req.Name, Secret: tokenKey})
+		_, err = cluster.CreateInternalTokenRecord(ctx, tx, cluster.InternalTokenRecord{Name: req.Name, Secret: tokenKey, Role: req.Role})
 		return err
 	})
 	if err != nil {
@@ -97,7 +104,7 @@ func tokensGet(state *state.State, r *http.Request) response.Response {
 	}
 
 	joinAddresses := []types.AddrPort{}
-	for _, addr := range state.Remotes().Addresses() {
+	for _, addr := range state.Remotes(trust.Cluster).Addresses() {
 		joinAddresses = append(joinAddresses, addr)
 	}
 

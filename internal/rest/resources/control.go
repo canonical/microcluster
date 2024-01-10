@@ -13,12 +13,12 @@ import (
 	"github.com/canonical/lxd/shared/logger"
 
 	"github.com/canonical/microcluster/internal/db/update"
-	"github.com/canonical/microcluster/internal/rest/access"
 	"github.com/canonical/microcluster/internal/rest/client"
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/internal/state"
 	"github.com/canonical/microcluster/internal/trust"
 	"github.com/canonical/microcluster/rest"
+	"github.com/canonical/microcluster/rest/access"
 	"github.com/canonical/microcluster/rest/types"
 )
 
@@ -65,7 +65,7 @@ func joinWithToken(state *state.State, req *internalTypes.Control) response.Resp
 	}
 
 	// Add the local node to the list of clusterMembers.
-	daemonConfig := &trust.Location{Address: req.Address, Name: req.Name}
+	daemonConfig := &trust.Location{Address: req.Address, Name: req.Name, Role: trust.Role(token.Role)}
 	localClusterMember := trust.Remote{
 		Location:    *daemonConfig,
 		Certificate: types.X509Certificate{Certificate: serverCert},
@@ -83,6 +83,7 @@ func joinWithToken(state *state.State, req *internalTypes.Control) response.Resp
 	}
 
 	// Get a client to the target address.
+	var lastErr error
 	var joinInfo *internalTypes.TokenResponse
 	for _, addr := range token.JoinAddresses {
 		url := api.NewURL().Scheme("https").Host(addr.String())
@@ -102,16 +103,17 @@ func joinWithToken(state *state.State, req *internalTypes.Control) response.Resp
 			return response.SmartError(err)
 		}
 
-		joinInfo, err = d.AddClusterMember(context.Background(), newClusterMember)
+		joinInfo, err = d.AddClusterMember(context.Background(), newClusterMember, false)
 		if err != nil {
 			logger.Error("Unable to complete cluster join request", logger.Ctx{"address": addr.String(), "error": err})
+			lastErr = err
 		} else {
 			break
 		}
 	}
 
 	if joinInfo == nil {
-		return response.SmartError(fmt.Errorf("Failed to join cluster with the given join token"))
+		return response.SmartError(fmt.Errorf("%d join attempts were unsuccessful. Last error: %w", len(token.JoinAddresses), lastErr))
 	}
 
 	err = util.WriteCert(state.OS.StateDir, "cluster", []byte(joinInfo.ClusterCert.String()), []byte(joinInfo.ClusterKey), nil)
@@ -131,8 +133,28 @@ func joinWithToken(state *state.State, req *internalTypes.Control) response.Resp
 		clusterMembers = append(clusterMembers, remote)
 	}
 
-	clusterMembers = append(clusterMembers, localClusterMember)
-	err = state.Remotes().Add(state.OS.TrustDir, clusterMembers...)
+	nonClusterMembers := make([]trust.Remote, 0, len(joinInfo.NonClusterMembers))
+	for _, nonClusterMember := range joinInfo.NonClusterMembers {
+		remote := trust.Remote{
+			Location:    trust.Location{Name: nonClusterMember.Name, Address: nonClusterMember.Address},
+			Certificate: nonClusterMember.Certificate,
+		}
+
+		nonClusterMembers = append(nonClusterMembers, remote)
+	}
+
+	if token.Role == string(trust.Cluster) {
+		clusterMembers = append(clusterMembers, localClusterMember)
+	} else {
+		nonClusterMembers = append(nonClusterMembers, localClusterMember)
+	}
+
+	err = state.Remotes(trust.Cluster).Add(state.OS.TrustDir, clusterMembers...)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	err = state.Remotes(trust.NonCluster).Add(state.OS.TrustDir, nonClusterMembers...)
 	if err != nil {
 		return response.SmartError(err)
 	}

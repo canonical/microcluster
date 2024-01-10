@@ -27,6 +27,7 @@ var PublicEndpoints = &Resources{
 		api10Cmd,
 		clusterCmd,
 		clusterMemberCmd,
+		clusterMemberUpgradeCmd,
 		tokensCmd,
 		readyCmd,
 	},

@@ -23,6 +23,13 @@ type ClusterMemberLocal struct {
 	Certificate types.X509Certificate `json:"certificate" yaml:"certificate"`
 }
 
+// ClusterMemberUpgrade represents information about upgrading a non-cluster member to a dqlite member.
+type ClusterMemberUpgrade struct {
+	Name          string            `json:"name"           yaml:"name"`
+	SchemaVersion int               `json:"schema_version" yaml:"schema_version"`
+	InitConfig    map[string]string `json:"config"         yaml:"config"`
+}
+
 // MemberStatus represents the online status of a cluster member.
 type MemberStatus string
 

@@ -17,13 +17,13 @@ import (
 var _ = api.ServerEnvironment{}
 
 var internalTokenRecordObjects = RegisterStmt(`
-SELECT internal_token_records.id, internal_token_records.secret, internal_token_records.name
+SELECT internal_token_records.id, internal_token_records.secret, internal_token_records.name, internal_token_records.role
   FROM internal_token_records
   ORDER BY internal_token_records.secret
 `)
 
 var internalTokenRecordObjectsBySecret = RegisterStmt(`
-SELECT internal_token_records.id, internal_token_records.secret, internal_token_records.name
+SELECT internal_token_records.id, internal_token_records.secret, internal_token_records.name, internal_token_records.role
   FROM internal_token_records
   WHERE ( internal_token_records.secret = ? )
   ORDER BY internal_token_records.secret
@@ -35,8 +35,8 @@ SELECT internal_token_records.id FROM internal_token_records
 `)
 
 var internalTokenRecordCreate = RegisterStmt(`
-INSERT INTO internal_token_records (secret, name)
-  VALUES (?, ?)
+INSERT INTO internal_token_records (secret, name, role)
+  VALUES (?, ?, ?)
 `)
 
 var internalTokenRecordDeleteByName = RegisterStmt(`
@@ -104,7 +104,7 @@ func GetInternalTokenRecord(ctx context.Context, tx *sql.Tx, secret string) (*In
 // internalTokenRecordColumns returns a string of column names to be used with a SELECT statement for the entity.
 // Use this function when building statements to retrieve database entries matching the InternalTokenRecord entity.
 func internalTokenRecordColumns() string {
-	return "internal_token_records.id, internal_token_records.secret, internal_token_records.name"
+	return "internal_token_records.id, internal_token_records.secret, internal_token_records.name, internal_token_records.role"
 }
 
 // getInternalTokenRecords can be used to run handwritten sql.Stmts to return a slice of objects.
@@ -113,7 +113,7 @@ func getInternalTokenRecords(ctx context.Context, stmt *sql.Stmt, args ...any) (
 
 	dest := func(scan func(dest ...any) error) error {
 		i := InternalTokenRecord{}
-		err := scan(&i.ID, &i.Secret, &i.Name)
+		err := scan(&i.ID, &i.Secret, &i.Name, &i.Role)
 		if err != nil {
 			return err
 		}
@@ -137,7 +137,7 @@ func getInternalTokenRecordsRaw(ctx context.Context, tx *sql.Tx, sql string, arg
 
 	dest := func(scan func(dest ...any) error) error {
 		i := InternalTokenRecord{}
-		err := scan(&i.ID, &i.Secret, &i.Name)
+		err := scan(&i.ID, &i.Secret, &i.Name, &i.Role)
 		if err != nil {
 			return err
 		}
@@ -176,7 +176,7 @@ func GetInternalTokenRecords(ctx context.Context, tx *sql.Tx, filters ...Interna
 	}
 
 	for i, filter := range filters {
-		if filter.Secret != nil && filter.ID == nil && filter.Name == nil {
+		if filter.Secret != nil && filter.ID == nil && filter.Name == nil && filter.Role == nil {
 			args = append(args, []any{filter.Secret}...)
 			if len(filters) == 1 {
 				sqlStmt, err = Stmt(tx, internalTokenRecordObjectsBySecret)
@@ -200,7 +200,7 @@ func GetInternalTokenRecords(ctx context.Context, tx *sql.Tx, filters ...Interna
 
 			_, where, _ := strings.Cut(parts[0], "WHERE")
 			queryParts[0] += "OR" + where
-		} else if filter.ID == nil && filter.Secret == nil && filter.Name == nil {
+		} else if filter.ID == nil && filter.Secret == nil && filter.Name == nil && filter.Role == nil {
 			return nil, fmt.Errorf("Cannot filter on empty InternalTokenRecordFilter")
 		} else {
 			return nil, fmt.Errorf("No statement exists for the given Filter")
@@ -235,11 +235,12 @@ func CreateInternalTokenRecord(ctx context.Context, tx *sql.Tx, object InternalT
 		return -1, api.StatusErrorf(http.StatusConflict, "This \"internal_token_records\" entry already exists")
 	}
 
-	args := make([]any, 2)
+	args := make([]any, 3)
 
 	// Populate the statement arguments.
 	args[0] = object.Secret
 	args[1] = object.Name
+	args[2] = object.Role
 
 	// Prepared statement to use.
 	stmt, err := Stmt(tx, internalTokenRecordCreate)

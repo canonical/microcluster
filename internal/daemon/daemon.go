@@ -487,6 +487,64 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 	return nil
 }
 
+// UpgradeAPI adds an existing non-cluster node to dqlite, updates its role to "cluster" and enables the internal API.
+func (d *Daemon) UpgradeAPI(newConfig *trust.Location) error {
+	newConfig.Role = trust.Cluster
+	_, err := d.setDaemonConfig(newConfig)
+	if err != nil {
+		return fmt.Errorf("Failed to apply and save new daemon configuration: %w", err)
+	}
+
+	clusterRemotes := d.trustStore.Remotes(trust.Cluster)
+	nonClusterRemotes := d.trustStore.Remotes(trust.NonCluster)
+
+	addrs := make([]string, 0, len(clusterRemotes.RemotesByName()))
+	for _, remote := range clusterRemotes.RemotesByName() {
+		addrs = append(addrs, remote.Address.String())
+	}
+
+	server := d.initServer(resources.PublicEndpoints, resources.ExtendedEndpoints, resources.InternalEndpoints)
+	network := endpoints.NewNetwork(d.ShutdownCtx, endpoints.EndpointNetwork, server, *d.Address(), d.clusterCert)
+	err = d.endpoints.Down(endpoints.EndpointNetwork)
+	if err != nil {
+		return err
+	}
+
+	err = d.endpoints.Add(network)
+	if err != nil {
+		return err
+	}
+
+	err = d.db.Join(d.project, *d.Address(), d.clusterCert, addrs...)
+	if err != nil {
+		return err
+	}
+
+	nonClusterRemotesMap := nonClusterRemotes.RemotesByName()
+
+	newRemote := nonClusterRemotesMap[d.Name()]
+	newRemote.Role = trust.Cluster
+	delete(nonClusterRemotesMap, d.Name())
+
+	nonClusterList := make([]internalTypes.ClusterMember, 0, len(nonClusterRemotesMap))
+
+	for _, remote := range nonClusterRemotesMap {
+		nonClusterList = append(nonClusterList, internalTypes.ClusterMember{
+			ClusterMemberLocal: internalTypes.ClusterMemberLocal{
+				Name:        remote.Name,
+				Address:     remote.Address,
+				Certificate: remote.Certificate,
+			}})
+	}
+
+	err = d.trustStore.Remotes(trust.NonCluster).Replace(d.os.TrustDir, nonClusterList...)
+	if err != nil {
+		return err
+	}
+
+	return d.trustStore.Remotes(trust.Cluster).Add(d.os.TrustDir, newRemote)
+}
+
 func (d *Daemon) sendUpgradeNotification(ctx context.Context, c *client.Client) error {
 	path := c.URL()
 	parts := strings.Split(string(internalClient.InternalEndpoint), "/")
@@ -573,6 +631,7 @@ func (d *Daemon) State() *state.State {
 		Database:       d.db,
 		Remotes:        d.trustStore.Remotes,
 		StartAPI:       d.StartAPI,
+		UpgradeAPI:     d.UpgradeAPI,
 		Stop:           d.Stop,
 	}
 

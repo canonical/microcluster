@@ -60,6 +60,9 @@ type State struct {
 	// Initialize APIs and bootstrap/join database.
 	StartAPI func(bootstrap bool, initConfig map[string]string, newConfig *trust.Location, joinAddresses ...string) error
 
+	// UpgradeAPI re-initializes the APIs and starts the database on a non-clustered node.
+	UpgradeAPI func(config *trust.Location) error
+
 	// Stop fully stops the daemon, its database, and all listeners.
 	Stop func() error
 }

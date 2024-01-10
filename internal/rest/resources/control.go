@@ -103,7 +103,7 @@ func joinWithToken(state *state.State, req *internalTypes.Control) response.Resp
 			return response.SmartError(err)
 		}
 
-		joinInfo, err = d.AddClusterMember(context.Background(), newClusterMember)
+		joinInfo, err = d.AddClusterMember(context.Background(), newClusterMember, false)
 		if err != nil {
 			logger.Error("Unable to complete cluster join request", logger.Ctx{"address": addr.String(), "error": err})
 			lastErr = err

@@ -436,7 +436,7 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 		// At this point the joiner is only trusted on the node that was leader at the time,
 		// so find it and have it instruct all dqlite members to trust this system now that it is functional.
 		if !clusterConfirmation {
-			err = c.RegisterClusterMember(ctx, internalTypes.ClusterMember{ClusterMemberLocal: localMemberInfo}, string(config.Role))
+			err = c.RegisterClusterMember(ctx, internalTypes.ClusterMember{ClusterMemberLocal: localMemberInfo}, string(config.Role), false)
 			if err != nil {
 				lastErr = err
 			} else {
@@ -480,7 +480,7 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 
 		// If this was a join request, instruct all peers to run their OnNewMember hook.
 		if len(joinAddresses) > 0 {
-			_, err = c.AddClusterMember(ctx, internalTypes.ClusterMember{ClusterMemberLocal: localMemberInfo})
+			_, err = c.AddClusterMember(ctx, internalTypes.ClusterMember{ClusterMemberLocal: localMemberInfo}, false)
 			if err != nil {
 				return err
 			}

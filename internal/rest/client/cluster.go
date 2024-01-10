@@ -9,12 +9,17 @@ import (
 )
 
 // AddClusterMember records a new cluster member in the trust store of each current cluster member.
-func (c *Client) AddClusterMember(ctx context.Context, args types.ClusterMember) (*types.TokenResponse, error) {
+func (c *Client) AddClusterMember(ctx context.Context, args types.ClusterMember, upgrading bool) (*types.TokenResponse, error) {
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
+	upgradeParam := ""
+	if upgrading {
+		upgradeParam = "1"
+	}
+
 	tokenResponse := types.TokenResponse{}
-	err := c.QueryStruct(queryCtx, "POST", PublicEndpoint, api.NewURL().Path("cluster"), args, &tokenResponse)
+	err := c.QueryStruct(queryCtx, "POST", PublicEndpoint, api.NewURL().Path("cluster").WithQuery("upgrade", upgradeParam), args, &tokenResponse)
 	if err != nil {
 		return nil, err
 	}
@@ -23,11 +28,16 @@ func (c *Client) AddClusterMember(ctx context.Context, args types.ClusterMember)
 }
 
 // RegisterClusterMember instructs the dqlite leader to inform all existing cluster members to update their local records to include a newly joined system.
-func (c *Client) RegisterClusterMember(ctx context.Context, args types.ClusterMember, role string) error {
+func (c *Client) RegisterClusterMember(ctx context.Context, args types.ClusterMember, role string, upgrading bool) error {
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	return c.QueryStruct(queryCtx, "PUT", PublicEndpoint, api.NewURL().Path("cluster").WithQuery("role", role), args, nil)
+	upgradeParam := ""
+	if upgrading {
+		upgradeParam = "1"
+	}
+
+	return c.QueryStruct(queryCtx, "PUT", PublicEndpoint, api.NewURL().Path("cluster").WithQuery("role", role).WithQuery("upgrade", upgradeParam), args, nil)
 }
 
 // GetClusterMembers returns the database record of cluster members.

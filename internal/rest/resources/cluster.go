@@ -461,6 +461,11 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 				if err != nil {
 					return response.SmartError(err)
 				}
+				// Roles for second member has been updated, so re-query the cluster.
+				info, err = leader.Cluster(s.Context)
+				if err != nil {
+					return response.SmartError(err)
+				}
 			}
 		}
 	}

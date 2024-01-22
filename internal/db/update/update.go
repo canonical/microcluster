@@ -32,22 +32,34 @@ const dotGoTemplate = "package %s\n\n" +
 	"const freshSchema = `\n" +
 	"%s`\n"
 
-func Schema() *SchemaUpdate {
-	schema := NewFromMap(updates)
+type SchemaUpdateManager struct {
+	updates map[int]schema.Update
+}
+
+func NewSchema() *SchemaUpdateManager {
+	return &SchemaUpdateManager{
+		updates: map[int]schema.Update{
+			1: updateFromV0,
+		},
+	}
+}
+
+func (m *SchemaUpdateManager) Schema() *SchemaUpdate {
+	schema := NewFromMap(m.updates)
 	schema.Fresh("")
 	return schema
 }
 
-func AppendSchema(extensions map[int]schema.Update) {
-	currentVersion := len(updates)
+func (m *SchemaUpdateManager) AppendSchema(extensions map[int]schema.Update) {
+	currentVersion := len(m.updates)
 	schema := NewFromMap(extensions)
 	for _, extension := range schema.updates {
-		updates[currentVersion+1] = extension
-		currentVersion = len(updates)
+		m.updates[currentVersion+1] = extension
+		currentVersion = len(m.updates)
 	}
 }
 
-func SchemaDotGo() error {
+func (m *SchemaUpdateManager) SchemaDotGo() error {
 	// Apply all the updates that we have on a pristine database and dump
 	// the resulting schema.
 	db, err := sql.Open("sqlite3", ":memory:")
@@ -55,7 +67,7 @@ func SchemaDotGo() error {
 		return fmt.Errorf("failed to open schema.go for writing: %w", err)
 	}
 
-	schema := NewFromMap(updates)
+	schema := NewFromMap(m.updates)
 
 	_, err = schema.Ensure(db)
 	if err != nil {
@@ -82,10 +94,6 @@ func SchemaDotGo() error {
 	}
 
 	return nil
-}
-
-var updates = map[int]schema.Update{
-	1: updateFromV0,
 }
 
 func updateFromV0(ctx context.Context, tx *sql.Tx) error {

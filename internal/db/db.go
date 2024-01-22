@@ -15,7 +15,6 @@ import (
 	"github.com/canonical/lxd/shared/logger"
 
 	"github.com/canonical/microcluster/cluster"
-	"github.com/canonical/microcluster/internal/db/update"
 	"github.com/canonical/microcluster/internal/sys"
 )
 
@@ -36,7 +35,7 @@ func (db *DB) Open(bootstrap bool, project string) error {
 	}
 
 	otherNodesBehind := false
-	newSchema := update.Schema()
+	newSchema := db.Schema()
 	if !bootstrap {
 		checkVersions := func(ctx context.Context, current int, tx *sql.Tx) error {
 			schemaVersion := newSchema.Version()

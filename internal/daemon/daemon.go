@@ -24,7 +24,6 @@ import (
 	"github.com/canonical/microcluster/cluster"
 	"github.com/canonical/microcluster/config"
 	"github.com/canonical/microcluster/internal/db"
-	"github.com/canonical/microcluster/internal/db/update"
 	"github.com/canonical/microcluster/internal/endpoints"
 	internalREST "github.com/canonical/microcluster/internal/rest"
 	internalClient "github.com/canonical/microcluster/internal/rest/client"
@@ -152,7 +151,7 @@ func (d *Daemon) init(listenPort string, extendedEndpoints []rest.Endpoint, sche
 		}
 	}
 
-	update.AppendSchema(schemaExtensions)
+	d.db.SetSchema(schemaExtensions)
 
 	err = d.reloadIfBootstrapped()
 	if err != nil {
@@ -365,7 +364,7 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 			Name:        localNode.Name,
 			Address:     localNode.Address.String(),
 			Certificate: localNode.Certificate.String(),
-			Schema:      update.Schema().Version(),
+			Schema:      d.db.Schema().Version(),
 			Heartbeat:   time.Time{},
 			Role:        cluster.Pending,
 		}

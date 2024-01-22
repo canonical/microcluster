@@ -12,7 +12,6 @@ import (
 	"github.com/canonical/lxd/shared/api"
 	"github.com/canonical/lxd/shared/logger"
 
-	"github.com/canonical/microcluster/internal/db/update"
 	"github.com/canonical/microcluster/internal/rest/access"
 	"github.com/canonical/microcluster/internal/rest/client"
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
@@ -78,7 +77,7 @@ func joinWithToken(state *state.State, req *internalTypes.Control) response.Resp
 			Address:     localClusterMember.Address,
 			Certificate: localClusterMember.Certificate,
 		},
-		SchemaVersion: update.Schema().Version(),
+		SchemaVersion: state.Database.Schema().Version(),
 		Secret:        token.Secret,
 	}
 

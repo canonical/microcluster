@@ -465,6 +465,12 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 		}
 	}
 
+	// Refresh members information since we may have changed roles.
+	info, err = leader.Cluster(s.Context)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
 	// If we are the leader and removing ourselves, reassign the leader role and perform the removal from there.
 	if allRemotes[name].Address.String() == leaderInfo.Address {
 		otherNodes := []uint64{}

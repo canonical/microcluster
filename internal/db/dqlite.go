@@ -27,6 +27,7 @@ import (
 	"github.com/canonical/lxd/shared/tcp"
 
 	"github.com/canonical/microcluster/cluster"
+	"github.com/canonical/microcluster/internal/db/update"
 	"github.com/canonical/microcluster/internal/rest/client"
 	internalClient "github.com/canonical/microcluster/internal/rest/client"
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
@@ -54,6 +55,8 @@ type DB struct {
 	cancel context.CancelFunc
 
 	heartbeatLock sync.Mutex
+
+	schema *update.SchemaUpdate
 }
 
 // Accept sends the outbound connection through the acceptCh channel to be received by dqlite.
@@ -75,6 +78,16 @@ func NewDB(ctx context.Context, serverCert *shared.CertInfo, os *sys.OS) *DB {
 		cancel:        shutdownCancel,
 		openCanceller: cancel.New(context.Background()),
 	}
+}
+
+func (db *DB) SetSchema(schemaExtensions map[int]schema.Update) {
+	s := update.NewSchema()
+	s.AppendSchema(schemaExtensions)
+	db.schema = s.Schema()
+}
+
+func (db *DB) Schema() *update.SchemaUpdate {
+	return db.schema
 }
 
 // Bootstrap dqlite.

@@ -356,7 +356,7 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 		}
 	}
 
-	d.clusterCert, err = util.LoadClusterCert(d.os.StateDir)
+	err = d.ReloadClusterCert()
 	if err != nil {
 		return err
 	}
@@ -507,6 +507,22 @@ func (d *Daemon) ClusterCert() *shared.CertInfo {
 	return shared.NewCertInfo(d.clusterCert.KeyPair(), d.clusterCert.CA(), d.clusterCert.CRL())
 }
 
+// ReloadClusterCert reloads the cluster keypair from the state directory.
+func (d *Daemon) ReloadClusterCert() error {
+	d.clusterMu.Lock()
+	defer d.clusterMu.Unlock()
+
+	clusterCert, err := util.LoadClusterCert(d.os.StateDir)
+	if err != nil {
+		return err
+	}
+
+	d.clusterCert = clusterCert
+	d.endpoints.UpdateTLS(clusterCert)
+
+	return nil
+}
+
 // ServerCert ensures both the daemon and state have the same server cert.
 func (d *Daemon) ServerCert() *shared.CertInfo {
 	return d.serverCert
@@ -529,6 +545,7 @@ func (d *Daemon) State() *state.State {
 	state.PostRemoveHook = d.hooks.PostRemove
 	state.OnHeartbeatHook = d.hooks.OnHeartbeat
 	state.OnNewMemberHook = d.hooks.OnNewMember
+	state.ReloadClusterCert = d.ReloadClusterCert
 	state.StopListeners = func() error {
 		err := d.fsWatcher.Close()
 		if err != nil {

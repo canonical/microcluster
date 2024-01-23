@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/canonical/lxd/lxd/db/schema"
@@ -44,8 +45,10 @@ type Daemon struct {
 	address api.URL // Listen Address.
 	name    string  // Name of the cluster member.
 
-	os          *sys.OS
-	serverCert  *shared.CertInfo
+	os         *sys.OS
+	serverCert *shared.CertInfo
+
+	clusterMu   sync.RWMutex
 	clusterCert *shared.CertInfo
 
 	endpoints *endpoints.Endpoints
@@ -359,7 +362,7 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 	}
 
 	server := d.initServer(resources.InternalEndpoints, resources.PublicEndpoints, resources.ExtendedEndpoints)
-	network := endpoints.NewNetwork(d.ShutdownCtx, endpoints.EndpointNetwork, server, d.address, d.clusterCert)
+	network := endpoints.NewNetwork(d.ShutdownCtx, endpoints.EndpointNetwork, server, d.address, d.ClusterCert())
 	err = d.endpoints.Down(endpoints.EndpointNetwork)
 	if err != nil {
 		return err
@@ -406,7 +409,7 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 			return fmt.Errorf("Failed to join cluster: %w", err)
 		}
 	} else {
-		err = d.db.StartWithCluster(d.project, d.address, d.trustStore.Remotes().Addresses(), d.clusterCert)
+		err = d.db.StartWithCluster(d.project, d.address, d.trustStore.Remotes().Addresses(), d.ClusterCert())
 		if err != nil {
 			return fmt.Errorf("Failed to re-establish cluster connection: %w", err)
 		}
@@ -498,7 +501,10 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 
 // ClusterCert ensures both the daemon and state have the same cluster cert.
 func (d *Daemon) ClusterCert() *shared.CertInfo {
-	return d.clusterCert
+	d.clusterMu.RLock()
+	defer d.clusterMu.RUnlock()
+
+	return shared.NewCertInfo(d.clusterCert.KeyPair(), d.clusterCert.CA(), d.clusterCert.CRL())
 }
 
 // ServerCert ensures both the daemon and state have the same server cert.

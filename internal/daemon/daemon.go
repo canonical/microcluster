@@ -179,8 +179,12 @@ func (d *Daemon) applyHooks(hooks *config.Hooks) {
 		d.hooks = *hooks
 	}
 
-	if d.hooks.OnBootstrap == nil {
-		d.hooks.OnBootstrap = noOpInitHook
+	if d.hooks.PreBootstrap == nil {
+		d.hooks.PreBootstrap = noOpInitHook
+	}
+
+	if d.hooks.PostBootstrap == nil {
+		d.hooks.PostBootstrap = noOpInitHook
 	}
 
 	if d.hooks.PostJoin == nil {
@@ -316,6 +320,13 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 		}
 	}
 
+	if bootstrap {
+		err := d.hooks.PreBootstrap(d.State(), initConfig)
+		if err != nil {
+			return fmt.Errorf("Failed to run pre-bootstrap hook before starting the API: %w", err)
+		}
+	}
+
 	if d.address.URL.Host == "" || d.name == "" {
 		return fmt.Errorf("Cannot start network API without valid daemon configuration")
 	}
@@ -380,7 +391,13 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 			return err
 		}
 
-		return d.hooks.OnBootstrap(d.State(), initConfig)
+		err = d.hooks.PostBootstrap(d.State(), initConfig)
+		if err != nil {
+			return fmt.Errorf("Failed to run post-bootstrap actions: %w", err)
+		}
+
+		// Return as we have completed the bootstrap process.
+		return nil
 	}
 
 	if len(joinAddresses) != 0 {

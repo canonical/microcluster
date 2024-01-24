@@ -19,11 +19,11 @@ import (
 	dqlite "github.com/canonical/go-dqlite/app"
 	dqliteClient "github.com/canonical/go-dqlite/client"
 	"github.com/canonical/lxd/lxd/db/schema"
-	"github.com/canonical/lxd/lxd/revert"
 	"github.com/canonical/lxd/shared"
 	"github.com/canonical/lxd/shared/api"
 	"github.com/canonical/lxd/shared/cancel"
 	"github.com/canonical/lxd/shared/logger"
+	"github.com/canonical/lxd/shared/revert"
 	"github.com/canonical/lxd/shared/tcp"
 
 	"github.com/canonical/microcluster/cluster"

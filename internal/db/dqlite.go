@@ -36,9 +36,9 @@ import (
 
 // DB holds all information internal to the dqlite database.
 type DB struct {
-	clusterCert *shared.CertInfo // Cluster certificate for dqlite authentication.
-	serverCert  *shared.CertInfo // Server certificate for dqlite authentication.
-	listenAddr  api.URL          // Listen address for this dqlite node.
+	clusterCert func() *shared.CertInfo // Cluster certificate for dqlite authentication.
+	serverCert  *shared.CertInfo        // Server certificate for dqlite authentication.
+	listenAddr  api.URL                 // Listen address for this dqlite node.
 
 	dbName string // This is db.bin.
 	os     *sys.OS
@@ -62,11 +62,12 @@ func (db *DB) Accept(conn net.Conn) {
 }
 
 // NewDB creates an empty db struct with no dqlite connection.
-func NewDB(ctx context.Context, serverCert *shared.CertInfo, os *sys.OS) *DB {
+func NewDB(ctx context.Context, serverCert *shared.CertInfo, clusterCert func() *shared.CertInfo, os *sys.OS) *DB {
 	shutdownCtx, shutdownCancel := context.WithCancel(ctx)
 
 	return &DB{
 		serverCert:    serverCert,
+		clusterCert:   clusterCert,
 		dbName:        filepath.Base(os.DatabasePath()),
 		os:            os,
 		acceptCh:      make(chan net.Conn),
@@ -78,10 +79,9 @@ func NewDB(ctx context.Context, serverCert *shared.CertInfo, os *sys.OS) *DB {
 }
 
 // Bootstrap dqlite.
-func (db *DB) Bootstrap(project string, addr api.URL, clusterCert *shared.CertInfo, clusterRecord cluster.InternalClusterMember) error {
+func (db *DB) Bootstrap(project string, addr api.URL, clusterRecord cluster.InternalClusterMember) error {
 	var err error
 	db.listenAddr = addr
-	db.clusterCert = clusterCert
 	db.dqlite, err = dqlite.New(db.os.DatabaseDir,
 		dqlite.WithAddress(db.listenAddr.URL.Host),
 		dqlite.WithExternalConn(db.dialFunc(), db.acceptCh),
@@ -111,10 +111,9 @@ func (db *DB) Bootstrap(project string, addr api.URL, clusterCert *shared.CertIn
 }
 
 // Join a dqlite cluster with the address of a member.
-func (db *DB) Join(project string, addr api.URL, clusterCert *shared.CertInfo, joinAddresses ...string) error {
+func (db *DB) Join(project string, addr api.URL, joinAddresses ...string) error {
 	for {
 		var err error
-		db.clusterCert = clusterCert
 		db.listenAddr = addr
 		db.dqlite, err = dqlite.New(db.os.DatabaseDir,
 			dqlite.WithCluster(joinAddresses),
@@ -150,13 +149,13 @@ func (db *DB) Join(project string, addr api.URL, clusterCert *shared.CertInfo, j
 }
 
 // StartWithCluster starts up dqlite and joins the cluster.
-func (db *DB) StartWithCluster(project string, addr api.URL, clusterMembers map[string]types.AddrPort, clusterCert *shared.CertInfo) error {
+func (db *DB) StartWithCluster(project string, addr api.URL, clusterMembers map[string]types.AddrPort) error {
 	allClusterAddrs := []string{}
 	for _, clusterMemberAddrs := range clusterMembers {
 		allClusterAddrs = append(allClusterAddrs, clusterMemberAddrs.String())
 	}
 
-	return db.Join(project, addr, clusterCert, allClusterAddrs...)
+	return db.Join(project, addr, allClusterAddrs...)
 }
 
 // Leader returns a client connected to the leader of the dqlite cluster.
@@ -239,7 +238,7 @@ func (db *DB) heartbeat(ctx context.Context) {
 
 // dqliteNetworkDial creates a connection to the internal database endpoint.
 func dqliteNetworkDial(ctx context.Context, addr string, db *DB) (net.Conn, error) {
-	peerCert, err := db.clusterCert.PublicKeyX509()
+	peerCert, err := db.clusterCert().PublicKeyX509()
 	if err != nil {
 		return nil, err
 	}

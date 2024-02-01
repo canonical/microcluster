@@ -118,48 +118,53 @@ func tlsHTTPClient(clientCert *shared.CertInfo, remoteCert *x509.Certificate, pr
 
 	}
 
-	tlsDialContext := func(ctx context.Context, network string, addr string) (net.Conn, error) {
-		host, port, err := net.SplitHostPort(addr)
-		if err != nil {
-			return nil, err
-		}
-
-		addrs, err := net.LookupHost(host)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, a := range addrs {
-			dialer := tls.Dialer{NetDialer: &net.Dialer{}, Config: tlsConfig}
-			conn, err := dialer.DialContext(ctx, network, net.JoinHostPort(a, port))
-			if err != nil {
-				continue
-			}
-
-			tcpConn, err := tcp.ExtractConn(conn)
+	tlsDialContext := func(t *http.Transport) func(context.Context, string, string) (net.Conn, error) {
+		return func(ctx context.Context, network string, addr string) (net.Conn, error) {
+			host, port, err := net.SplitHostPort(addr)
 			if err != nil {
 				return nil, err
 			}
 
-			err = tcp.SetTimeouts(tcpConn, 0)
+			addrs, err := net.LookupHost(host)
 			if err != nil {
 				return nil, err
 			}
 
-			return conn, nil
-		}
+			var lastErr error
+			for _, a := range addrs {
+				dialer := tls.Dialer{NetDialer: &net.Dialer{}, Config: t.TLSClientConfig}
+				conn, err := dialer.DialContext(ctx, network, net.JoinHostPort(a, port))
+				if err != nil {
+					lastErr = err
+					continue
+				}
 
-		return nil, fmt.Errorf("Unable to connect to: %q", addr)
+				tcpConn, err := tcp.ExtractConn(conn)
+				if err != nil {
+					return nil, err
+				}
+
+				err = tcp.SetTimeouts(tcpConn, 0)
+				if err != nil {
+					return nil, err
+				}
+
+				return conn, nil
+			}
+
+			return nil, fmt.Errorf("Unable to connect to %q: %w", addr, lastErr)
+		}
 	}
 
 	transport := &http.Transport{
+		TLSClientConfig:   tlsConfig,
 		DisableKeepAlives: true,
-		DialTLSContext:    tlsDialContext,
 		Proxy:             proxy,
 	}
 
 	// Define the http client
 	client := &http.Client{Transport: transport}
+	transport.DialTLSContext = tlsDialContext(transport)
 
 	// Setup redirect policy
 	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {

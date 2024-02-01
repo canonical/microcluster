@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/canonical/lxd/shared"
 	"github.com/canonical/lxd/shared/logger"
 )
 
@@ -36,6 +37,19 @@ func (e *Endpoints) Up() error {
 	}
 
 	return nil
+}
+
+// UpdateTLS updates the TLS configuration of the network listeners.
+func (e *Endpoints) UpdateTLS(cert *shared.CertInfo) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	for _, l := range e.listeners {
+		n, ok := l.(*Network)
+		if ok {
+			n.UpdateTLS(cert)
+		}
+	}
 }
 
 // Add calls Serve on the additional set of listeners, and adds them to Endpoints.

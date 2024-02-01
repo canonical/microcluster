@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/canonical/lxd/lxd/db/schema"
@@ -43,8 +44,10 @@ type Daemon struct {
 	address api.URL // Listen Address.
 	name    string  // Name of the cluster member.
 
-	os          *sys.OS
-	serverCert  *shared.CertInfo
+	os         *sys.OS
+	serverCert *shared.CertInfo
+
+	clusterMu   sync.RWMutex
 	clusterCert *shared.CertInfo
 
 	endpoints *endpoints.Endpoints
@@ -128,7 +131,7 @@ func (d *Daemon) init(listenPort string, extendedEndpoints []rest.Endpoint, sche
 		return fmt.Errorf("Failed to initialize trust store: %w", err)
 	}
 
-	d.db = db.NewDB(d.ShutdownCtx, d.serverCert, d.os)
+	d.db = db.NewDB(d.ShutdownCtx, d.serverCert, d.ClusterCert, d.os)
 
 	// Apply extensions to API/Schema.
 	resources.ExtendedEndpoints.Endpoints = append(resources.ExtendedEndpoints.Endpoints, extendedEndpoints...)
@@ -178,8 +181,12 @@ func (d *Daemon) applyHooks(hooks *config.Hooks) {
 		d.hooks = *hooks
 	}
 
-	if d.hooks.OnBootstrap == nil {
-		d.hooks.OnBootstrap = noOpInitHook
+	if d.hooks.PreBootstrap == nil {
+		d.hooks.PreBootstrap = noOpInitHook
+	}
+
+	if d.hooks.PostBootstrap == nil {
+		d.hooks.PostBootstrap = noOpInitHook
 	}
 
 	if d.hooks.PostJoin == nil {
@@ -315,6 +322,13 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 		}
 	}
 
+	if bootstrap {
+		err := d.hooks.PreBootstrap(d.State(), initConfig)
+		if err != nil {
+			return fmt.Errorf("Failed to run pre-bootstrap hook before starting the API: %w", err)
+		}
+	}
+
 	if d.address.URL.Host == "" || d.name == "" {
 		return fmt.Errorf("Cannot start network API without valid daemon configuration")
 	}
@@ -341,13 +355,13 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 		}
 	}
 
-	d.clusterCert, err = util.LoadClusterCert(d.os.StateDir)
+	err = d.ReloadClusterCert()
 	if err != nil {
 		return err
 	}
 
 	server := d.initServer(resources.InternalEndpoints, resources.PublicEndpoints, resources.ExtendedEndpoints)
-	network := endpoints.NewNetwork(d.ShutdownCtx, endpoints.EndpointNetwork, server, d.address, d.clusterCert)
+	network := endpoints.NewNetwork(d.ShutdownCtx, endpoints.EndpointNetwork, server, d.address, d.ClusterCert())
 	err = d.endpoints.Down(endpoints.EndpointNetwork)
 	if err != nil {
 		return err
@@ -369,7 +383,7 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 			Role:        cluster.Pending,
 		}
 
-		err = d.db.Bootstrap(d.project, d.address, d.ClusterCert(), clusterMember)
+		err = d.db.Bootstrap(d.project, d.address, clusterMember)
 		if err != nil {
 			return err
 		}
@@ -379,16 +393,22 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 			return err
 		}
 
-		return d.hooks.OnBootstrap(d.State(), initConfig)
+		err = d.hooks.PostBootstrap(d.State(), initConfig)
+		if err != nil {
+			return fmt.Errorf("Failed to run post-bootstrap actions: %w", err)
+		}
+
+		// Return as we have completed the bootstrap process.
+		return nil
 	}
 
 	if len(joinAddresses) != 0 {
-		err = d.db.Join(d.project, d.address, d.ClusterCert(), joinAddresses...)
+		err = d.db.Join(d.project, d.address, joinAddresses...)
 		if err != nil {
 			return fmt.Errorf("Failed to join cluster: %w", err)
 		}
 	} else {
-		err = d.db.StartWithCluster(d.project, d.address, d.trustStore.Remotes().Addresses(), d.clusterCert)
+		err = d.db.StartWithCluster(d.project, d.address, d.trustStore.Remotes().Addresses())
 		if err != nil {
 			return fmt.Errorf("Failed to re-establish cluster connection: %w", err)
 		}
@@ -480,7 +500,26 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 
 // ClusterCert ensures both the daemon and state have the same cluster cert.
 func (d *Daemon) ClusterCert() *shared.CertInfo {
-	return d.clusterCert
+	d.clusterMu.RLock()
+	defer d.clusterMu.RUnlock()
+
+	return shared.NewCertInfo(d.clusterCert.KeyPair(), d.clusterCert.CA(), d.clusterCert.CRL())
+}
+
+// ReloadClusterCert reloads the cluster keypair from the state directory.
+func (d *Daemon) ReloadClusterCert() error {
+	d.clusterMu.Lock()
+	defer d.clusterMu.Unlock()
+
+	clusterCert, err := util.LoadClusterCert(d.os.StateDir)
+	if err != nil {
+		return err
+	}
+
+	d.clusterCert = clusterCert
+	d.endpoints.UpdateTLS(clusterCert)
+
+	return nil
 }
 
 // ServerCert ensures both the daemon and state have the same server cert.
@@ -505,6 +544,7 @@ func (d *Daemon) State() *state.State {
 	state.PostRemoveHook = d.hooks.PostRemove
 	state.OnHeartbeatHook = d.hooks.OnHeartbeat
 	state.OnNewMemberHook = d.hooks.OnNewMember
+	state.ReloadClusterCert = d.ReloadClusterCert
 	state.StopListeners = func() error {
 		err := d.fsWatcher.Close()
 		if err != nil {

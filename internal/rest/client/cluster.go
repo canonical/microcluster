@@ -6,6 +6,7 @@ import (
 
 	"github.com/canonical/lxd/shared/api"
 	"github.com/canonical/microcluster/internal/rest/types"
+	apiTypes "github.com/canonical/microcluster/rest/types"
 )
 
 // AddClusterMember records a new cluster member in the trust store of each current cluster member.
@@ -57,4 +58,14 @@ func (c *Client) ResetClusterMember(ctx context.Context, name string, force bool
 	}
 
 	return c.QueryStruct(queryCtx, "PUT", PublicEndpoint, endpoint, nil, nil)
+}
+
+// UpdateClusterCertificate sets a new cluster keypair and CA.
+func (c *Client) UpdateClusterCertificate(ctx context.Context, args apiTypes.ClusterCertificatePut) error {
+	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	endpoint := api.NewURL().Path("cluster", "certificates")
+	return c.QueryStruct(queryCtx, "PUT", InternalEndpoint, endpoint, args, nil)
+
 }

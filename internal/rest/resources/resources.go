@@ -37,6 +37,7 @@ var InternalEndpoints = &Resources{
 	Path: client.InternalEndpoint,
 	Endpoints: []rest.Endpoint{
 		databaseCmd,
+		clusterCertificatesCmd,
 		sqlCmd,
 		tokenCmd,
 		heartbeatCmd,

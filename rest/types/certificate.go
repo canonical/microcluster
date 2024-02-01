@@ -7,6 +7,13 @@ import (
 	"fmt"
 )
 
+// ClusterCertificatePut represents the content of a new cluster keypair and CA.
+type ClusterCertificatePut struct {
+	PublicKey  string `json:"public_key"  yaml:"public_key"`
+	PrivateKey string `json:"private_key" yaml:"private_key"`
+	CA         string `json:"ca"          yaml:"ca"`
+}
+
 // X509Certificate is a json/yaml marshallable/unmarshallable type wrapper for x509.Certificate.
 type X509Certificate struct {
 	*x509.Certificate

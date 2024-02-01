@@ -71,6 +71,15 @@ func (n *Network) Listen() error {
 	return nil
 }
 
+// UpdateTLS updates the TLS configuration of the network listener.
+func (n *Network) UpdateTLS(cert *shared.CertInfo) {
+	l, ok := n.listener.(*listeners.FancyTLSListener)
+	if ok {
+		n.cert = cert
+		l.Config(cert)
+	}
+}
+
 // Serve binds to the Network's server.
 func (n *Network) Serve() {
 	if n.listener == nil {

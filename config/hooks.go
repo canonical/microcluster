@@ -7,8 +7,11 @@ import (
 // Hooks holds customizable functions that can be called at varying points by the daemon to.
 // integrate with other tools.
 type Hooks struct {
-	// OnBootstrap is run after the daemon is initialized and bootstrapped.
-	OnBootstrap func(s *state.State, initConfig map[string]string) error
+	// PreBootstrap is run before the daemon is initialized and bootstrapped.
+	PreBootstrap func(s *state.State, initConfig map[string]string) error
+
+	// PostBootstrap is run after the daemon is initialized and bootstrapped.
+	PostBootstrap func(s *state.State, initConfig map[string]string) error
 
 	// OnStart is run after the daemon is started.
 	OnStart func(s *state.State) error

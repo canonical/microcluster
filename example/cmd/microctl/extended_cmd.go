@@ -50,7 +50,7 @@ func (c *cmdExtended) Run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf(outMsg)
+	fmt.Print(outMsg)
 
 	return nil
 }

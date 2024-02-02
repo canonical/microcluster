@@ -245,8 +245,6 @@ func (db *DB) heartbeat(ctx context.Context) {
 		logger.Error("Failed to initiate heartbeat round", logger.Ctx{"address": db.dqlite.Address(), "error": err})
 		return
 	}
-
-	return
 }
 
 // dqliteNetworkDial creates a connection to the internal database endpoint.

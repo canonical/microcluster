@@ -26,6 +26,7 @@ import (
 	"github.com/canonical/microcluster/config"
 	"github.com/canonical/microcluster/internal/db"
 	"github.com/canonical/microcluster/internal/endpoints"
+	"github.com/canonical/microcluster/internal/extensions"
 	internalREST "github.com/canonical/microcluster/internal/rest"
 	internalClient "github.com/canonical/microcluster/internal/rest/client"
 	"github.com/canonical/microcluster/internal/rest/resources"
@@ -62,6 +63,8 @@ type Daemon struct {
 	shutdownCtx    context.Context    // Cancelled when shutdown starts.
 	shutdownDoneCh chan error         // Receives the result of state.Stop() when exit() is called and tells the daemon to end.
 	shutdownCancel context.CancelFunc // Cancels the shutdownCtx to indicate shutdown starting.
+
+	Extensions extensions.Extensions // Extensions supported at runtime by the daemon.
 
 	// stop is a sync.Once which wraps the daemon's stop sequence. Each call will block until the first one completes.
 	stop func() error
@@ -143,6 +146,12 @@ func (d *Daemon) init(listenPort string, extendedEndpoints []rest.Endpoint, sche
 	d.name, err = os.Hostname()
 	if err != nil {
 		return fmt.Errorf("Failed to assign default system name: %w", err)
+	}
+
+	// Initialize the extensions registry with the internal extensions.
+	d.Extensions, err = extensions.NewExtensionRegistry(true)
+	if err != nil {
+		return err
 	}
 
 	d.serverCert, err = util.LoadServerCert(d.os.StateDir)
@@ -636,6 +645,7 @@ func (d *Daemon) State() *state.State {
 
 			return exit, stopErr
 		},
+		Extensions: d.Extensions,
 	}
 
 	return state

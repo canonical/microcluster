@@ -72,7 +72,7 @@ func App(args Args) (*MicroCluster, error) {
 // - `extensionsSchema` is a list of schema updates in the order that they should be applied.
 // - `extensionsAPI` is a list of endpoints to be served over `/1.0`.
 // - `hooks` are a set of functions that trigger at certain points during cluster communication.
-func (m *MicroCluster) Start(ctx context.Context, extensionsAPI []rest.Endpoint, extensionsSchema []schema.Update, hooks *config.Hooks) error {
+func (m *MicroCluster) Start(ctx context.Context, extensionsAPI []rest.Endpoint, extensionsSchema []schema.Update, apiExtensions []string, hooks *config.Hooks) error {
 	// Initialize the logger.
 	err := logger.InitLogger(m.FileSystem.LogFile, "", m.args.Verbose, m.args.Debug, nil)
 	if err != nil {
@@ -89,7 +89,7 @@ func (m *MicroCluster) Start(ctx context.Context, extensionsAPI []rest.Endpoint,
 	ctx, cancel := signal.NotifyContext(ctx, unix.SIGPWR, unix.SIGTERM, unix.SIGINT, unix.SIGQUIT)
 	defer cancel()
 
-	err = d.Run(ctx, m.args.ListenPort, m.FileSystem.StateDir, m.FileSystem.SocketGroup, extensionsAPI, extensionsSchema, hooks)
+	err = d.Run(ctx, m.args.ListenPort, m.FileSystem.StateDir, m.FileSystem.SocketGroup, extensionsAPI, extensionsSchema, apiExtensions, hooks)
 	if err != nil {
 		return fmt.Errorf("Daemon stopped with error: %w", err)
 	}

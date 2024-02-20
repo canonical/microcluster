@@ -96,7 +96,7 @@ func NewDaemon(project string) *Daemon {
 // - `extensionsAPI` is a list of endpoints to be served over `/1.0`.
 // - `extensionsSchema` is a list of schema updates in the order that they should be applied.
 // - `hooks` are a set of functions that trigger at certain points during cluster communication.
-func (d *Daemon) Run(ctx context.Context, listenPort string, stateDir string, socketGroup string, extensionsAPI []rest.Endpoint, extensionsSchema []schema.Update, hooks *config.Hooks) error {
+func (d *Daemon) Run(ctx context.Context, listenPort string, stateDir string, socketGroup string, extensionsAPI []rest.Endpoint, extensionsSchema []schema.Update, apiExtensions []string, hooks *config.Hooks) error {
 	d.shutdownCtx, d.shutdownCancel = context.WithCancel(ctx)
 	if stateDir == "" {
 		stateDir = os.Getenv(sys.StateDir)
@@ -117,7 +117,7 @@ func (d *Daemon) Run(ctx context.Context, listenPort string, stateDir string, so
 		return fmt.Errorf("Failed to initialize directory structure: %w", err)
 	}
 
-	err = d.init(listenPort, extensionsAPI, extensionsSchema, hooks)
+	err = d.init(listenPort, extensionsAPI, extensionsSchema, apiExtensions, hooks)
 	if err != nil {
 		return fmt.Errorf("Daemon failed to start: %w", err)
 	}
@@ -139,7 +139,7 @@ func (d *Daemon) Run(ctx context.Context, listenPort string, stateDir string, so
 	}
 }
 
-func (d *Daemon) init(listenPort string, extendedEndpoints []rest.Endpoint, schemaExtensions []schema.Update, hooks *config.Hooks) error {
+func (d *Daemon) init(listenPort string, extendedEndpoints []rest.Endpoint, schemaExtensions []schema.Update, apiExtensions []string, hooks *config.Hooks) error {
 	d.applyHooks(hooks)
 
 	var err error
@@ -150,6 +150,12 @@ func (d *Daemon) init(listenPort string, extendedEndpoints []rest.Endpoint, sche
 
 	// Initialize the extensions registry with the internal extensions.
 	d.Extensions, err = extensions.NewExtensionRegistry(true)
+	if err != nil {
+		return err
+	}
+
+	// Register the extensions passed at initialization.
+	err = d.Extensions.Register(apiExtensions)
 	if err != nil {
 		return err
 	}

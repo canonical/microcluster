@@ -152,7 +152,7 @@ func (c *cmdDaemon) Run(cmd *cobra.Command, args []string) error {
 		},
 	}
 
-	return m.Start(cmd.Context(), api.Endpoints, database.SchemaExtensions, exampleHooks)
+	return m.Start(cmd.Context(), api.Endpoints, database.SchemaExtensions, []string{}, exampleHooks)
 }
 
 func main() {

@@ -8,6 +8,7 @@ import (
 
 	"github.com/canonical/lxd/lxd/db/query"
 
+	"github.com/canonical/microcluster/internal/extensions"
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/rest/types"
 )
@@ -45,6 +46,7 @@ type InternalClusterMember struct {
 	Certificate    string
 	SchemaInternal uint64
 	SchemaExternal uint64
+	APIExtensions  extensions.Extensions
 	Heartbeat      time.Time
 	Role           Role
 }
@@ -79,6 +81,7 @@ func (c InternalClusterMember) ToAPI() (*internalTypes.ClusterMember, error) {
 		SchemaExternalVersion: c.SchemaExternal,
 		LastHeartbeat:         c.Heartbeat,
 		Status:                internalTypes.MemberUnreachable,
+		Extensions:            c.APIExtensions,
 	}, nil
 }
 

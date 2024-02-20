@@ -3,18 +3,20 @@ package types
 import (
 	"time"
 
+	"github.com/canonical/microcluster/internal/extensions"
 	"github.com/canonical/microcluster/rest/types"
 )
 
 // ClusterMember represents information about a dqlite cluster member.
 type ClusterMember struct {
 	ClusterMemberLocal
-	Role                  string       `json:"role" yaml:"role"`
-	SchemaInternalVersion uint64       `json:"schema_internal_version" yaml:"schema_internal_version"`
-	SchemaExternalVersion uint64       `json:"schema_external_version" yaml:"schema_external_version"`
-	LastHeartbeat         time.Time    `json:"last_heartbeat" yaml:"last_heartbeat"`
-	Status                MemberStatus `json:"status" yaml:"status"`
-	Secret                string       `json:"secret" yaml:"secret"`
+	Role                  string                `json:"role" yaml:"role"`
+	SchemaInternalVersion uint64                `json:"schema_internal_version" yaml:"schema_internal_version"`
+	SchemaExternalVersion uint64                `json:"schema_external_version" yaml:"schema_external_version"`
+	LastHeartbeat         time.Time             `json:"last_heartbeat" yaml:"last_heartbeat"`
+	Status                MemberStatus          `json:"status" yaml:"status"`
+	Extensions            extensions.Extensions `json:"extensions" yaml:"extensions"`
+	Secret                string                `json:"secret" yaml:"secret"`
 }
 
 // ClusterMemberLocal represents local information about a new cluster member.

@@ -28,6 +28,7 @@ func NewSchema() *SchemaUpdateManager {
 			updateInternal: {
 				updateFromV0,
 				updateFromV1,
+				updateFromV2,
 			},
 		},
 	}
@@ -59,6 +60,32 @@ func (m *SchemaUpdateManager) Schema() *SchemaUpdate {
 
 func (m *SchemaUpdateManager) AppendSchema(extensions []schema.Update) {
 	m.updates[updateExternal] = extensions
+}
+
+func updateFromV2(ctx context.Context, tx *sql.Tx) error {
+	stmt := `
+CREATE TABLE internal_cluster_members_new (
+    id                      INTEGER   PRIMARY  KEY    AUTOINCREMENT  NOT  NULL,
+    name                    TEXT      NOT      NULL,
+    address                 TEXT      NOT      NULL,
+    certificate             TEXT      NOT      NULL,
+    schema_internal         INTEGER   NOT      NULL,
+  	schema_external         INTEGER   NOT      NULL,
+    heartbeat               DATETIME  NOT      NULL,
+    role                    TEXT      NOT      NULL,
+    api_extensions          TEXT      NOT      NULL DEFAULT '[]',
+    UNIQUE(name),
+    UNIQUE(certificate)
+);
+
+INSERT INTO internal_cluster_members_new (id, name, address, certificate, schema_internal, schema_external, heartbeat, role, api_extensions)
+SELECT id, name, address, certificate, schema_internal, schema_external, heartbeat, role, '[]' FROM internal_cluster_members;
+
+DROP TABLE internal_cluster_members;
+ALTER TABLE internal_cluster_members_new RENAME TO internal_cluster_members;
+`
+	_, err := tx.ExecContext(ctx, stmt)
+	return err
 }
 
 // updateFromV1 fixes a bug in the schemas table. Previously there was no way to tell when an update was internal, so the last external update would be re-run instead.

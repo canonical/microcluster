@@ -15,12 +15,13 @@ import (
 	"github.com/canonical/lxd/shared/logger"
 
 	"github.com/canonical/microcluster/cluster"
+	"github.com/canonical/microcluster/internal/extensions"
 	"github.com/canonical/microcluster/internal/sys"
 )
 
 // Open opens the dqlite database and loads the schema.
 // Returns true if we need to wait for other nodes to catch up to our version.
-func (db *DB) Open(bootstrap bool, project string) error {
+func (db *DB) Open(ext extensions.Extensions, bootstrap bool, project string) error {
 	ctx, cancel := context.WithTimeout(db.ctx, 30*time.Second)
 	defer cancel()
 

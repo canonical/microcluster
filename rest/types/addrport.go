@@ -7,6 +7,8 @@ import (
 )
 
 // AddrPort is a wrapper for netip.AddrPort for which (json/yaml).(Marshaller/Unmarshaller) are implemented.
+//
+// swagger:type string
 type AddrPort struct {
 	netip.AddrPort
 }

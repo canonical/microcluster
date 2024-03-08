@@ -15,10 +15,13 @@ type ClusterCertificatePut struct {
 }
 
 // X509Certificate is a json/yaml marshallable/unmarshallable type wrapper for x509.Certificate.
+//
+// swagger:type string
 type X509Certificate struct {
 	*x509.Certificate
 }
 
+// ParseX509Certificate returns an X509Certificate from a certificate string.
 func ParseX509Certificate(certStr string) (*X509Certificate, error) {
 	block, _ := pem.Decode([]byte(certStr))
 	if block == nil {

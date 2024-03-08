@@ -1,0 +1,662 @@
+definitions:
+    ClusterMember:
+        properties:
+            address:
+                description: Address of the cluster member.
+                example: 127.0.0.1:9000
+                type: string
+                x-go-name: Address
+            certificate:
+                description: Certificate of the cluster member.
+                example: X509 PEM certificate
+                type: string
+                x-go-name: Certificate
+            last_heartbeat:
+                description: Time of the last heartbeat.
+                example: "2024-04-11T00:00:00-00:00"
+                format: date-time
+                type: string
+                x-go-name: LastHeartbeat
+            name:
+                description: Name of the cluster member.
+                example: server01
+                type: string
+                x-go-name: Name
+            role:
+                description: Role of the cluster in dqlite.
+                example: voter
+                type: string
+                x-go-name: Role
+            schema_version:
+                description: Schema version of the cluster member's database.
+                example: 4
+                format: int64
+                type: integer
+                x-go-name: SchemaVersion
+            secret:
+                description: Secret used for joining the cluster.
+                example: string
+                type: string
+                x-go-name: Secret
+            status:
+                $ref: '#/definitions/MemberStatus'
+        title: ClusterMember represents information about a dqlite cluster member.
+        type: object
+        x-go-package: github.com/canonical/microcluster/internal/rest/types
+    ClusterMemberLocal:
+        properties:
+            address:
+                description: Address of the cluster member.
+                example: 127.0.0.1:9000
+                type: string
+                x-go-name: Address
+            certificate:
+                description: Certificate of the cluster member.
+                example: X509 PEM certificate
+                type: string
+                x-go-name: Certificate
+            name:
+                description: Name of the cluster member.
+                example: server01
+                type: string
+                x-go-name: Name
+        title: ClusterMemberLocal represents local information about a new cluster member.
+        type: object
+        x-go-package: github.com/canonical/microcluster/internal/rest/types
+    MemberStatus:
+        title: MemberStatus represents the online status of a cluster member.
+        type: string
+        x-go-package: github.com/canonical/microcluster/internal/rest/types
+    Operation:
+        description: Operation represents a LXD background operation
+        properties:
+            class:
+                description: Type of operation (task, token or websocket)
+                example: websocket
+                type: string
+                x-go-name: Class
+            created_at:
+                description: Operation creation time
+                example: "2021-03-23T17:38:37.753398689-04:00"
+                format: date-time
+                type: string
+                x-go-name: CreatedAt
+            description:
+                description: Description of the operation
+                example: Executing command
+                type: string
+                x-go-name: Description
+            err:
+                description: Operation error mesage
+                example: Some error message
+                type: string
+                x-go-name: Err
+            id:
+                description: UUID of the operation
+                example: 6916c8a6-9b7d-4abd-90b3-aedfec7ec7da
+                type: string
+                x-go-name: ID
+            location:
+                description: What cluster member this record was found on
+                example: lxd01
+                type: string
+                x-go-name: Location
+            may_cancel:
+                description: Whether the operation can be canceled
+                example: false
+                type: boolean
+                x-go-name: MayCancel
+            metadata:
+                additionalProperties: {}
+                description: Operation specific metadata
+                example:
+                    command:
+                        - bash
+                    environment:
+                        HOME: /root
+                        LANG: C.UTF-8
+                        PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+                        TERM: xterm
+                        USER: root
+                    fds:
+                        "0": da3046cf02c0116febf4ef3fe4eaecdf308e720c05e5a9c730ce1a6f15417f66
+                        "1": 05896879d8692607bd6e4a09475667da3b5f6714418ab0ee0e5720b4c57f754b
+                    interactive: true
+                type: object
+                x-go-name: Metadata
+            resources:
+                additionalProperties:
+                    items:
+                        type: string
+                    type: array
+                description: Affected resourcs
+                example:
+                    containers:
+                        - /1.0/containers/foo
+                    instances:
+                        - /1.0/instances/foo
+                type: object
+                x-go-name: Resources
+            status:
+                description: Status name
+                example: Running
+                type: string
+                x-go-name: Status
+            status_code:
+                $ref: '#/definitions/StatusCode'
+            updated_at:
+                description: Operation last change
+                example: "2021-03-23T17:38:37.753398689-04:00"
+                format: date-time
+                type: string
+                x-go-name: UpdatedAt
+        type: object
+        x-go-package: github.com/canonical/lxd/shared/api
+    Server:
+        properties:
+            address:
+                description: Address of the server.
+                example: 127.0.0.1:9000
+                type: string
+                x-go-name: Address
+            name:
+                description: Name of the server.
+                example: server01
+                type: string
+                x-go-name: Name
+            ready:
+                description: Whether the server is ready to receive requests.
+                example: true
+                type: boolean
+                x-go-name: Ready
+        title: Server represents server status information.
+        type: object
+        x-go-package: github.com/canonical/microcluster/internal/rest/types
+    StatusCode:
+        format: int64
+        title: StatusCode represents a valid LXD operation and container status.
+        type: integer
+        x-go-package: github.com/canonical/lxd/shared/api
+    TokenRecord:
+        properties:
+            name:
+                description: Name of the server.
+                example: server01
+                type: string
+                x-go-name: Name
+            token:
+                description: Token to use by the server.
+                example: encoded token string
+                type: string
+                x-go-name: Token
+        title: TokenRecord holds information for requesting a join token.
+        type: object
+        x-go-package: github.com/canonical/microcluster/internal/rest/types
+    TokenResponse:
+        properties:
+            cluster_cert:
+                description: Public key of the cluster.
+                example: X509 public key
+                type: string
+                x-go-name: ClusterCert
+            cluster_key:
+                description: Private key of the cluster.
+                example: X509 private key
+                type: string
+                x-go-name: ClusterKey
+            cluster_members:
+                description: List of existing cluster members.
+                example: List of ClusterMemberLocal
+                items:
+                    $ref: '#/definitions/ClusterMemberLocal'
+                type: array
+                x-go-name: ClusterMembers
+        title: TokenResponse holds the information for connecting to a cluster by a node with a valid join token.
+        type: object
+        x-go-package: github.com/canonical/microcluster/internal/rest/types
+info:
+    contact:
+        email: lxd@lists.canonical.com
+        name: microcluster
+        url: https://github.com/canonical/microcluster
+    description: |-
+        This is the REST API used by microcluster.
+        Internal endpoints aren't included in this documentation.
+
+        The microcluster API is available over remote https.
+        For remote users, the default authentication method is TLS.
+    license:
+        name: Apache-2.0
+        url: https://www.apache.org/licenses/LICENSE-2.0
+    title: microcluster REST API
+    version: "1.0"
+paths:
+    /cluster/1.0:
+        get:
+            description: Shows the full server environment and configuration.
+            operationId: server_get
+            produces:
+                - application/json
+            responses:
+                "200":
+                    description: Server environment and configuration
+                    schema:
+                        description: Sync response
+                        properties:
+                            metadata:
+                                $ref: '#/definitions/Server'
+                            status:
+                                description: Status description
+                                example: Success
+                                type: string
+                            status_code:
+                                description: Status code
+                                example: 200
+                                type: integer
+                            type:
+                                description: Response type
+                                example: sync
+                                type: string
+                        type: object
+                "400":
+                    $ref: '#/responses/BadRequest'
+                "500":
+                    $ref: '#/responses/InternalServerError'
+            summary: Get the server environment and configuration
+            tags:
+                - server
+    /cluster/1.0/cluster:
+        get:
+            description: Fetches the list of cluster members.
+            operationId: cluster_get
+            produces:
+                - application/json
+            responses:
+                "200":
+                    description: ""
+                    schema:
+                        description: Sync response
+                        properties:
+                            metadata:
+                                description: List of cluster members
+                                items:
+                                    $ref: '#/definitions/ClusterMember'
+                                type: array
+                            status:
+                                description: Status description
+                                example: Success
+                                type: string
+                            status_code:
+                                description: Status code
+                                example: 200
+                                type: integer
+                            type:
+                                description: Response type
+                                example: sync
+                                type: string
+                        type: object
+                "400":
+                    $ref: '#/responses/BadRequest'
+                "403":
+                    $ref: '#/responses/Forbidden'
+                "500":
+                    $ref: '#/responses/InternalServerError'
+            summary: Get cluster members
+            tags:
+                - cluster
+        post:
+            consumes:
+                - application/json
+            description: Creates a new cluster member record on the dqlite leader and returns a join token. If the request is a cluster notification, it runs the `OnNewMember` hook.
+            operationId: cluster_post
+            parameters:
+                - description: Cluster member record
+                  in: body
+                  name: cluster
+                  required: true
+                  schema:
+                    $ref: '#/definitions/ClusterMember'
+            produces:
+                - application/json
+            responses:
+                "200":
+                    description: Cluster token response
+                    schema:
+                        description: Sync response
+                        properties:
+                            metadata:
+                                $ref: '#/definitions/TokenResponse'
+                            status:
+                                description: Status description
+                                example: Success
+                                type: string
+                            status_code:
+                                description: Status code
+                                example: 200
+                                type: integer
+                            type:
+                                description: Response type
+                                example: sync
+                                type: string
+                        type: object
+                "400":
+                    $ref: '#/responses/BadRequest'
+                "403":
+                    $ref: '#/responses/Forbidden'
+                "500":
+                    $ref: '#/responses/InternalServerError'
+            summary: Add a cluster member
+            tags:
+                - cluster
+        put:
+            consumes:
+                - application/json
+            description: Updates the corresponding cluster record on all cluster members.
+            operationId: cluster_put
+            parameters:
+                - description: Cluster member record
+                  in: body
+                  name: cluster
+                  required: true
+                  schema:
+                    $ref: '#/definitions/ClusterMember'
+            produces:
+                - application/json
+            responses:
+                "200":
+                    $ref: '#/responses/EmptySyncResponse'
+                "400":
+                    $ref: '#/responses/BadRequest'
+                "403":
+                    $ref: '#/responses/Forbidden'
+                "500":
+                    $ref: '#/responses/InternalServerError'
+            summary: Update cluster member information
+            tags:
+                - cluster
+    /cluster/1.0/cluster/{name}:
+        delete:
+            consumes:
+                - application/json
+            description: Removes the cluster member from the database. If the request is a cluster notification, it runs the `PostRemoveHook`.
+            operationId: cluster_member_delete
+            parameters:
+                - description: Force remove the cluster member
+                  example: default
+                  in: query
+                  name: force
+                  type: boolean
+            produces:
+                - application/json
+            responses:
+                "200":
+                    $ref: '#/responses/EmptySyncResponse'
+                "400":
+                    $ref: '#/responses/BadRequest'
+                "403":
+                    $ref: '#/responses/Forbidden'
+                "500":
+                    $ref: '#/responses/InternalServerError'
+            summary: Remove cluster member
+            tags:
+                - cluster
+        put:
+            consumes:
+                - application/json
+            description: Resets the given cluster member's cluster configuration after it has been removed from the cluster. If the request is a cluster notification, it runs the `PreRemoveHook`.
+            operationId: cluster_member_put
+            parameters:
+                - description: Force reset the cluster member
+                  example: default
+                  in: query
+                  name: force
+                  type: boolean
+            produces:
+                - application/json
+            responses:
+                "200":
+                    $ref: '#/responses/EmptySyncResponse'
+                "400":
+                    $ref: '#/responses/BadRequest'
+                "403":
+                    $ref: '#/responses/Forbidden'
+                "500":
+                    $ref: '#/responses/InternalServerError'
+            summary: Reset clustering configuration
+            tags:
+                - cluster
+    /cluster/1.0/ready:
+        get:
+            description: Waits until the server has reported that it is finished setting up and is ready to receive requests.
+            operationId: ready_get
+            produces:
+                - application/json
+            responses:
+                "200":
+                    $ref: '#/responses/EmptySyncResponse'
+                "400":
+                    $ref: '#/responses/BadRequest'
+                "403":
+                    $ref: '#/responses/Forbidden'
+                "500":
+                    $ref: '#/responses/InternalServerError'
+            summary: Waits for the server to start
+            tags:
+                - ready
+    /cluster/1.0/tokens:
+        get:
+            description: List all existing join tokens and the system they correspond to.
+            operationId: tokens_get
+            produces:
+                - application/json
+            responses:
+                "200":
+                    description: ""
+                    schema:
+                        description: Sync response
+                        properties:
+                            metadata:
+                                description: List of tokens
+                                items:
+                                    $ref: '#/definitions/TokenRecord'
+                                type: array
+                            status:
+                                description: Status description
+                                example: Success
+                                type: string
+                            status_code:
+                                description: Status code
+                                example: 200
+                                type: integer
+                            type:
+                                description: Response type
+                                example: sync
+                                type: string
+                        type: object
+                "400":
+                    $ref: '#/responses/BadRequest'
+                "403":
+                    $ref: '#/responses/Forbidden'
+                "500":
+                    $ref: '#/responses/InternalServerError'
+            summary: List join tokens
+            tags:
+                - tokens
+        post:
+            consumes:
+                - application/json
+            description: Generate a join token to be used by another system to join the cluster.
+            operationId: tokens_post
+            parameters:
+                - description: Joining system name
+                  in: body
+                  name: cluster
+                  required: true
+                  schema:
+                    $ref: '#/definitions/TokenRecord'
+            produces:
+                - application/json
+            responses:
+                "200":
+                    description: Cluster token response
+                    schema:
+                        description: Sync response
+                        properties:
+                            metadata:
+                                type: string
+                            status:
+                                description: Status description
+                                example: Success
+                                type: string
+                            status_code:
+                                description: Status code
+                                example: 200
+                                type: integer
+                            type:
+                                description: Response type
+                                example: sync
+                                type: string
+                        type: object
+                "400":
+                    $ref: '#/responses/BadRequest'
+                "403":
+                    $ref: '#/responses/Forbidden'
+                "500":
+                    $ref: '#/responses/InternalServerError'
+            summary: Issue a join token
+            tags:
+                - tokens
+responses:
+    BadRequest:
+        description: Bad Request
+        schema:
+            properties:
+                error:
+                    example: bad request
+                    type: string
+                    x-go-name: Error
+                error_code:
+                    example: 400
+                    format: int64
+                    type: integer
+                    x-go-name: ErrorCode
+                type:
+                    example: error
+                    type: string
+                    x-go-name: Type
+            type: object
+    EmptySyncResponse:
+        description: Empty sync response
+        schema:
+            properties:
+                status:
+                    example: Success
+                    type: string
+                    x-go-name: Status
+                status_code:
+                    example: 200
+                    format: int64
+                    type: integer
+                    x-go-name: StatusCode
+                type:
+                    example: sync
+                    type: string
+                    x-go-name: Type
+            type: object
+    Forbidden:
+        description: Forbidden
+        schema:
+            properties:
+                error:
+                    example: not authorized
+                    type: string
+                    x-go-name: Error
+                error_code:
+                    example: 403
+                    format: int64
+                    type: integer
+                    x-go-name: ErrorCode
+                type:
+                    example: error
+                    type: string
+                    x-go-name: Type
+            type: object
+    InternalServerError:
+        description: Internal Server Error
+        schema:
+            properties:
+                error:
+                    example: internal server error
+                    type: string
+                    x-go-name: Error
+                error_code:
+                    example: 500
+                    format: int64
+                    type: integer
+                    x-go-name: ErrorCode
+                type:
+                    example: error
+                    type: string
+                    x-go-name: Type
+            type: object
+    NotFound:
+        description: Not found
+        schema:
+            properties:
+                error:
+                    example: not found
+                    type: string
+                    x-go-name: Error
+                error_code:
+                    example: 404
+                    format: int64
+                    type: integer
+                    x-go-name: ErrorCode
+                type:
+                    example: error
+                    type: string
+                    x-go-name: Type
+            type: object
+    Operation:
+        description: Operation
+        schema:
+            properties:
+                metadata:
+                    $ref: '#/definitions/Operation'
+                operation:
+                    example: /1.0/operations/66e83638-9dd7-4a26-aef2-5462814869a1
+                    type: string
+                    x-go-name: Operation
+                status:
+                    example: Operation created
+                    type: string
+                    x-go-name: Status
+                status_code:
+                    example: 100
+                    format: int64
+                    type: integer
+                    x-go-name: StatusCode
+                type:
+                    example: async
+                    type: string
+                    x-go-name: Type
+            type: object
+    PreconditionFailed:
+        description: Precondition Failed
+        schema:
+            properties:
+                error:
+                    example: precondition failed
+                    type: string
+                    x-go-name: Error
+                error_code:
+                    example: 412
+                    format: int64
+                    type: integer
+                    x-go-name: ErrorCode
+                type:
+                    example: error
+                    type: string
+                    x-go-name: Type
+            type: object
+swagger: "2.0"

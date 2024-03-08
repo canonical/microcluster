@@ -15,7 +15,7 @@ import (
 var api10Cmd = rest.Endpoint{
 	AllowedBeforeInit: true,
 
-	Get: rest.EndpointAction{Handler: api10Get, AccessHandler: access.AllowAuthenticated},
+	Get: rest.EndpointAction{Handler: api10Get, AllowUntrusted: true},
 }
 
 func api10Get(s *state.State, r *http.Request) response.Response {

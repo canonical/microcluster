@@ -35,15 +35,180 @@ import (
 var clusterCmd = rest.Endpoint{
 	Path: "cluster",
 
-	Put:  rest.EndpointAction{Handler: clusterPut, AccessHandler: access.AllowAuthenticated},
+	// swagger:operation PUT /cluster/1.0/cluster cluster cluster_put
+	//
+	//	Update cluster member information
+	//
+	//	Updates the corresponding cluster record on all cluster members.
+	//
+	//	---
+	//	consumes:
+	//	  - application/json
+	//	produces:
+	//	  - application/json
+	//	parameters:
+	//	  - in: body
+	//	    name: cluster
+	//	    description: Cluster member record
+	//	    required: true
+	//	    schema:
+	//	      $ref: "#/definitions/ClusterMember"
+	//	responses:
+	//	  "200":
+	//	    $ref: "#/responses/EmptySyncResponse"
+	//	  "400":
+	//	    $ref: "#/responses/BadRequest"
+	//	  "403":
+	//	    $ref: "#/responses/Forbidden"
+	//	  "500":
+	//	    $ref: "#/responses/InternalServerError"
+	Put: rest.EndpointAction{Handler: clusterPut, AccessHandler: access.AllowAuthenticated},
+
+	// swagger:operation POST /cluster/1.0/cluster cluster cluster_post
+	//
+	//  Add a cluster member
+	//
+	//	Creates a new cluster member record on the dqlite leader and returns a join token. If the request is a cluster notification, it runs the `OnNewMember` hook.
+	//
+	//	---
+	//	consumes:
+	//	  - application/json
+	//	produces:
+	//	  - application/json
+	//	parameters:
+	//	  - in: body
+	//	    name: cluster
+	//	    description: Cluster member record
+	//	    required: true
+	//	    schema:
+	//	      $ref: "#/definitions/ClusterMember"
+	//	responses:
+	//	  "200":
+	//	    description: Cluster token response
+	//	    schema:
+	//	      type: object
+	//	      description: Sync response
+	//	      properties:
+	//	        type:
+	//	          type: string
+	//	          description: Response type
+	//	          example: sync
+	//	        status:
+	//	          type: string
+	//	          description: Status description
+	//	          example: Success
+	//	        status_code:
+	//	          type: integer
+	//	          description: Status code
+	//	          example: 200
+	//	        metadata:
+	//	          $ref: "#/definitions/TokenResponse"
+	//	  "400":
+	//	    $ref: "#/responses/BadRequest"
+	//	  "403":
+	//	    $ref: "#/responses/Forbidden"
+	//	  "500":
+	//	    $ref: "#/responses/InternalServerError"
 	Post: rest.EndpointAction{Handler: clusterPost, AllowUntrusted: true, AccessHandler: access.RestrictNotification},
-	Get:  rest.EndpointAction{Handler: clusterGet, AccessHandler: access.AllowAuthenticated},
+
+	// swagger:operation GET /cluster/1.0/cluster cluster cluster_get
+	//
+	//  Get cluster members
+	//
+	//	Fetches the list of cluster members.
+	//
+	//	---
+	//	produces:
+	//	  - application/json
+	//	responses:
+	//	  "200":
+	//	    schema:
+	//	      type: object
+	//	      description: Sync response
+	//	      properties:
+	//	        type:
+	//	          type: string
+	//	          description: Response type
+	//	          example: sync
+	//	        status:
+	//	          type: string
+	//	          description: Status description
+	//	          example: Success
+	//	        status_code:
+	//	          type: integer
+	//	          description: Status code
+	//	          example: 200
+	//	        metadata:
+	//	          type: array
+	//	          description: List of cluster members
+	//	          items:
+	//  	          $ref: "#/definitions/ClusterMember"
+	//	  "400":
+	//	    $ref: "#/responses/BadRequest"
+	//	  "403":
+	//	    $ref: "#/responses/Forbidden"
+	//	  "500":
+	//	    $ref: "#/responses/InternalServerError"
+	Get: rest.EndpointAction{Handler: clusterGet, AccessHandler: access.AllowAuthenticated},
 }
 
 var clusterMemberCmd = rest.Endpoint{
 	Path: "cluster/{name}",
 
-	Put:    rest.EndpointAction{Handler: clusterMemberPut, AccessHandler: access.AllowAuthenticated},
+	// swagger:operation PUT /cluster/1.0/cluster/{name} cluster cluster_member_put
+	//
+	//	Reset clustering configuration
+	//
+	//	Resets the given cluster member's cluster configuration after it has been removed from the cluster. If the request is a cluster notification, it runs the `PreRemoveHook`.
+	//
+	//	---
+	//	consumes:
+	//	  - application/json
+	//	produces:
+	//	  - application/json
+	//	parameters:
+	//	  - in: query
+	//	    name: force
+	//	    description: Force reset the cluster member
+	//	    type: boolean
+	//	    example: default
+	//	responses:
+	//	  "200":
+	//	    $ref: "#/responses/EmptySyncResponse"
+	//	  "400":
+	//	    $ref: "#/responses/BadRequest"
+	//	  "403":
+	//	    $ref: "#/responses/Forbidden"
+	//	  "500":
+	//	    $ref: "#/responses/InternalServerError"
+	Put: rest.EndpointAction{Handler: clusterMemberPut, AccessHandler: access.AllowAuthenticated},
+
+	// swagger:operation DELETE /cluster/1.0/cluster/{name} cluster cluster_member_delete
+	//
+	//	Remove cluster member
+	//
+	//	Removes the cluster member from the database. If the request is a cluster notification, it runs the `PostRemoveHook`.
+	//
+	//	---
+	//	consumes:
+	//	  - application/json
+	//	produces:
+	//	  - application/json
+	//	parameters:
+	//	  - in: query
+	//	    name: force
+	//	    description: Force remove the cluster member
+	//	    type: boolean
+	//	    example: default
+	//	responses:
+	//	  "200":
+	//	    $ref: "#/responses/EmptySyncResponse"
+	//	  "400":
+	//	    $ref: "#/responses/BadRequest"
+	//	  "403":
+	//	    $ref: "#/responses/Forbidden"
+	//	  "500":
+	//	    $ref: "#/responses/InternalServerError"
 	Delete: rest.EndpointAction{Handler: clusterMemberDelete, AccessHandler: access.AllowAuthenticated},
 }
 

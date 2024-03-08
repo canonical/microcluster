@@ -23,8 +23,92 @@ import (
 var tokensCmd = rest.Endpoint{
 	Path: "tokens",
 
+	// swagger:operation POST /cluster/1.0/tokens tokens tokens_post
+	//
+	//  Issue a join token
+	//
+	//	Generate a join token to be used by another system to join the cluster.
+	//
+	//	---
+	//	consumes:
+	//	  - application/json
+	//	produces:
+	//	  - application/json
+	//	parameters:
+	//	  - in: body
+	//	    name: cluster
+	//	    description: Joining system name
+	//	    required: true
+	//	    schema:
+	//	      $ref: "#/definitions/TokenRecord"
+	//	responses:
+	//	  "200":
+	//	    description: Cluster token response
+	//	    schema:
+	//	      type: object
+	//	      description: Sync response
+	//	      properties:
+	//	        type:
+	//	          type: string
+	//	          description: Response type
+	//	          example: sync
+	//	        status:
+	//	          type: string
+	//	          description: Status description
+	//	          example: Success
+	//	        status_code:
+	//	          type: integer
+	//	          description: Status code
+	//	          example: 200
+	//	        metadata:
+	// 						type: string
+	//	  "400":
+	//	    $ref: "#/responses/BadRequest"
+	//	  "403":
+	//	    $ref: "#/responses/Forbidden"
+	//	  "500":
+	//	    $ref: "#/responses/InternalServerError"
 	Post: rest.EndpointAction{Handler: tokensPost, AccessHandler: access.AllowAuthenticated},
-	Get:  rest.EndpointAction{Handler: tokensGet, AccessHandler: access.AllowAuthenticated},
+
+	// swagger:operation GET /cluster/1.0/tokens tokens tokens_get
+	//
+	//  List join tokens
+	//
+	//	List all existing join tokens and the system they correspond to.
+	//
+	//	---
+	//	produces:
+	//	  - application/json
+	//	responses:
+	//	  "200":
+	//	    schema:
+	//	      type: object
+	//	      description: Sync response
+	//	      properties:
+	//	        type:
+	//	          type: string
+	//	          description: Response type
+	//	          example: sync
+	//	        status:
+	//	          type: string
+	//	          description: Status description
+	//	          example: Success
+	//	        status_code:
+	//	          type: integer
+	//	          description: Status code
+	//	          example: 200
+	//	        metadata:
+	//	          type: array
+	//	          description: List of tokens
+	//	          items:
+	//  	          $ref: "#/definitions/TokenRecord"
+	//	  "400":
+	//	    $ref: "#/responses/BadRequest"
+	//	  "403":
+	//	    $ref: "#/responses/Forbidden"
+	//	  "500":
+	//	    $ref: "#/responses/InternalServerError"
+	Get: rest.EndpointAction{Handler: tokensGet, AccessHandler: access.AllowAuthenticated},
 }
 
 var tokenCmd = rest.Endpoint{

@@ -13,6 +13,7 @@ type ClusterMember struct {
 	SchemaVersion int          `json:"schema_version" yaml:"schema_version"`
 	LastHeartbeat time.Time    `json:"last_heartbeat" yaml:"last_heartbeat"`
 	Status        MemberStatus `json:"status" yaml:"status"`
+	Extensions    []string     `json:"extensions" yaml:"extensions"`
 	Secret        string       `json:"secret" yaml:"secret"`
 }
 

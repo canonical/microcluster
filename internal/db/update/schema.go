@@ -41,6 +41,15 @@ func (s *SchemaUpdate) Version() int {
 	return len(s.updates)
 }
 
+// OverrideUpdate manually executes the update corresponding to the given version number, inclusive of external schema updates.
+func (s *SchemaUpdate) OverrideUpdate(ctx context.Context, tx *sql.Tx, version int) error {
+	if len(s.updates) < version {
+		return fmt.Errorf("Invalid override version: %d", version)
+	}
+
+	return s.updates[version-1](ctx, tx)
+}
+
 // Ensure makes sure that the actual schema in the given database matches the
 // one defined by our updates.
 //

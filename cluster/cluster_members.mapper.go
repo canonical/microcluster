@@ -17,20 +17,20 @@ import (
 var _ = api.ServerEnvironment{}
 
 var internalClusterMemberObjects = RegisterStmt(`
-SELECT internal_cluster_members.id, internal_cluster_members.name, internal_cluster_members.address, internal_cluster_members.certificate, internal_cluster_members.schema, internal_cluster_members.heartbeat, internal_cluster_members.role
+SELECT internal_cluster_members.id, internal_cluster_members.name, internal_cluster_members.address, internal_cluster_members.certificate, internal_cluster_members.schema, internal_cluster_members.internal_api_extensions, internal_cluster_members.external_api_extensions, internal_cluster_members.heartbeat, internal_cluster_members.role
   FROM internal_cluster_members
   ORDER BY internal_cluster_members.name
 `)
 
 var internalClusterMemberObjectsByAddress = RegisterStmt(`
-SELECT internal_cluster_members.id, internal_cluster_members.name, internal_cluster_members.address, internal_cluster_members.certificate, internal_cluster_members.schema, internal_cluster_members.heartbeat, internal_cluster_members.role
+SELECT internal_cluster_members.id, internal_cluster_members.name, internal_cluster_members.address, internal_cluster_members.certificate, internal_cluster_members.schema, internal_cluster_members.internal_api_extensions, internal_cluster_members.external_api_extensions, internal_cluster_members.heartbeat, internal_cluster_members.role
   FROM internal_cluster_members
   WHERE ( internal_cluster_members.address = ? )
   ORDER BY internal_cluster_members.name
 `)
 
 var internalClusterMemberObjectsByName = RegisterStmt(`
-SELECT internal_cluster_members.id, internal_cluster_members.name, internal_cluster_members.address, internal_cluster_members.certificate, internal_cluster_members.schema, internal_cluster_members.heartbeat, internal_cluster_members.role
+SELECT internal_cluster_members.id, internal_cluster_members.name, internal_cluster_members.address, internal_cluster_members.certificate, internal_cluster_members.schema, internal_cluster_members.internal_api_extensions, internal_cluster_members.external_api_extensions, internal_cluster_members.heartbeat, internal_cluster_members.role
   FROM internal_cluster_members
   WHERE ( internal_cluster_members.name = ? )
   ORDER BY internal_cluster_members.name
@@ -42,8 +42,8 @@ SELECT internal_cluster_members.id FROM internal_cluster_members
 `)
 
 var internalClusterMemberCreate = RegisterStmt(`
-INSERT INTO internal_cluster_members (name, address, certificate, schema, heartbeat, role)
-  VALUES (?, ?, ?, ?, ?, ?)
+INSERT INTO internal_cluster_members (name, address, certificate, schema, internal_api_extensions, external_api_extensions, heartbeat, role)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 `)
 
 var internalClusterMemberDeleteByAddress = RegisterStmt(`
@@ -52,14 +52,14 @@ DELETE FROM internal_cluster_members WHERE address = ?
 
 var internalClusterMemberUpdate = RegisterStmt(`
 UPDATE internal_cluster_members
-  SET name = ?, address = ?, certificate = ?, schema = ?, heartbeat = ?, role = ?
+  SET name = ?, address = ?, certificate = ?, schema = ?, internal_api_extensions = ?, external_api_extensions = ?, heartbeat = ?, role = ?
  WHERE id = ?
 `)
 
 // internalClusterMemberColumns returns a string of column names to be used with a SELECT statement for the entity.
 // Use this function when building statements to retrieve database entries matching the InternalClusterMember entity.
 func internalClusterMemberColumns() string {
-	return "internal_cluster_members.id, internal_cluster_members.name, internal_cluster_members.address, internal_cluster_members.certificate, internal_cluster_members.schema, internal_cluster_members.heartbeat, internal_cluster_members.role"
+	return "internal_cluster_members.id, internal_cluster_members.name, internal_cluster_members.address, internal_cluster_members.certificate, internal_cluster_members.schema, internal_cluster_members.internal_api_extensions, internal_cluster_members.external_api_extensions, internal_cluster_members.heartbeat, internal_cluster_members.role"
 }
 
 // getInternalClusterMembers can be used to run handwritten sql.Stmts to return a slice of objects.
@@ -68,7 +68,7 @@ func getInternalClusterMembers(ctx context.Context, stmt *sql.Stmt, args ...any)
 
 	dest := func(scan func(dest ...any) error) error {
 		i := InternalClusterMember{}
-		err := scan(&i.ID, &i.Name, &i.Address, &i.Certificate, &i.Schema, &i.Heartbeat, &i.Role)
+		err := scan(&i.ID, &i.Name, &i.Address, &i.Certificate, &i.Schema, &i.InternalAPIExtensions, &i.ExternalAPIExtensions, &i.Heartbeat, &i.Role)
 		if err != nil {
 			return err
 		}
@@ -92,7 +92,7 @@ func getInternalClusterMembersRaw(ctx context.Context, tx *sql.Tx, sql string, a
 
 	dest := func(scan func(dest ...any) error) error {
 		i := InternalClusterMember{}
-		err := scan(&i.ID, &i.Name, &i.Address, &i.Certificate, &i.Schema, &i.Heartbeat, &i.Role)
+		err := scan(&i.ID, &i.Name, &i.Address, &i.Certificate, &i.Schema, &i.InternalAPIExtensions, &i.ExternalAPIExtensions, &i.Heartbeat, &i.Role)
 		if err != nil {
 			return err
 		}
@@ -272,15 +272,17 @@ func CreateInternalClusterMember(ctx context.Context, tx *sql.Tx, object Interna
 		return -1, api.StatusErrorf(http.StatusConflict, "This \"internal_cluster_members\" entry already exists")
 	}
 
-	args := make([]any, 6)
+	args := make([]any, 8)
 
 	// Populate the statement arguments.
 	args[0] = object.Name
 	args[1] = object.Address
 	args[2] = object.Certificate
 	args[3] = object.Schema
-	args[4] = object.Heartbeat
-	args[5] = object.Role
+	args[4] = object.InternalAPIExtensions
+	args[5] = object.ExternalAPIExtensions
+	args[6] = object.Heartbeat
+	args[7] = object.Role
 
 	// Prepared statement to use.
 	stmt, err := Stmt(tx, internalClusterMemberCreate)
@@ -342,7 +344,7 @@ func UpdateInternalClusterMember(ctx context.Context, tx *sql.Tx, name string, o
 		return fmt.Errorf("Failed to get \"internalClusterMemberUpdate\" prepared statement: %w", err)
 	}
 
-	result, err := stmt.Exec(object.Name, object.Address, object.Certificate, object.Schema, object.Heartbeat, object.Role, id)
+	result, err := stmt.Exec(object.Name, object.Address, object.Certificate, object.Schema, object.InternalAPIExtensions, object.ExternalAPIExtensions, object.Heartbeat, object.Role, id)
 	if err != nil {
 		return fmt.Errorf("Update \"internal_cluster_members\" entry failed: %w", err)
 	}

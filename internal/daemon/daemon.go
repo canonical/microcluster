@@ -26,6 +26,7 @@ import (
 	"github.com/canonical/microcluster/config"
 	"github.com/canonical/microcluster/internal/db"
 	"github.com/canonical/microcluster/internal/endpoints"
+	"github.com/canonical/microcluster/internal/extensions"
 	internalREST "github.com/canonical/microcluster/internal/rest"
 	internalClient "github.com/canonical/microcluster/internal/rest/client"
 	"github.com/canonical/microcluster/internal/rest/resources"
@@ -62,6 +63,8 @@ type Daemon struct {
 	ShutdownCtx    context.Context    // Cancelled when shutdown starts.
 	ShutdownDoneCh chan error         // Receives the result of the d.Stop() function and tells the daemon to end.
 	ShutdownCancel context.CancelFunc // Cancels the shutdownCtx to indicate shutdown starting.
+
+	Extensions *extensions.Extensions // Extensions supported at runtime by the daemon.
 }
 
 // NewDaemon initializes the Daemon context and channels.
@@ -77,7 +80,7 @@ func NewDaemon(ctx context.Context, project string) *Daemon {
 }
 
 // Init initializes the Daemon with the given configuration, and starts the database.
-func (d *Daemon) Init(listenPort string, stateDir string, socketGroup string, extendedEndpoints []rest.Endpoint, schemaExtensions map[int]schema.Update, hooks *config.Hooks) error {
+func (d *Daemon) Init(listenPort string, stateDir string, socketGroup string, extendedEndpoints []rest.Endpoint, schemaExtensions map[int]schema.Update, apiExtensions []string, hooks *config.Hooks) error {
 	if stateDir == "" {
 		stateDir = os.Getenv(sys.StateDir)
 	}
@@ -97,7 +100,7 @@ func (d *Daemon) Init(listenPort string, stateDir string, socketGroup string, ex
 		return fmt.Errorf("Failed to initialize directory structure: %w", err)
 	}
 
-	err = d.init(listenPort, extendedEndpoints, schemaExtensions, hooks)
+	err = d.init(listenPort, extendedEndpoints, schemaExtensions, apiExtensions, hooks)
 	if err != nil {
 		return fmt.Errorf("Daemon failed to start: %w", err)
 	}
@@ -112,13 +115,25 @@ func (d *Daemon) Init(listenPort string, stateDir string, socketGroup string, ex
 	return nil
 }
 
-func (d *Daemon) init(listenPort string, extendedEndpoints []rest.Endpoint, schemaExtensions map[int]schema.Update, hooks *config.Hooks) error {
+func (d *Daemon) init(listenPort string, extendedEndpoints []rest.Endpoint, schemaExtensions map[int]schema.Update, apiExtensions []string, hooks *config.Hooks) error {
 	d.applyHooks(hooks)
 
 	var err error
 	d.name, err = os.Hostname()
 	if err != nil {
 		return fmt.Errorf("Failed to assign default system name: %w", err)
+	}
+
+	// Initialize the extensions registry with the internal extensions.
+	d.Extensions, err = extensions.NewExtensionRegistry(true)
+	if err != nil {
+		return err
+	}
+
+	// Register the extensions passed at initialization.
+	err = d.Extensions.Register(apiExtensions)
+	if err != nil {
+		return err
 	}
 
 	d.serverCert, err = util.LoadServerCert(d.os.StateDir)
@@ -383,7 +398,7 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 			Role:        cluster.Pending,
 		}
 
-		err = d.db.Bootstrap(d.project, d.address, clusterMember)
+		err = d.db.Bootstrap(d.Extensions, d.project, d.address, clusterMember)
 		if err != nil {
 			return err
 		}
@@ -403,12 +418,12 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 	}
 
 	if len(joinAddresses) != 0 {
-		err = d.db.Join(d.project, d.address, joinAddresses...)
+		err = d.db.Join(d.Extensions, d.project, d.address, joinAddresses...)
 		if err != nil {
 			return fmt.Errorf("Failed to join cluster: %w", err)
 		}
 	} else {
-		err = d.db.StartWithCluster(d.project, d.address, d.trustStore.Remotes().Addresses())
+		err = d.db.StartWithCluster(d.Extensions, d.project, d.address, d.trustStore.Remotes().Addresses())
 		if err != nil {
 			return fmt.Errorf("Failed to re-establish cluster connection: %w", err)
 		}
@@ -568,6 +583,7 @@ func (d *Daemon) State() *state.State {
 		Remotes:        d.trustStore.Remotes,
 		StartAPI:       d.StartAPI,
 		Stop:           d.Stop,
+		Extensions:     d.Extensions,
 	}
 
 	return state

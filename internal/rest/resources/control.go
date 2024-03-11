@@ -78,6 +78,7 @@ func joinWithToken(state *state.State, req *internalTypes.Control) response.Resp
 			Certificate: localClusterMember.Certificate,
 		},
 		SchemaVersion: state.Database.Schema().Version(),
+		Extensions:    state.Extensions.SerializeForAPI(),
 		Secret:        token.Secret,
 	}
 

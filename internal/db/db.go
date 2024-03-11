@@ -15,12 +15,13 @@ import (
 	"github.com/canonical/lxd/shared/logger"
 
 	"github.com/canonical/microcluster/cluster"
+	"github.com/canonical/microcluster/internal/extensions"
 	"github.com/canonical/microcluster/internal/sys"
 )
 
 // Open opens the dqlite database and loads the schema.
 // Returns true if we need to wait for other nodes to catch up to our version.
-func (db *DB) Open(bootstrap bool, project string) error {
+func (db *DB) Open(ext *extensions.Extensions, bootstrap bool, project string) error {
 	ctx, cancel := context.WithTimeout(db.ctx, 30*time.Second)
 	defer cancel()
 
@@ -38,37 +39,68 @@ func (db *DB) Open(bootstrap bool, project string) error {
 	newSchema := db.Schema()
 	if !bootstrap {
 		checkVersions := func(ctx context.Context, current int, tx *sql.Tx) error {
-			schemaVersion := newSchema.Version()
-			err = cluster.UpdateClusterMemberSchemaVersion(tx, schemaVersion, db.listenAddr.URL.Host)
+			// Override the second update to ensure that the API extensions are available.
+			err := newSchema.OverrideUpdate(ctx, tx, 2)
 			if err != nil {
-				return fmt.Errorf("Failed to update schema version when joining cluster: %w", err)
+				return err
 			}
 
-			versions, err := cluster.GetClusterMemberSchemaVersions(ctx, tx)
+			schemaVersion := newSchema.Version()
+			info := cluster.InternalClusterMemberVersioningInfo{
+				SchemaVersion: schemaVersion,
+				Extensions:    ext,
+			}
+
+			err = cluster.UpdateClusterMemberSchemaVersionAndAPIExtensions(tx, info, db.listenAddr.URL.Host)
+			if err != nil {
+				return fmt.Errorf("Failed to update schema version when joining/upgrading cluster: %w", err)
+			}
+
+			versioningInfo, err := cluster.GetClusterMemberSchemaVersionsAndAPIExtensions(ctx, tx)
 			if err != nil {
 				return fmt.Errorf("Failed to get other members' schema versions: %w", err)
 			}
 
-			for _, version := range versions {
-				if schemaVersion == version {
-					// Versions are equal, there's hope for the
-					// update. Let's check the next node.
-					continue
+			for _, versionInfo := range versioningInfo {
+				isSameVersion := ext.IsSameVersion(versionInfo.Extensions) == nil
+				if isSameVersion {
+					// All the API extensions are equal, now check the schema version
+					if schemaVersion == versionInfo.SchemaVersion {
+						// Versions and API extensions are equal, there's hope for the
+						// update. Let's check the next node.
+						continue
+					}
+
+					if schemaVersion > versionInfo.SchemaVersion {
+						// Our version is bigger, we should stop here
+						// and wait for other nodes to be upgraded and
+						// restarted.
+						otherNodesBehind = true
+						return schema.ErrGracefulAbort
+					}
+
+					// Another node has a version greater than ours
+					// and presumably is waiting for other nodes
+					// to upgrade. Let's error out and shutdown
+					// since we need a greater version.
+					return fmt.Errorf("Cluster expects Schema version (%d) but this system has (%d), please upgrade", versionInfo.SchemaVersion, schemaVersion)
 				}
 
-				if schemaVersion > version {
-					// Our version is bigger, we should stop here
-					// and wait for other nodes to be upgraded and
-					// restarted.
-					otherNodesBehind = true
-					return schema.ErrGracefulAbort
+				if versionInfo.Extensions != nil {
+					if ext.Version() <= versionInfo.Extensions.Version() {
+						// Another node has an API extension set bigger than ours
+						// and presumably is waiting for other nodes
+						// to upgrade. Let's error out and shutdown
+						// since we need a greater version.
+						return fmt.Errorf("Cluster expects API version (%d) but this system has (%d), please upgrade", versionInfo.Extensions.Version(), ext.Version())
+					}
 				}
 
-				// Another node has a version greater than ours
-				// and presumeably is waiting for other nodes
-				// to upgrade. Let's error out and shutdown
-				// since we need a greater version.
-				return fmt.Errorf("this node's version is behind, please upgrade")
+				// Our version is bigger or the API extension system does not exist on the other node, we should stop here
+				// and wait for other nodes to be upgraded and
+				// restarted.
+				otherNodesBehind = true
+				return schema.ErrGracefulAbort
 			}
 
 			return nil

@@ -22,6 +22,7 @@ import (
 
 	"github.com/canonical/microcluster/client"
 	"github.com/canonical/microcluster/cluster"
+	"github.com/canonical/microcluster/internal/extensions"
 	"github.com/canonical/microcluster/internal/rest/access"
 	internalClient "github.com/canonical/microcluster/internal/rest/client"
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
@@ -129,14 +130,45 @@ func clusterPost(s *state.State, r *http.Request) response.Response {
 		return response.SyncResponse(true, tokenResponse)
 	}
 
+	// Check if the joining node's extensions are compatible with the leader's.
+	targetExtensions, err := extensions.NewExtensionRegistryFromList(req.Extensions)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	err = s.Extensions.IsSameVersion(targetExtensions)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	// Then add the new member's extensions to the database.
+	internalExtensions, externalExtensions := targetExtensions.SerializeForDB()
+
 	err = s.Database.Transaction(s.Context, func(ctx context.Context, tx *sql.Tx) error {
+		var internalExtensionSQL sql.NullString
+		var externalExtensionSQL sql.NullString
+
+		if internalExtensions != "" {
+			internalExtensionSQL = sql.NullString{String: internalExtensions, Valid: true}
+		} else {
+			internalExtensionSQL = sql.NullString{Valid: false}
+		}
+
+		if externalExtensions != "" {
+			externalExtensionSQL = sql.NullString{String: externalExtensions, Valid: true}
+		} else {
+			externalExtensionSQL = sql.NullString{Valid: false}
+		}
+
 		dbClusterMember := cluster.InternalClusterMember{
-			Name:        req.Name,
-			Address:     req.Address.String(),
-			Certificate: req.Certificate.String(),
-			Schema:      req.SchemaVersion,
-			Heartbeat:   time.Time{},
-			Role:        cluster.Pending,
+			Name:                  req.Name,
+			Address:               req.Address.String(),
+			Certificate:           req.Certificate.String(),
+			Schema:                req.SchemaVersion,
+			InternalAPIExtensions: internalExtensionSQL,
+			ExternalAPIExtensions: externalExtensionSQL,
+			Heartbeat:             time.Time{},
+			Role:                  cluster.Pending,
 		}
 
 		record, err := cluster.GetInternalTokenRecord(ctx, tx, req.Secret)

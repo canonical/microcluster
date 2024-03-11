@@ -40,6 +40,7 @@ func NewSchema() *SchemaUpdateManager {
 	return &SchemaUpdateManager{
 		updates: map[int]schema.Update{
 			1: updateFromV0,
+			2: updateFromV1,
 		},
 	}
 }
@@ -123,4 +124,47 @@ CREATE TABLE internal_cluster_members (
 
 	_, err := tx.ExecContext(ctx, stmt)
 	return err
+}
+
+func updateFromV1(ctx context.Context, tx *sql.Tx) error {
+	stmt := `
+SELECT count(name)
+FROM pragma_table_info('internal_cluster_members')
+WHERE name IN ('internal_api_extensions', 'external_api_extensions');
+`
+
+	var count int
+	err := tx.QueryRow(stmt).Scan(&count)
+	if err != nil {
+		return err
+	}
+
+	// If we could not find 2 columns, then replace the table.
+	if count != 2 {
+		stmt := `
+CREATE TABLE internal_cluster_members_new (
+    id                      INTEGER   PRIMARY  KEY    AUTOINCREMENT  NOT  NULL,
+    name                    TEXT      NOT      NULL,
+    address                 TEXT      NOT      NULL,
+    certificate             TEXT      NOT      NULL,
+    schema                  INTEGER   NOT      NULL,
+    heartbeat               DATETIME  NOT      NULL,
+    role                    TEXT      NOT      NULL,
+    internal_api_extensions TEXT,
+    external_api_extensions TEXT,
+    UNIQUE(name),
+    UNIQUE(certificate)
+);
+
+INSERT INTO internal_cluster_members_new (id, name, address, certificate, schema, heartbeat, role, internal_api_extensions, external_api_extensions)
+SELECT id, name, address, certificate, schema, heartbeat, role, NULL, NULL FROM internal_cluster_members;
+
+DROP TABLE internal_cluster_members;
+ALTER TABLE internal_cluster_members_new RENAME TO internal_cluster_members;
+`
+		_, err := tx.ExecContext(ctx, stmt)
+		return err
+	}
+
+	return nil
 }

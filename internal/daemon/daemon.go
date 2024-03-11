@@ -239,11 +239,6 @@ func (d *Daemon) reloadIfBootstrapped() error {
 		return err
 	}
 
-	err = d.setDaemonConfig(nil)
-	if err != nil {
-		return fmt.Errorf("Failed to retrieve daemon configuration yaml: %w", err)
-	}
-
 	err = d.StartAPI(false, nil, nil)
 	if err != nil {
 		return err
@@ -315,11 +310,9 @@ func (d *Daemon) initServer(resources ...*resources.Resources) *http.Server {
 // StartAPI starts up the admin and consumer APIs, and generates a cluster cert
 // if we are bootstrapping the first node.
 func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfig *trust.Location, joinAddresses ...string) error {
-	if newConfig != nil {
-		err := d.setDaemonConfig(newConfig)
-		if err != nil {
-			return fmt.Errorf("Failed to apply and save new daemon configuration: %w", err)
-		}
+	_, err := d.setDaemonConfig(newConfig)
+	if err != nil {
+		return fmt.Errorf("Failed to apply and save new daemon configuration: %w", err)
 	}
 
 	if bootstrap {
@@ -420,24 +413,44 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 	}
 
 	// Get a client for every other cluster member in the newly refreshed local store.
-	cluster := make(client.Cluster, 0, d.trustStore.Remotes().Count()-1)
-	for _, addr := range d.trustStore.Remotes().Addresses() {
-		if d.address.URL.Host == addr.String() {
-			continue
+	publicKey, err := d.ClusterCert().PublicKeyX509()
+	if err != nil {
+		return err
+	}
+
+	cluster, err := d.trustStore.Remotes().Cluster(false, d.ServerCert(), publicKey)
+	if err != nil {
+		return err
+	}
+
+	localMemberInfo := internalTypes.ClusterMemberLocal{Name: localNode.Name, Address: localNode.Address, Certificate: localNode.Certificate}
+	var clusterConfirmation bool
+	var lastErr error
+	err = cluster.Query(d.ShutdownCtx, false, func(ctx context.Context, c *client.Client) error {
+		// No need to send a request to ourselves.
+		if d.address.URL.Host == c.URL().URL.Host {
+			return nil
 		}
 
-		publicKey, err := d.ClusterCert().PublicKeyX509()
-		if err != nil {
-			return err
+		// At this point the joiner is only trusted on the node that was leader at the time,
+		// so find it and have it instruct all dqlite members to trust this system now that it is functional.
+		if !clusterConfirmation {
+			err = c.RegisterClusterMember(ctx, internalTypes.ClusterMember{ClusterMemberLocal: localMemberInfo})
+			if err != nil {
+				lastErr = err
+			} else {
+				clusterConfirmation = true
+			}
 		}
 
-		url := api.NewURL().Scheme("https").Host(addr.String())
-		c, err := internalClient.New(*url, d.ServerCert(), publicKey, true)
-		if err != nil {
-			return err
-		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
 
-		cluster = append(cluster, client.Client{Client: *c})
+	if !clusterConfirmation {
+		return fmt.Errorf("Failed to confirm new member on any existing system: %w", lastErr)
 	}
 
 	if len(joinAddresses) > 0 {
@@ -447,38 +460,23 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 		}
 	}
 
-	// Send notification that this node is upgraded to all other cluster members.
+	// Tell the other nodes that this system is up.
 	err = cluster.Query(d.ShutdownCtx, true, func(ctx context.Context, c *client.Client) error {
-		path := c.URL()
-		parts := strings.Split(string(internalClient.InternalEndpoint), "/")
-		parts = append(parts, "database")
-		path = *path.Path(parts...)
-		upgradeRequest, err := http.NewRequest("PATCH", path.String(), nil)
+		c.SetClusterNotification()
+
+		// No need to send a request to ourselves.
+		if d.address.URL.Host == c.URL().URL.Host {
+			return nil
+		}
+
+		// Send notification about this node's dqlite version to all other cluster members.
+		err = d.sendUpgradeNotification(ctx, c)
 		if err != nil {
 			return err
 		}
 
-		upgradeRequest.Header.Set("X-Dqlite-Version", fmt.Sprintf("%d", 1))
-		upgradeRequest = upgradeRequest.WithContext(ctx)
-
-		resp, err := c.Client.Do(upgradeRequest)
-		if err != nil {
-			logger.Error("Failed to send database upgrade request", logger.Ctx{"error": err})
-			return nil
-		}
-
-		defer resp.Body.Close()
-		_, err = io.Copy(io.Discard, resp.Body)
-		if err != nil {
-			logger.Error("Failed to read upgrade notification response body", logger.Ctx{"error": err})
-		}
-
-		if resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("Database upgrade notification failed: %s", resp.Status)
-		}
-
+		// If this was a join request, instruct all peers to run their OnNewMember hook.
 		if len(joinAddresses) > 0 {
-			localMemberInfo := internalTypes.ClusterMemberLocal{Name: localNode.Name, Address: localNode.Address, Certificate: localNode.Certificate}
 			_, err = c.AddClusterMember(ctx, internalTypes.ClusterMember{ClusterMemberLocal: localMemberInfo})
 			if err != nil {
 				return err
@@ -493,6 +491,38 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 
 	if len(joinAddresses) > 0 {
 		return d.hooks.PostJoin(d.State(), initConfig)
+	}
+
+	return nil
+}
+
+func (d *Daemon) sendUpgradeNotification(ctx context.Context, c *client.Client) error {
+	path := c.URL()
+	parts := strings.Split(string(internalClient.InternalEndpoint), "/")
+	parts = append(parts, "database")
+	path = *path.Path(parts...)
+	upgradeRequest, err := http.NewRequest("PATCH", path.String(), nil)
+	if err != nil {
+		return err
+	}
+
+	upgradeRequest.Header.Set("X-Dqlite-Version", fmt.Sprintf("%d", 1))
+	upgradeRequest = upgradeRequest.WithContext(ctx)
+
+	resp, err := c.Client.Do(upgradeRequest)
+	if err != nil {
+		logger.Error("Failed to send database upgrade request", logger.Ctx{"error": err})
+		return nil
+	}
+
+	defer resp.Body.Close()
+	_, err = io.Copy(io.Discard, resp.Body)
+	if err != nil {
+		logger.Error("Failed to read upgrade notification response body", logger.Ctx{"error": err})
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("Database upgrade notification failed: %s", resp.Status)
 	}
 
 	return nil
@@ -587,32 +617,32 @@ func (d *Daemon) Stop() error {
 
 // setDaemonConfig sets the daemon's address and name from the given location information. If none is supplied, the file
 // at `state-dir/daemon.yaml` will be read for the information.
-func (d *Daemon) setDaemonConfig(config *trust.Location) error {
+func (d *Daemon) setDaemonConfig(config *trust.Location) (*trust.Location, error) {
 	if config != nil {
 		bytes, err := yaml.Marshal(config)
 		if err != nil {
-			return fmt.Errorf("Failed to parse daemon config to yaml: %w", err)
+			return nil, fmt.Errorf("Failed to parse daemon config to yaml: %w", err)
 		}
 
 		err = os.WriteFile(filepath.Join(d.os.StateDir, "daemon.yaml"), bytes, 0644)
 		if err != nil {
-			return fmt.Errorf("Failed to write daemon configuration yaml: %w", err)
+			return nil, fmt.Errorf("Failed to write daemon configuration yaml: %w", err)
 		}
 	} else {
 		data, err := os.ReadFile(filepath.Join(d.os.StateDir, "daemon.yaml"))
 		if err != nil {
-			return fmt.Errorf("Failed to find daemon configuration: %w", err)
+			return nil, fmt.Errorf("Failed to find daemon configuration: %w", err)
 		}
 
 		config = &trust.Location{}
 		err = yaml.Unmarshal(data, config)
 		if err != nil {
-			return fmt.Errorf("Failed to parse daemon config from yaml: %w", err)
+			return nil, fmt.Errorf("Failed to parse daemon config from yaml: %w", err)
 		}
 	}
 
 	d.address = *api.NewURL().Scheme("https").Host(config.Address.String())
 	d.name = config.Name
 
-	return nil
+	return config, nil
 }

@@ -5,7 +5,6 @@ import (
 
 	"github.com/canonical/lxd/lxd/response"
 
-	"github.com/canonical/microcluster/internal/rest/access"
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/internal/state"
 	"github.com/canonical/microcluster/rest"
@@ -15,7 +14,7 @@ import (
 var api10Cmd = rest.Endpoint{
 	AllowedBeforeInit: true,
 
-	Get: rest.EndpointAction{Handler: api10Get, AccessHandler: access.AllowAuthenticated},
+	Get: rest.EndpointAction{Handler: api10Get, AllowUntrusted: true},
 }
 
 func api10Get(s *state.State, r *http.Request) response.Response {

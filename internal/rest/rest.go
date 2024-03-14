@@ -2,7 +2,6 @@ package rest
 
 import (
 	"context"
-	"crypto/x509"
 	"database/sql"
 	"fmt"
 	"net/http"
@@ -11,25 +10,25 @@ import (
 
 	"github.com/canonical/lxd/lxd/request"
 	"github.com/canonical/lxd/lxd/response"
-	"github.com/canonical/lxd/lxd/util"
 	"github.com/canonical/lxd/shared/api"
 	"github.com/canonical/lxd/shared/logger"
 	"github.com/gorilla/mux"
 
 	"github.com/canonical/microcluster/cluster"
-	"github.com/canonical/microcluster/internal/rest/access"
+	internalAccess "github.com/canonical/microcluster/internal/rest/access"
 	"github.com/canonical/microcluster/internal/rest/client"
-	internalState "github.com/canonical/microcluster/internal/state"
+	"github.com/canonical/microcluster/internal/state"
 	"github.com/canonical/microcluster/rest"
+	"github.com/canonical/microcluster/rest/access"
 )
 
-func handleAPIRequest(action rest.EndpointAction, state *internalState.State, w http.ResponseWriter, r *http.Request) response.Response {
+func handleAPIRequest(action rest.EndpointAction, state *state.State, w http.ResponseWriter, r *http.Request) response.Response {
 	trusted := r.Context().Value(request.CtxAccess)
 	if trusted == nil {
 		return response.Forbidden(nil)
 	}
 
-	trustedReq, ok := trusted.(access.TrustedRequest)
+	trustedReq, ok := trusted.(internalAccess.TrustedRequest)
 	if !ok {
 		return response.Forbidden(nil)
 	}
@@ -64,7 +63,7 @@ func handleAPIRequest(action rest.EndpointAction, state *internalState.State, w 
 	return action.Handler(state, r)
 }
 
-func proxyTarget(action rest.EndpointAction, s *internalState.State, r *http.Request) response.Response {
+func proxyTarget(action rest.EndpointAction, s *state.State, r *http.Request) response.Response {
 	if r.URL == nil {
 		return action.Handler(s, r)
 	}
@@ -123,13 +122,13 @@ func proxyTarget(action rest.EndpointAction, s *internalState.State, r *http.Req
 	return response.SyncResponse(true, resp.Metadata)
 }
 
-func handleDatabaseRequest(action rest.EndpointAction, state *internalState.State, w http.ResponseWriter, r *http.Request) response.Response {
+func handleDatabaseRequest(action rest.EndpointAction, state *state.State, w http.ResponseWriter, r *http.Request) response.Response {
 	trusted := r.Context().Value(request.CtxAccess)
 	if trusted == nil {
 		return response.Forbidden(nil)
 	}
 
-	trustedReq, ok := trusted.(access.TrustedRequest)
+	trustedReq, ok := trusted.(internalAccess.TrustedRequest)
 	if !ok {
 		return response.Forbidden(nil)
 	}
@@ -162,7 +161,7 @@ func handleDatabaseRequest(action rest.EndpointAction, state *internalState.Stat
 
 // HandleEndpoint adds the endpoint to the mux router. A function variable is used to implement common logic
 // before calling the endpoint action handler associated with the request method, if it exists.
-func HandleEndpoint(state *internalState.State, mux *mux.Router, version string, e rest.Endpoint) {
+func HandleEndpoint(state *state.State, mux *mux.Router, version string, e rest.Endpoint) {
 	url := "/" + version
 	if e.Path != "" {
 		url = filepath.Join(url, e.Path)
@@ -201,11 +200,11 @@ func HandleEndpoint(state *internalState.State, mux *mux.Router, version string,
 			handleRequest = handleDatabaseRequest
 		}
 
-		trusted, err := authenticate(state, r)
+		trusted, err := internalAccess.Authenticate(state, r)
 		if err != nil {
 			resp = response.Forbidden(fmt.Errorf("Failed to authenticate request: %w", err))
 		} else {
-			r = r.WithContext(context.WithValue(r.Context(), any(request.CtxAccess), access.TrustedRequest{Trusted: trusted}))
+			r = internalAccess.SetRequestAuthentication(r, trusted)
 
 			switch r.Method {
 			case "GET":
@@ -240,44 +239,4 @@ func HandleEndpoint(state *internalState.State, mux *mux.Router, version string,
 	if e.Name != "" {
 		route.Name(e.Name)
 	}
-}
-
-// authenticate ensures the request certificates are trusted before proceeding.
-// - Requests over the unix socket are always allowed.
-// - HTTP requests require our cluster cert, or remote certs.
-func authenticate(state *internalState.State, r *http.Request) (bool, error) {
-	if r.RemoteAddr == "@" {
-		return true, nil
-	}
-
-	if state.Address().URL.Host == "" {
-		logger.Info("Allowing unauthenticated request to un-initialized system")
-		return true, nil
-	}
-
-	var trustedCerts map[string]x509.Certificate
-	switch r.Host {
-	case state.Address().URL.Host:
-		trustedCerts = state.Remotes().CertificatesNative()
-	default:
-		return false, fmt.Errorf("Invalid request address %q", r.Host)
-	}
-
-	if r.TLS != nil {
-		for _, cert := range r.TLS.PeerCertificates {
-			trusted, fingerprint := util.CheckTrustState(*cert, trustedCerts, nil, false)
-			if trusted {
-				remote := state.Remotes().RemoteByCertificateFingerprint(fingerprint)
-				if remote == nil {
-					// The cert fingerprint can no longer be matched back against what is in the truststore (e.g. file
-					// was deleted), so we are no longer trusted.
-					return false, nil
-				}
-
-				return true, nil
-			}
-		}
-	}
-
-	return false, nil
 }

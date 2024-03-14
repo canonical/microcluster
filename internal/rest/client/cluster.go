@@ -23,6 +23,14 @@ func (c *Client) AddClusterMember(ctx context.Context, args types.ClusterMember)
 	return &tokenResponse, nil
 }
 
+// RegisterClusterMember instructs the dqlite leader to inform all existing cluster members to update their local records to include a newly joined system.
+func (c *Client) RegisterClusterMember(ctx context.Context, args types.ClusterMember) error {
+	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	return c.QueryStruct(queryCtx, "PUT", PublicEndpoint, api.NewURL().Path("cluster"), args, nil)
+}
+
 // GetClusterMembers returns the database record of cluster members.
 func (c *Client) GetClusterMembers(ctx context.Context) ([]types.ClusterMember, error) {
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)

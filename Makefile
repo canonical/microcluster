@@ -34,6 +34,13 @@ update-gomod:
 	go get -u ./...
 	go mod tidy
 
+.PHONY: update-api
+update-api:
+ifeq ($(shell command -v swagger 2> /dev/null),)
+	go install github.com/go-swagger/go-swagger/cmd/swagger@latest
+endif
+	swagger generate spec -o doc/rest-api.yaml -c github.com/canonical/microcluster -x github.com/canonical/lxd/shared -c github.com/canonical/lxd/lxd/response -w internal/rest/resources -m
+
 # Update lxd-generate generated database helpers.
 .PHONY: update-schema
 update-schema:

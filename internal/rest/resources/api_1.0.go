@@ -5,7 +5,6 @@ import (
 
 	"github.com/canonical/lxd/lxd/response"
 
-	"github.com/canonical/microcluster/internal/rest/access"
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/internal/state"
 	"github.com/canonical/microcluster/rest"
@@ -15,7 +14,41 @@ import (
 var api10Cmd = rest.Endpoint{
 	AllowedBeforeInit: true,
 
-	Get: rest.EndpointAction{Handler: api10Get, AccessHandler: access.AllowAuthenticated},
+	// swagger:operation GET /cluster/1.0 server server_get
+	//
+	//	Get the server environment and configuration
+	//
+	//	Shows the full server environment and configuration.
+	//
+	//	---
+	//	produces:
+	//	  - application/json
+	//	responses:
+	//	  "200":
+	//	    description: Server environment and configuration
+	//	    schema:
+	//	      type: object
+	//	      description: Sync response
+	//	      properties:
+	//	        type:
+	//	          type: string
+	//	          description: Response type
+	//	          example: sync
+	//	        status:
+	//	          type: string
+	//	          description: Status description
+	//	          example: Success
+	//	        status_code:
+	//	          type: integer
+	//	          description: Status code
+	//	          example: 200
+	//	        metadata:
+	//	          $ref: "#/definitions/Server"
+	//	  "400":
+	//	    $ref: "#/responses/BadRequest"
+	//	  "500":
+	//	    $ref: "#/responses/InternalServerError"
+	Get: rest.EndpointAction{Handler: api10Get, AllowUntrusted: true},
 }
 
 func api10Get(s *state.State, r *http.Request) response.Response {

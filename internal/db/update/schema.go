@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
-	"sort"
 	"strings"
 
 	"github.com/canonical/lxd/lxd/db/query"
@@ -13,12 +12,24 @@ import (
 	"github.com/canonical/lxd/shared"
 )
 
+// updateType represents whether the update is an internal or external schema update.
+type updateType uint
+
+const (
+	// updateInternal represents an internal schema update from microcluster.
+	updateInternal updateType = 0
+
+	// updateExternal represents a schema update external to microcluster, applied after all internal updates.
+	updateExternal updateType = 1
+)
+
+// SchemaUpdate holds the configuration for executing schema updates.
 type SchemaUpdate struct {
-	updates []schema.Update // Ordered series of updates making up the schema
-	hook    schema.Hook     // Optional hook to execute whenever a update gets applied
-	fresh   string          // Optional SQL statement used to create schema from scratch
-	check   schema.Check    // Optional callback invoked before doing any update
-	path    string          // Optional path to a file containing extra queries to run
+	updates map[updateType][]schema.Update // Ordered series of internal and external updates making up the schema
+	hook    schema.Hook                    // Optional hook to execute whenever a update gets applied
+	fresh   string                         // Optional SQL statement used to create schema from scratch
+	check   schema.Check                   // Optional callback invoked before doing any update
+	path    string                         // Optional path to a file containing extra queries to run
 }
 
 // Fresh sets a statement that will be used to create the schema from scratch
@@ -36,8 +47,9 @@ func (s *SchemaUpdate) Check(check schema.Check) {
 	s.check = check
 }
 
-func (s *SchemaUpdate) Version() int {
-	return len(s.updates)
+// Version returns the internal and external schema update versions, corresponding to the number of updates that have occurred.
+func (s *SchemaUpdate) Version() (internalVersion uint64, externalVersion uint64) {
+	return uint64(len(s.updates[updateInternal])), uint64(len(s.updates[updateExternal]))
 }
 
 // Ensure makes sure that the actual schema in the given database matches the
@@ -66,15 +78,21 @@ func (s *SchemaUpdate) Ensure(db *sql.DB) (int, error) {
 			return fmt.Errorf("failed to check if schema table is there: %w", err)
 		}
 
-		current := 0
+		var versions []int
 		if exists {
-			versions, err := query.SelectIntegers(ctx, tx, "SELECT version FROM schemas ORDER BY version")
+			// updateFromV1 changes the schema table and needs to be run before we calculate the schema version.
+			err := updateFromV1(ctx, tx)
 			if err != nil {
 				return err
 			}
 
-			if len(versions) > 0 {
-				current = versions[len(versions)-1]
+			// maxVersionsStmt grabs the highest schema `version` column for each `type` (updateInternal/0) (updateExternal/1).
+			// The result is list of size 2, with index 0 corresponding to the max internal version and index 1 to the max external version, thanks to UNION ALL.
+			// The selected column must default to zero, otherwise query.SelectIntegers will fail to parse a null value as an integer.
+			maxVersionsStmt := "SELECT COALESCE(MAX(version), 0) FROM schemas WHERE type = 0 UNION ALL SELECT COALESCE(MAX(version), 0) FROM schemas WHERE type = 1"
+			versions, err = query.SelectIntegers(ctx, tx, maxVersionsStmt)
+			if err != nil {
+				return err
 			}
 		}
 
@@ -93,13 +111,13 @@ func (s *SchemaUpdate) Ensure(db *sql.DB) (int, error) {
 
 		// When creating the schema from scratch, use the fresh dump if
 		// available. Otherwise just apply all relevant updates.
-		if current == 0 && s.fresh != "" {
+		if versions == nil && s.fresh != "" {
 			_, err = tx.ExecContext(ctx, s.fresh)
 			if err != nil {
 				return fmt.Errorf("cannot apply fresh schema: %w", err)
 			}
 		} else {
-			err = ensureUpdatesAreApplied(ctx, tx, current, s.updates, s.hook)
+			err = ensureUpdatesAreApplied(ctx, tx, versions, s.updates, s.hook)
 			if err != nil {
 				return err
 			}
@@ -125,25 +143,31 @@ func (s *SchemaUpdate) Ensure(db *sql.DB) (int, error) {
 func (s *SchemaUpdate) Dump(db *sql.DB) (string, error) {
 	var statements []string
 	err := query.Transaction(context.TODO(), db, func(ctx context.Context, tx *sql.Tx) error {
-		versions, err := query.SelectIntegers(ctx, tx, "SELECT version FROM schemas ORDER BY version")
-		if err != nil {
-			return err
+		currentVersion := 0
+		for versionType := range s.updates {
+			versions, err := query.SelectIntegers(ctx, tx, "SELECT version FROM schemas WHERE type = ? ORDER BY version", versionType)
+			if err != nil {
+				return err
+			}
+
+			if len(versions) == 0 {
+				return fmt.Errorf("expected schema table to contain at least one row")
+			}
+
+			err = checkSchemaVersionsHaveNoHoles(versions)
+			if err != nil {
+				return err
+			}
+
+			currentVersion += versions[len(versions)-1]
 		}
 
-		if len(versions) == 0 {
-			return fmt.Errorf("expected schema table to contain at least one row")
+		schemaVersion := len(s.updates[updateInternal]) + len(s.updates[updateExternal])
+		if currentVersion != len(s.updates[updateInternal])+len(s.updates[updateExternal]) {
+			return fmt.Errorf("Update level is %d, expected %d", currentVersion, schemaVersion)
 		}
 
-		err = checkSchemaVersionsHaveNoHoles(versions)
-		if err != nil {
-			return err
-		}
-
-		current := versions[len(versions)-1]
-		if current != len(s.updates) {
-			return fmt.Errorf("Update level is %d, expected %d", current, len(s.updates))
-		}
-
+		var err error
 		statements, err = selectTablesSQL(ctx, tx)
 		return err
 	})
@@ -155,11 +179,15 @@ func (s *SchemaUpdate) Dump(db *sql.DB) (string, error) {
 	}
 
 	// Add a statement for inserting the current schema version row.
-	statements = append(
-		statements,
-		fmt.Sprintf(`
-INSERT INTO schemas (version, updated_at) VALUES (%d, strftime("%%s"))
-`, len(s.updates)))
+	for versionType := range s.updates {
+		updates := s.updates[versionType]
+		statements = append(
+			statements,
+			fmt.Sprintf(`
+INSERT INTO schemas (version, type, updated_at) VALUES (%d, %d, strftime("%%s"))
+`, len(updates), versionType))
+	}
+
 	return strings.Join(statements, ";\n"), nil
 }
 
@@ -189,37 +217,53 @@ ORDER BY name
 }
 
 // Apply any pending update that was not yet applied.
-func ensureUpdatesAreApplied(ctx context.Context, tx *sql.Tx, current int, updates []schema.Update, hook schema.Hook) error {
-	if current > len(updates) {
-		return fmt.Errorf(
-			"schema version '%d' is more recent than expected '%d'",
-			current, len(updates))
+func ensureUpdatesAreApplied(ctx context.Context, tx *sql.Tx, versions []int, schemaUpdates map[updateType][]schema.Update, hook schema.Hook) error {
+	if versions == nil {
+		versions = []int{0, 0}
 	}
 
-	// If there are no updates, there's nothing to do.
-	if len(updates) == 0 {
-		return nil
-	}
+	// Internal updates should be run before external ones.
+	updateOrder := []updateType{updateInternal, updateExternal}
+	for _, updateType := range updateOrder {
+		updates := schemaUpdates[updateType]
+		version := versions[updateType]
+		if version > len(updates) {
+			return fmt.Errorf("Schema version '%d' is more recent than expected '%d'", version, len(updates))
+		}
 
-	// Apply missing updates.
-	for _, update := range updates[current:] {
-		if hook != nil {
-			err := hook(ctx, current, tx)
-			if err != nil {
-				return fmt.Errorf(
-					"failed to execute hook (version %d): %v", current, err)
+		// If there are no updates, there's nothing to do.
+		if len(updates) == 0 {
+			return nil
+		}
+
+		// Apply missing updates.
+		for _, update := range updates[version:] {
+			if hook != nil {
+				err := hook(ctx, version, tx)
+				if err != nil {
+					return fmt.Errorf("Failed to execute hook (version %d): %v", version, err)
+				}
 			}
-		}
-		err := update(ctx, tx)
-		if err != nil {
-			return fmt.Errorf("failed to apply update %d: %w", current, err)
-		}
-		current++
 
-		statement := `INSERT INTO schemas (version, updated_at) VALUES (?, strftime("%s"))`
-		_, err = tx.ExecContext(ctx, statement, current)
-		if err != nil {
-			return fmt.Errorf("failed to insert version %d: %w", current, err)
+			err := update(ctx, tx)
+			if err != nil {
+				return fmt.Errorf("Failed to apply update %d: %w", version, err)
+			}
+
+			if updateType == updateInternal && version == 0 {
+				err = updateFromV1(ctx, tx)
+				if err != nil {
+					return fmt.Errorf("Failed to apply special update 1: %w", err)
+				}
+			}
+
+			version++
+
+			statement := `INSERT INTO schemas (version, type, updated_at) VALUES (?, ?, strftime("%s"))`
+			_, err = tx.ExecContext(ctx, statement, version, updateType)
+			if err != nil {
+				return fmt.Errorf("failed to insert version %d: %w", version, err)
+			}
 		}
 	}
 
@@ -298,35 +342,4 @@ SELECT COUNT(name) FROM sqlite_master WHERE type = 'table' AND name = 'schemas'
 	}
 
 	return count == 1, nil
-}
-
-// NewFromMap creates a new schema Schema with the updates specified in the
-// given map. The keys of the map are schema versions that when upgraded will
-// trigger the associated Update value. It's required that the minimum key in
-// the map is 1, and if key N is present then N-1 is present too, with N>1
-// (i.e. there are no missing versions).
-func NewFromMap(versionsToUpdates map[int]schema.Update) *SchemaUpdate {
-	// Collect all version keys.
-	versions := []int{}
-	for version := range versionsToUpdates {
-		versions = append(versions, version)
-	}
-
-	// Sort the versions,
-	sort.Ints(versions)
-
-	// Build the updates slice.
-	updates := []schema.Update{}
-	for i, version := range versions {
-		// Assert that we start from 1 and there are no gaps.
-		if version != i+1 {
-			panic(fmt.Sprintf("Updates map misses version %d", i+1))
-		}
-
-		updates = append(updates, versionsToUpdates[version])
-	}
-
-	return &SchemaUpdate{
-		updates: updates,
-	}
 }

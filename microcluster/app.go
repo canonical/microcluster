@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/canonical/lxd/lxd/db/schema"
@@ -96,21 +97,30 @@ func (m *MicroCluster) Start(apiEndpoints []rest.Endpoint, schemaExtensions map[
 		return fmt.Errorf("Unable to start daemon: %w", err)
 	}
 
+	stop := sync.OnceFunc(func() {
+		logger.Info("Initiate daemon stop sequence")
+		err := d.ShutdownCtx.Err()
+		if stopErr := d.Stop(); stopErr != nil {
+			err = stopErr
+		}
+
+		d.ShutdownDoneCh <- err
+	})
+
 	for {
 		select {
+		case err = <-d.ShutdownDoneCh:
+			close(d.ShutdownDoneCh)
+			return err
+		case <-d.ShutdownCtx.Done():
+			stop()
 		case sig := <-sigCh:
 			logCtx := logger.AddContext(logger.Ctx{"signal": sig})
 			logCtx.Info("Received signal")
 			if d.ShutdownCtx.Err() != nil {
 				logCtx.Warn("Ignoring signal, shutdown already in progress")
-			} else {
-				go func() {
-					d.ShutdownDoneCh <- d.Stop()
-				}()
 			}
-
-		case err = <-d.ShutdownDoneCh:
-			return err
+			stop()
 		}
 	}
 }

@@ -70,7 +70,7 @@ func NewDaemon(ctx context.Context, project string) *Daemon {
 	return &Daemon{
 		ShutdownCtx:    ctx,
 		ShutdownCancel: cancel,
-		ShutdownDoneCh: make(chan error),
+		ShutdownDoneCh: make(chan error, 1),
 		ReadyChan:      make(chan struct{}),
 		project:        project,
 	}

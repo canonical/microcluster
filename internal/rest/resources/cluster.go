@@ -131,12 +131,13 @@ func clusterPost(s *state.State, r *http.Request) response.Response {
 
 	err = s.Database.Transaction(s.Context, func(ctx context.Context, tx *sql.Tx) error {
 		dbClusterMember := cluster.InternalClusterMember{
-			Name:        req.Name,
-			Address:     req.Address.String(),
-			Certificate: req.Certificate.String(),
-			Schema:      req.SchemaVersion,
-			Heartbeat:   time.Time{},
-			Role:        cluster.Pending,
+			Name:           req.Name,
+			Address:        req.Address.String(),
+			Certificate:    req.Certificate.String(),
+			SchemaInternal: req.SchemaInternalVersion,
+			SchemaExternal: req.SchemaExternalVersion,
+			Heartbeat:      time.Time{},
+			Role:           cluster.Pending,
 		}
 
 		record, err := cluster.GetInternalTokenRecord(ctx, tx, req.Secret)

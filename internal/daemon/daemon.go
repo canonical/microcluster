@@ -400,10 +400,11 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 			Name:        localNode.Name,
 			Address:     localNode.Address.String(),
 			Certificate: localNode.Certificate.String(),
-			Schema:      d.db.Schema().Version(),
 			Heartbeat:   time.Time{},
 			Role:        cluster.Pending,
 		}
+
+		clusterMember.SchemaInternal, clusterMember.SchemaExternal = d.db.Schema().Version()
 
 		err = d.db.Bootstrap(d.project, d.address, clusterMember)
 		if err != nil {

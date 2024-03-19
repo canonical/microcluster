@@ -88,28 +88,12 @@ func (m *MicroCluster) Start(apiEndpoints []rest.Endpoint, schemaExtensions map[
 	ctx, cancel := signal.NotifyContext(m.ctx, unix.SIGPWR, unix.SIGTERM, unix.SIGINT, unix.SIGQUIT)
 	defer cancel()
 
-	err = d.Init(ctx, m.args.ListenPort, m.FileSystem.StateDir, m.FileSystem.SocketGroup, apiEndpoints, schemaExtensions, hooks)
+	err = d.Run(ctx, m.args.ListenPort, m.FileSystem.StateDir, m.FileSystem.SocketGroup, apiEndpoints, schemaExtensions, hooks)
 	if err != nil {
-		return fmt.Errorf("Unable to start daemon: %w", err)
+		return fmt.Errorf("Daemon stopped with error: %w", err)
 	}
 
-	for {
-		select {
-		case sig := <-sigCh:
-			logCtx := logger.AddContext(logger.Ctx{"signal": sig})
-			logCtx.Info("Received signal")
-			if d.ShutdownCtx.Err() != nil {
-				logCtx.Warn("Ignoring signal, shutdown already in progress")
-			} else {
-				go func() {
-					d.ShutdownDoneCh <- d.Stop()
-				}()
-			}
-
-		case err = <-d.ShutdownDoneCh:
-			return err
-		}
-	}
+	return nil
 }
 
 // Status returns basic status information about the cluster.

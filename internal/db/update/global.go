@@ -13,7 +13,3 @@ func Schema() *SchemaUpdate {
 func AppendSchema(extensions []schema.Update) {
 	globalSchemaUpdateManager.AppendSchema(extensions)
 }
-
-func SchemaDotGo() error {
-	return globalSchemaUpdateManager.SchemaDotGo()
-}

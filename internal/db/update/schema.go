@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/canonical/lxd/lxd/db/query"
 	"github.com/canonical/lxd/lxd/db/schema"
@@ -134,88 +133,6 @@ func (s *SchemaUpdate) Ensure(db *sql.DB) (int, error) {
 	return current, nil
 }
 
-// Dump returns a text of SQL commands that can be used to create this schema
-// from scratch in one go, without going thorugh individual patches
-// (essentially flattening them).
-//
-// It requires that all patches in this schema have been applied, otherwise an
-// error will be returned.
-func (s *SchemaUpdate) Dump(db *sql.DB) (string, error) {
-	var statements []string
-	err := query.Transaction(context.TODO(), db, func(ctx context.Context, tx *sql.Tx) error {
-		currentVersion := 0
-		for versionType := range s.updates {
-			versions, err := query.SelectIntegers(ctx, tx, "SELECT version FROM schemas WHERE type = ? ORDER BY version", versionType)
-			if err != nil {
-				return err
-			}
-
-			if len(versions) == 0 {
-				return fmt.Errorf("expected schema table to contain at least one row")
-			}
-
-			err = checkSchemaVersionsHaveNoHoles(versions)
-			if err != nil {
-				return err
-			}
-
-			currentVersion += versions[len(versions)-1]
-		}
-
-		schemaVersion := len(s.updates[updateInternal]) + len(s.updates[updateExternal])
-		if currentVersion != len(s.updates[updateInternal])+len(s.updates[updateExternal]) {
-			return fmt.Errorf("Update level is %d, expected %d", currentVersion, schemaVersion)
-		}
-
-		var err error
-		statements, err = selectTablesSQL(ctx, tx)
-		return err
-	})
-	if err != nil {
-		return "", err
-	}
-	for i, statement := range statements {
-		statements[i] = formatSQL(statement)
-	}
-
-	// Add a statement for inserting the current schema version row.
-	for versionType := range s.updates {
-		updates := s.updates[versionType]
-		statements = append(
-			statements,
-			fmt.Sprintf(`
-INSERT INTO schemas (version, type, updated_at) VALUES (%d, %d, strftime("%%s"))
-`, len(updates), versionType))
-	}
-
-	return strings.Join(statements, ";\n"), nil
-}
-
-// Check that the given list of update version numbers doesn't have "holes",
-// that is each version equal the preceding version plus 1.
-func checkSchemaVersionsHaveNoHoles(versions []int) error {
-	// Ensure that there are no "holes" in the recorded versions.
-	for i := range versions[:len(versions)-1] {
-		if versions[i+1] != versions[i]+1 {
-			return fmt.Errorf("Missing updates: %d to %d", versions[i], versions[i+1])
-		}
-	}
-	return nil
-}
-
-// Return a list of SQL statements that can be used to create all tables in the
-// database.
-func selectTablesSQL(ctx context.Context, tx *sql.Tx) ([]string, error) {
-	statement := `
-SELECT sql FROM sqlite_master WHERE
-  type IN ('table', 'index', 'view', 'trigger') AND
-  name != 'schemas' AND
-  name NOT LIKE 'sqlite_%'
-ORDER BY name
-`
-	return query.SelectStrings(ctx, tx, statement)
-}
-
 // Apply any pending update that was not yet applied.
 func ensureUpdatesAreApplied(ctx context.Context, tx *sql.Tx, versions []int, schemaUpdates map[updateType][]schema.Update, hook schema.Hook) error {
 	if versions == nil {
@@ -299,23 +216,6 @@ func execFromFile(ctx context.Context, tx *sql.Tx, path string, hook schema.Hook
 	}
 
 	return nil
-}
-
-// Format the given SQL statement in a human-readable way.
-//
-// In particular make sure that each column definition in a CREATE TABLE clause
-// is in its own row, since SQLite dumps occasionally stuff more than one
-// column in the same line.
-func formatSQL(statement string) string {
-	lines := strings.Split(statement, "\n")
-	for i, line := range lines {
-		if strings.Contains(line, "UNIQUE") {
-			// Let UNIQUE(x, y) constraints alone.
-			continue
-		}
-		lines[i] = strings.Replace(line, ", ", ",\n    ", -1)
-	}
-	return strings.Join(lines, "\n")
 }
 
 // doesSchemaTableExist return whether the schema table is present in the

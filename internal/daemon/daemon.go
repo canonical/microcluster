@@ -90,9 +90,8 @@ func NewDaemon(project string) *Daemon {
 }
 
 // Run initializes the Daemon with the given configuration, starts the database, and blocks until the daemon is cancelled.
-func (d *Daemon) Run(ctx context.Context, listenPort string, stateDir string, socketGroup string, extendedEndpoints []rest.Endpoint, schemaExtensions map[int]schema.Update, hooks *config.Hooks) error {
+func (d *Daemon) Run(ctx context.Context, listenPort string, stateDir string, socketGroup string, extendedEndpoints []rest.Endpoint, schemaExtensions []schema.Update, hooks *config.Hooks) error {
 	d.shutdownCtx, d.shutdownCancel = context.WithCancel(ctx)
-
 	if stateDir == "" {
 		stateDir = os.Getenv(sys.StateDir)
 	}
@@ -134,7 +133,7 @@ func (d *Daemon) Run(ctx context.Context, listenPort string, stateDir string, so
 	}
 }
 
-func (d *Daemon) init(listenPort string, extendedEndpoints []rest.Endpoint, schemaExtensions map[int]schema.Update, hooks *config.Hooks) error {
+func (d *Daemon) init(listenPort string, extendedEndpoints []rest.Endpoint, schemaExtensions []schema.Update, hooks *config.Hooks) error {
 	d.applyHooks(hooks)
 
 	var err error

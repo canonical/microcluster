@@ -71,7 +71,7 @@ func App(ctx context.Context, args Args) (*MicroCluster, error) {
 
 // Start starts up a brand new MicroCluster daemon. Only the local control socket will be available at this stage, no
 // database exists yet. Any api or schema extensions can be applied here.
-func (m *MicroCluster) Start(apiEndpoints []rest.Endpoint, schemaExtensions map[int]schema.Update, hooks *config.Hooks) error {
+func (m *MicroCluster) Start(apiEndpoints []rest.Endpoint, schemaExtensions []schema.Update, hooks *config.Hooks) error {
 	// Initialize the logger.
 	err := logger.InitLogger(m.FileSystem.LogFile, "", m.args.Verbose, m.args.Debug, nil)
 	if err != nil {

@@ -65,11 +65,8 @@ type Daemon struct {
 }
 
 // NewDaemon initializes the Daemon context and channels.
-func NewDaemon(ctx context.Context, project string) *Daemon {
-	ctx, cancel := context.WithCancel(ctx)
+func NewDaemon(project string) *Daemon {
 	return &Daemon{
-		shutdownCtx:    ctx,
-		shutdownCancel: cancel,
 		shutdownDoneCh: make(chan error),
 		ReadyChan:      make(chan struct{}),
 		project:        project,
@@ -77,7 +74,9 @@ func NewDaemon(ctx context.Context, project string) *Daemon {
 }
 
 // Init initializes the Daemon with the given configuration, and starts the database.
-func (d *Daemon) Init(listenPort string, stateDir string, socketGroup string, extendedEndpoints []rest.Endpoint, schemaExtensions map[int]schema.Update, hooks *config.Hooks) error {
+func (d *Daemon) Init(ctx context.Context, listenPort string, stateDir string, socketGroup string, extendedEndpoints []rest.Endpoint, schemaExtensions map[int]schema.Update, hooks *config.Hooks) error {
+	d.shutdownCtx, d.shutdownCancel = context.WithCancel(ctx)
+
 	if stateDir == "" {
 		stateDir = os.Getenv(sys.StateDir)
 	}

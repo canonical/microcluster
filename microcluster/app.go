@@ -80,7 +80,7 @@ func (m *MicroCluster) Start(apiEndpoints []rest.Endpoint, schemaExtensions map[
 
 	// Start up a daemon with a basic control socket.
 	defer logger.Info("Daemon stopped")
-	d := daemon.NewDaemon(m.ctx, cluster.GetCallerProject())
+	d := daemon.NewDaemon(cluster.GetCallerProject())
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, unix.SIGPWR)
@@ -91,7 +91,7 @@ func (m *MicroCluster) Start(apiEndpoints []rest.Endpoint, schemaExtensions map[
 	chIgnore := make(chan os.Signal, 1)
 	signal.Notify(chIgnore, unix.SIGHUP)
 
-	err = d.Init(m.args.ListenPort, m.FileSystem.StateDir, m.FileSystem.SocketGroup, apiEndpoints, schemaExtensions, hooks)
+	err = d.Init(ctx, m.args.ListenPort, m.FileSystem.StateDir, m.FileSystem.SocketGroup, apiEndpoints, schemaExtensions, hooks)
 	if err != nil {
 		return fmt.Errorf("Unable to start daemon: %w", err)
 	}

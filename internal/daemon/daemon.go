@@ -62,15 +62,31 @@ type Daemon struct {
 	shutdownCtx    context.Context    // Cancelled when shutdown starts.
 	shutdownDoneCh chan error         // Receives the result of the d.Stop() function and tells the daemon to end.
 	shutdownCancel context.CancelFunc // Cancels the shutdownCtx to indicate shutdown starting.
+
+	// stop is a sync.Once which wraps the daemon's stop sequence. Each call will block until the first one completes.
+	stop func() error
 }
 
 // NewDaemon initializes the Daemon context and channels.
 func NewDaemon(project string) *Daemon {
-	return &Daemon{
+	d := &Daemon{
 		shutdownDoneCh: make(chan error),
 		ReadyChan:      make(chan struct{}),
 		project:        project,
 	}
+
+	d.stop = sync.OnceValue(func() error {
+		d.shutdownCancel()
+
+		err := d.db.Stop()
+		if err != nil {
+			return fmt.Errorf("Failed shutting down database: %w", err)
+		}
+
+		return d.endpoints.Down()
+	})
+
+	return d
 }
 
 // Init initializes the Daemon with the given configuration, and starts the database.
@@ -566,22 +582,10 @@ func (d *Daemon) State() *state.State {
 		Database:       d.db,
 		Remotes:        d.trustStore.Remotes,
 		StartAPI:       d.StartAPI,
-		Stop:           d.Stop,
+		Stop:           d.stop,
 	}
 
 	return state
-}
-
-// Stop stops the Daemon via its shutdown channel.
-func (d *Daemon) Stop() error {
-	d.shutdownCancel()
-
-	err := d.db.Stop()
-	if err != nil {
-		return fmt.Errorf("Failed shutting down database: %w", err)
-	}
-
-	return d.endpoints.Down()
 }
 
 // setDaemonConfig sets the daemon's address and name from the given location information. If none is supplied, the file

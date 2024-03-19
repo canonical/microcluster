@@ -60,7 +60,7 @@ type Daemon struct {
 
 	ReadyChan      chan struct{}      // Closed when the daemon is fully ready.
 	shutdownCtx    context.Context    // Cancelled when shutdown starts.
-	shutdownDoneCh chan error         // Receives the result of the d.Stop() function and tells the daemon to end.
+	shutdownDoneCh chan error         // Receives the result of state.Stop() when exit() is called and tells the daemon to end.
 	shutdownCancel context.CancelFunc // Cancels the shutdownCtx to indicate shutdown starting.
 
 	// stop is a sync.Once which wraps the daemon's stop sequence. Each call will block until the first one completes.
@@ -577,19 +577,25 @@ func (d *Daemon) State() *state.State {
 	}
 
 	state := &state.State{
-		Context:        d.shutdownCtx,
-		ReadyCh:        d.ReadyChan,
-		ShutdownDoneCh: d.shutdownDoneCh,
-		OS:             d.os,
-		Address:        d.Address,
-		Name:           d.Name,
-		Endpoints:      d.endpoints,
-		ServerCert:     d.ServerCert,
-		ClusterCert:    d.ClusterCert,
-		Database:       d.db,
-		Remotes:        d.trustStore.Remotes,
-		StartAPI:       d.StartAPI,
-		Stop:           d.stop,
+		Context:     d.shutdownCtx,
+		ReadyCh:     d.ReadyChan,
+		OS:          d.os,
+		Address:     d.Address,
+		Name:        d.Name,
+		Endpoints:   d.endpoints,
+		ServerCert:  d.ServerCert,
+		ClusterCert: d.ClusterCert,
+		Database:    d.db,
+		Remotes:     d.trustStore.Remotes,
+		StartAPI:    d.StartAPI,
+		Stop: func() (exit func(), stopErr error) {
+			stopErr = d.stop()
+			exit = func() {
+				d.shutdownDoneCh <- stopErr
+			}
+
+			return exit, stopErr
+		},
 	}
 
 	return state

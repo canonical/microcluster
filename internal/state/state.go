@@ -56,7 +56,7 @@ type State struct {
 	StartAPI func(bootstrap bool, initConfig map[string]string, newConfig *trust.Location, joinAddresses ...string) error
 
 	// Stop fully stops the daemon, its database, and all listeners.
-	Stop func() error
+	Stop func() (exit func(), stopErr error)
 }
 
 // StopListeners stops the network listeners and the fsnotify listener.

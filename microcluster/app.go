@@ -82,14 +82,11 @@ func (m *MicroCluster) Start(apiEndpoints []rest.Endpoint, schemaExtensions map[
 	defer logger.Info("Daemon stopped")
 	d := daemon.NewDaemon(cluster.GetCallerProject())
 
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, unix.SIGPWR)
-	signal.Notify(sigCh, unix.SIGINT)
-	signal.Notify(sigCh, unix.SIGQUIT)
-	signal.Notify(sigCh, unix.SIGTERM)
-
 	chIgnore := make(chan os.Signal, 1)
 	signal.Notify(chIgnore, unix.SIGHUP)
+
+	ctx, cancel := signal.NotifyContext(m.ctx, unix.SIGPWR, unix.SIGTERM, unix.SIGINT, unix.SIGQUIT)
+	defer cancel()
 
 	err = d.Init(ctx, m.args.ListenPort, m.FileSystem.StateDir, m.FileSystem.SocketGroup, apiEndpoints, schemaExtensions, hooks)
 	if err != nil {

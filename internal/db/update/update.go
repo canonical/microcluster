@@ -4,9 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"os"
-	"path"
-	"runtime"
 
 	"github.com/canonical/lxd/lxd/db/schema"
 )
@@ -55,42 +52,6 @@ func (m *SchemaUpdateManager) Schema() *SchemaUpdate {
 
 func (m *SchemaUpdateManager) AppendSchema(extensions []schema.Update) {
 	m.updates[updateExternal] = extensions
-}
-
-func (m *SchemaUpdateManager) SchemaDotGo() error {
-	// Apply all the updates that we have on a pristine database and dump
-	// the resulting schema.
-	db, err := sql.Open("sqlite3", ":memory:")
-	if err != nil {
-		return fmt.Errorf("failed to open schema.go for writing: %w", err)
-	}
-
-	schema := &SchemaUpdate{updates: m.updates}
-	_, err = schema.Ensure(db)
-	if err != nil {
-		return err
-	}
-
-	dump, err := schema.Dump(db)
-	if err != nil {
-		return err
-	}
-
-	// Passing 1 to runtime.Caller identifies our caller.
-	_, filename, _, _ := runtime.Caller(1)
-
-	file, err := os.Create(path.Join(path.Dir(filename), "schema_update.go"))
-	if err != nil {
-		return fmt.Errorf("failed to open Go file for writing: %w", err)
-	}
-
-	pkg := path.Base(path.Dir(filename))
-	_, err = file.Write([]byte(fmt.Sprintf(dotGoTemplate, pkg, dump)))
-	if err != nil {
-		return fmt.Errorf("failed to write to Go file: %w", err)
-	}
-
-	return nil
 }
 
 // updateFromV1 fixes a bug in the schemas table. Previously there was no way to tell when an update was internal, so the last external update would be re-run instead.

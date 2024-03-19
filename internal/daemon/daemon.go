@@ -59,18 +59,18 @@ type Daemon struct {
 	hooks config.Hooks // Hooks to be called upon various daemon actions.
 
 	ReadyChan      chan struct{}      // Closed when the daemon is fully ready.
-	ShutdownCtx    context.Context    // Cancelled when shutdown starts.
-	ShutdownDoneCh chan error         // Receives the result of the d.Stop() function and tells the daemon to end.
-	ShutdownCancel context.CancelFunc // Cancels the shutdownCtx to indicate shutdown starting.
+	shutdownCtx    context.Context    // Cancelled when shutdown starts.
+	shutdownDoneCh chan error         // Receives the result of the d.Stop() function and tells the daemon to end.
+	shutdownCancel context.CancelFunc // Cancels the shutdownCtx to indicate shutdown starting.
 }
 
 // NewDaemon initializes the Daemon context and channels.
 func NewDaemon(ctx context.Context, project string) *Daemon {
 	ctx, cancel := context.WithCancel(ctx)
 	return &Daemon{
-		ShutdownCtx:    ctx,
-		ShutdownCancel: cancel,
-		ShutdownDoneCh: make(chan error),
+		shutdownCtx:    ctx,
+		shutdownCancel: cancel,
+		shutdownDoneCh: make(chan error),
 		ReadyChan:      make(chan struct{}),
 		project:        project,
 	}
@@ -131,14 +131,14 @@ func (d *Daemon) init(listenPort string, extendedEndpoints []rest.Endpoint, sche
 		return fmt.Errorf("Failed to initialize trust store: %w", err)
 	}
 
-	d.db = db.NewDB(d.ShutdownCtx, d.serverCert, d.ClusterCert, d.os)
+	d.db = db.NewDB(d.shutdownCtx, d.serverCert, d.ClusterCert, d.os)
 
 	// Apply extensions to API/Schema.
 	resources.ExtendedEndpoints.Endpoints = append(resources.ExtendedEndpoints.Endpoints, extendedEndpoints...)
 
 	ctlServer := d.initServer(resources.UnixEndpoints, resources.InternalEndpoints, resources.PublicEndpoints, resources.ExtendedEndpoints)
-	ctl := endpoints.NewSocket(d.ShutdownCtx, ctlServer, d.os.ControlSocket(), d.os.SocketGroup)
-	d.endpoints = endpoints.NewEndpoints(d.ShutdownCtx, ctl)
+	ctl := endpoints.NewSocket(d.shutdownCtx, ctlServer, d.os.ControlSocket(), d.os.SocketGroup)
+	d.endpoints = endpoints.NewEndpoints(d.shutdownCtx, ctl)
 	err = d.endpoints.Up()
 	if err != nil {
 		return err
@@ -147,7 +147,7 @@ func (d *Daemon) init(listenPort string, extendedEndpoints []rest.Endpoint, sche
 	if listenPort != "" {
 		server := d.initServer(resources.PublicEndpoints, resources.ExtendedEndpoints)
 		url := api.NewURL().Host(fmt.Sprintf(":%s", listenPort))
-		network := endpoints.NewNetwork(d.ShutdownCtx, endpoints.EndpointNetwork, server, *url, d.serverCert)
+		network := endpoints.NewNetwork(d.shutdownCtx, endpoints.EndpointNetwork, server, *url, d.serverCert)
 		err = d.endpoints.Add(network)
 		if err != nil {
 			return err
@@ -254,7 +254,7 @@ func (d *Daemon) reloadIfBootstrapped() error {
 
 func (d *Daemon) initStore() error {
 	var err error
-	d.fsWatcher, err = sys.NewWatcher(d.ShutdownCtx, d.os.StateDir)
+	d.fsWatcher, err = sys.NewWatcher(d.shutdownCtx, d.os.StateDir)
 	if err != nil {
 		return err
 	}
@@ -361,7 +361,7 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 	}
 
 	server := d.initServer(resources.InternalEndpoints, resources.PublicEndpoints, resources.ExtendedEndpoints)
-	network := endpoints.NewNetwork(d.ShutdownCtx, endpoints.EndpointNetwork, server, d.address, d.ClusterCert())
+	network := endpoints.NewNetwork(d.shutdownCtx, endpoints.EndpointNetwork, server, d.address, d.ClusterCert())
 	err = d.endpoints.Down(endpoints.EndpointNetwork)
 	if err != nil {
 		return err
@@ -448,7 +448,7 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 	}
 
 	// Send notification that this node is upgraded to all other cluster members.
-	err = cluster.Query(d.ShutdownCtx, true, func(ctx context.Context, c *client.Client) error {
+	err = cluster.Query(d.shutdownCtx, true, func(ctx context.Context, c *client.Client) error {
 		path := c.URL()
 		parts := strings.Split(string(internalClient.InternalEndpoint), "/")
 		parts = append(parts, "database")
@@ -555,9 +555,9 @@ func (d *Daemon) State() *state.State {
 	}
 
 	state := &state.State{
-		Context:        d.ShutdownCtx,
+		Context:        d.shutdownCtx,
 		ReadyCh:        d.ReadyChan,
-		ShutdownDoneCh: d.ShutdownDoneCh,
+		ShutdownDoneCh: d.shutdownDoneCh,
 		OS:             d.os,
 		Address:        d.Address,
 		Name:           d.Name,
@@ -575,7 +575,7 @@ func (d *Daemon) State() *state.State {
 
 // Stop stops the Daemon via its shutdown channel.
 func (d *Daemon) Stop() error {
-	d.ShutdownCancel()
+	d.shutdownCancel()
 
 	err := d.db.Stop()
 	if err != nil {

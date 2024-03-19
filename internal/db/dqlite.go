@@ -81,7 +81,7 @@ func NewDB(ctx context.Context, serverCert *shared.CertInfo, clusterCert func() 
 	}
 }
 
-func (db *DB) SetSchema(schemaExtensions map[int]schema.Update) {
+func (db *DB) SetSchema(schemaExtensions []schema.Update) {
 	s := update.NewSchema()
 	s.AppendSchema(schemaExtensions)
 	db.schema = s.Schema()

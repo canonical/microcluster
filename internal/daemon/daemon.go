@@ -77,7 +77,7 @@ func NewDaemon(ctx context.Context, project string) *Daemon {
 }
 
 // Init initializes the Daemon with the given configuration, and starts the database.
-func (d *Daemon) Init(listenPort string, stateDir string, socketGroup string, extendedEndpoints []rest.Endpoint, schemaExtensions map[int]schema.Update, hooks *config.Hooks) error {
+func (d *Daemon) Init(listenPort string, stateDir string, socketGroup string, extendedEndpoints []rest.Endpoint, schemaExtensions []schema.Update, hooks *config.Hooks) error {
 	if stateDir == "" {
 		stateDir = os.Getenv(sys.StateDir)
 	}
@@ -112,7 +112,7 @@ func (d *Daemon) Init(listenPort string, stateDir string, socketGroup string, ex
 	return nil
 }
 
-func (d *Daemon) init(listenPort string, extendedEndpoints []rest.Endpoint, schemaExtensions map[int]schema.Update, hooks *config.Hooks) error {
+func (d *Daemon) init(listenPort string, extendedEndpoints []rest.Endpoint, schemaExtensions []schema.Update, hooks *config.Hooks) error {
 	d.applyHooks(hooks)
 
 	var err error

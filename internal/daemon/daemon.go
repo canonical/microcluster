@@ -77,6 +77,9 @@ func NewDaemon(ctx context.Context, project string) *Daemon {
 }
 
 // Init initializes the Daemon with the given configuration, and starts the database.
+// - `extendedEndpoints` is a list of endpoints to be served over `/1.0`.
+// - `schemaExtensions` is a list of schema updates in the order that they should be applied.
+// - `hooks` are a set of functions that trigger at certain points during cluster communication.
 func (d *Daemon) Init(listenPort string, stateDir string, socketGroup string, extendedEndpoints []rest.Endpoint, schemaExtensions []schema.Update, hooks *config.Hooks) error {
 	if stateDir == "" {
 		stateDir = os.Getenv(sys.StateDir)

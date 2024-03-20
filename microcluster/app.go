@@ -80,39 +80,20 @@ func (m *MicroCluster) Start(apiEndpoints []rest.Endpoint, schemaExtensions map[
 
 	// Start up a daemon with a basic control socket.
 	defer logger.Info("Daemon stopped")
-	d := daemon.NewDaemon(m.ctx, cluster.GetCallerProject())
-
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, unix.SIGPWR)
-	signal.Notify(sigCh, unix.SIGINT)
-	signal.Notify(sigCh, unix.SIGQUIT)
-	signal.Notify(sigCh, unix.SIGTERM)
+	d := daemon.NewDaemon(cluster.GetCallerProject())
 
 	chIgnore := make(chan os.Signal, 1)
 	signal.Notify(chIgnore, unix.SIGHUP)
 
-	err = d.Init(m.args.ListenPort, m.FileSystem.StateDir, m.FileSystem.SocketGroup, apiEndpoints, schemaExtensions, hooks)
+	ctx, cancel := signal.NotifyContext(m.ctx, unix.SIGPWR, unix.SIGTERM, unix.SIGINT, unix.SIGQUIT)
+	defer cancel()
+
+	err = d.Run(ctx, m.args.ListenPort, m.FileSystem.StateDir, m.FileSystem.SocketGroup, apiEndpoints, schemaExtensions, hooks)
 	if err != nil {
-		return fmt.Errorf("Unable to start daemon: %w", err)
+		return fmt.Errorf("Daemon stopped with error: %w", err)
 	}
 
-	for {
-		select {
-		case sig := <-sigCh:
-			logCtx := logger.AddContext(logger.Ctx{"signal": sig})
-			logCtx.Info("Received signal")
-			if d.ShutdownCtx.Err() != nil {
-				logCtx.Warn("Ignoring signal, shutdown already in progress")
-			} else {
-				go func() {
-					d.ShutdownDoneCh <- d.Stop()
-				}()
-			}
-
-		case err = <-d.ShutdownDoneCh:
-			return err
-		}
-	}
+	return nil
 }
 
 // Status returns basic status information about the cluster.

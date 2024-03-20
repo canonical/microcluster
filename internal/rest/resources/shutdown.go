@@ -27,7 +27,7 @@ func shutdownPost(state *state.State, r *http.Request) response.Response {
 		<-state.ReadyCh // Wait for daemon to start.
 
 		// Run shutdown sequence synchronously.
-		stopErr := state.Stop()
+		exit, stopErr := state.Stop()
 		err := response.SmartError(stopErr).Render(w)
 		if err != nil {
 			return err
@@ -44,7 +44,7 @@ func shutdownPost(state *state.State, r *http.Request) response.Response {
 		// Send result of d.Stop() to cmdDaemon so that process stops with correct exit code from Stop().
 		go func() {
 			<-r.Context().Done() // Wait until request is finished.
-			state.ShutdownDoneCh <- stopErr
+			exit()
 		}()
 
 		return nil

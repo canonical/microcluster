@@ -77,7 +77,10 @@ func NewDaemon(ctx context.Context, project string) *Daemon {
 }
 
 // Init initializes the Daemon with the given configuration, and starts the database.
-func (d *Daemon) Init(listenPort string, stateDir string, socketGroup string, extendedEndpoints []rest.Endpoint, schemaExtensions map[int]schema.Update, hooks *config.Hooks) error {
+// - `extendedEndpoints` is a list of endpoints to be served over `/1.0`.
+// - `schemaExtensions` is a list of schema updates in the order that they should be applied.
+// - `hooks` are a set of functions that trigger at certain points during cluster communication.
+func (d *Daemon) Init(listenPort string, stateDir string, socketGroup string, extendedEndpoints []rest.Endpoint, schemaExtensions []schema.Update, hooks *config.Hooks) error {
 	if stateDir == "" {
 		stateDir = os.Getenv(sys.StateDir)
 	}
@@ -112,7 +115,7 @@ func (d *Daemon) Init(listenPort string, stateDir string, socketGroup string, ex
 	return nil
 }
 
-func (d *Daemon) init(listenPort string, extendedEndpoints []rest.Endpoint, schemaExtensions map[int]schema.Update, hooks *config.Hooks) error {
+func (d *Daemon) init(listenPort string, extendedEndpoints []rest.Endpoint, schemaExtensions []schema.Update, hooks *config.Hooks) error {
 	d.applyHooks(hooks)
 
 	var err error
@@ -378,10 +381,11 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 			Name:        localNode.Name,
 			Address:     localNode.Address.String(),
 			Certificate: localNode.Certificate.String(),
-			Schema:      d.db.Schema().Version(),
 			Heartbeat:   time.Time{},
 			Role:        cluster.Pending,
 		}
+
+		clusterMember.SchemaInternal, clusterMember.SchemaExternal = d.db.Schema().Version()
 
 		err = d.db.Bootstrap(d.project, d.address, clusterMember)
 		if err != nil {

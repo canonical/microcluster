@@ -10,10 +10,6 @@ func Schema() *SchemaUpdate {
 	return globalSchemaUpdateManager.Schema()
 }
 
-func AppendSchema(extensions map[int]schema.Update) {
+func AppendSchema(extensions []schema.Update) {
 	globalSchemaUpdateManager.AppendSchema(extensions)
-}
-
-func SchemaDotGo() error {
-	return globalSchemaUpdateManager.SchemaDotGo()
 }

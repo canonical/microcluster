@@ -38,37 +38,51 @@ func (db *DB) Open(bootstrap bool, project string) error {
 	newSchema := db.Schema()
 	if !bootstrap {
 		checkVersions := func(ctx context.Context, current int, tx *sql.Tx) error {
-			schemaVersion := newSchema.Version()
-			err = cluster.UpdateClusterMemberSchemaVersion(tx, schemaVersion, db.listenAddr.URL.Host)
+			internalSchemaVersion, externalSchemaVersion := newSchema.Version()
+			err = cluster.UpdateClusterMemberSchemaVersion(tx, internalSchemaVersion, externalSchemaVersion, db.listenAddr.URL.Host)
 			if err != nil {
 				return fmt.Errorf("Failed to update schema version when joining cluster: %w", err)
 			}
 
-			versions, err := cluster.GetClusterMemberSchemaVersions(ctx, tx)
+			internalVersions, externalVersions, err := cluster.GetClusterMemberSchemaVersions(ctx, tx)
 			if err != nil {
 				return fmt.Errorf("Failed to get other members' schema versions: %w", err)
 			}
 
-			for _, version := range versions {
-				if schemaVersion == version {
-					// Versions are equal, there's hope for the
-					// update. Let's check the next node.
-					continue
+			for i, versions := range [][]int{internalVersions, externalVersions} {
+				schemaVersion := internalSchemaVersion
+				if i == 1 {
+					schemaVersion = externalSchemaVersion
 				}
 
-				if schemaVersion > version {
-					// Our version is bigger, we should stop here
-					// and wait for other nodes to be upgraded and
-					// restarted.
-					otherNodesBehind = true
-					return schema.ErrGracefulAbort
-				}
+				for _, version := range versions {
+					if schemaVersion == version {
+						// Versions are equal, there's hope for the
+						// update. Let's check the next node.
+						continue
+					}
 
-				// Another node has a version greater than ours
-				// and presumeably is waiting for other nodes
-				// to upgrade. Let's error out and shutdown
-				// since we need a greater version.
-				return fmt.Errorf("this node's version is behind, please upgrade")
+					if schemaVersion > version {
+						// Our version is bigger, we should stop here
+						// and wait for other nodes to be upgraded and
+						// restarted.
+						otherNodesBehind = true
+						break
+					}
+
+					// Another node has a version greater than ours
+					// and presumeably is waiting for other nodes
+					// to upgrade. Let's error out and shutdown
+					// since we need a greater version.
+					otherNodesBehind = false
+					return fmt.Errorf("this node's version is behind, please upgrade")
+				}
+			}
+
+			// Only consider other nodes to be behind us if neither our internal nor external schema version is behind theirs.
+			if otherNodesBehind {
+				return schema.ErrGracefulAbort
+
 			}
 
 			return nil

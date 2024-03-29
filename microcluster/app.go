@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/x509"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -336,7 +336,7 @@ func (m *MicroCluster) RemoteClient(address string) (*client.Client, error) {
 func (m *MicroCluster) SQL(query string) (string, *internalTypes.SQLBatch, error) {
 	if query == "-" {
 		// Read from stdin
-		bytes, err := ioutil.ReadAll(os.Stdin)
+		bytes, err := io.ReadAll(os.Stdin)
 		if err != nil {
 			return "", nil, fmt.Errorf("Failed to read from stdin: %w", err)
 		}

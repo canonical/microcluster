@@ -1,3 +1,5 @@
+GOMIN=1.22.0
+
 .PHONY: default
 default: update-schema
 
@@ -31,8 +33,10 @@ endif
 # Update targets.
 .PHONY: update-gomod
 update-gomod:
-	go get -u ./...
-	go mod tidy
+	go get -t -v -d -u ./...
+	go mod tidy -go=$(GOMIN)
+	# Eliminate toolchain directive in go.mod
+	go get toolchain@none
 
 # Update lxd-generate generated database helpers.
 .PHONY: update-schema

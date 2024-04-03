@@ -77,7 +77,7 @@ func (db *DB) Open(bootstrap bool, project string) error {
 		newSchema.Check(checkVersions)
 	}
 
-	err = db.retry(func() error {
+	err = db.retry(context.TODO(), func(_ context.Context) error {
 		_, err = newSchema.Ensure(db.db)
 		return err
 	})
@@ -111,8 +111,8 @@ func (db *DB) Open(bootstrap bool, project string) error {
 }
 
 // Transaction handles performing a transaction on the dqlite database.
-func (db *DB) Transaction(ctx context.Context, f func(context.Context, *sql.Tx) error) error {
-	return db.retry(func() error {
+func (db *DB) Transaction(outerCtx context.Context, f func(context.Context, *sql.Tx) error) error {
+	return db.retry(outerCtx, func(ctx context.Context) error {
 		err := query.Transaction(ctx, db.db, f)
 		if errors.Is(err, context.DeadlineExceeded) {
 			// If the query timed out it likely means that the leader has abruptly become unreachable.
@@ -126,12 +126,12 @@ func (db *DB) Transaction(ctx context.Context, f func(context.Context, *sql.Tx) 
 	})
 }
 
-func (db *DB) retry(f func() error) error {
+func (db *DB) retry(ctx context.Context, f func(context.Context) error) error {
 	if db.ctx.Err() != nil {
-		return f()
+		return f(ctx)
 	}
 
-	return query.Retry(f)
+	return query.Retry(ctx, f)
 }
 
 // Update attempts to update the database with the executable at the path specified by the SCHEMA_UPDATE variable.

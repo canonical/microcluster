@@ -22,10 +22,16 @@ jobs:
         uses: actions/dependency-review-action@v4
         if: github.event_name == 'pull_request'
 
+      - name: Check compatibility with min Go version (${{ matrix.go }})
+        if: matrix.go == '1.22.x'
+        run: |
+          set -eux
+          go mod tidy -go=1.22.0
+
       - name: Install Go
         uses: actions/setup-go@v5
         with:
-          go-version: 1.21.x
+          go-version: 1.22.x
 
       - name: Install dependencies
         run: |

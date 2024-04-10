@@ -29,7 +29,6 @@ import (
 	internalREST "github.com/canonical/microcluster/internal/rest"
 	internalClient "github.com/canonical/microcluster/internal/rest/client"
 	"github.com/canonical/microcluster/internal/rest/resources"
-	internalTypes "github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/internal/state"
 	"github.com/canonical/microcluster/internal/sys"
 	"github.com/canonical/microcluster/internal/trust"
@@ -497,14 +496,6 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 
 		if resp.StatusCode != http.StatusOK {
 			return fmt.Errorf("Database upgrade notification failed: %s", resp.Status)
-		}
-
-		if len(joinAddresses) > 0 {
-			localMemberInfo := internalTypes.ClusterMemberLocal{Name: localNode.Name, Address: localNode.Address, Certificate: localNode.Certificate}
-			_, err = c.AddClusterMember(ctx, internalTypes.ClusterMember{ClusterMemberLocal: localMemberInfo})
-			if err != nil {
-				return err
-			}
 		}
 
 		return nil

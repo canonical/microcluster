@@ -33,6 +33,24 @@ func NewSchema() *SchemaUpdateManager {
 	}
 }
 
+// SetInternalUpdates replaces the set of internal schema updates.
+func (s *SchemaUpdateManager) SetInternalUpdates(updates []schema.Update) {
+	if s.updates == nil {
+		s.updates = map[updateType][]schema.Update{}
+	}
+
+	s.updates[updateInternal] = updates
+}
+
+// SetExternalUpdates replaces the set of external schema updates.
+func (s *SchemaUpdateManager) SetExternalUpdates(updates []schema.Update) {
+	if s.updates == nil {
+		s.updates = map[updateType][]schema.Update{}
+	}
+
+	s.updates[updateExternal] = updates
+}
+
 func (m *SchemaUpdateManager) Schema() *SchemaUpdate {
 	schema := &SchemaUpdate{updates: m.updates}
 	schema.Fresh("")

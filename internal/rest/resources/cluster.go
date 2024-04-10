@@ -308,7 +308,7 @@ func clusterMemberPut(s *state.State, r *http.Request) response.Response {
 		if ok {
 			f.Flush()
 		} else {
-			return fmt.Errorf("http.ResponseWriter is not type http.Flusher")
+			return fmt.Errorf("ResponseWriter is not type http.Flusher")
 		}
 
 		return nil
@@ -405,7 +405,7 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 			if ok {
 				f.Flush()
 			} else {
-				return fmt.Errorf("http.ResponseWriter is not type http.Flusher")
+				return fmt.Errorf("ResponseWriter is not type http.Flusher")
 			}
 
 			return nil
@@ -522,7 +522,7 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 			if ok {
 				f.Flush()
 			} else {
-				return fmt.Errorf("http.ResponseWriter is not type http.Flusher")
+				return fmt.Errorf("ResponseWriter is not type http.Flusher")
 			}
 
 			return nil

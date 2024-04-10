@@ -48,7 +48,7 @@ func (s *Socket) Type() EndpointType {
 func (s *Socket) Listen() error {
 	_, err := net.Dial("unix", s.Path)
 	if err == nil {
-		return fmt.Errorf("unix socket at %q is already running", s.Path)
+		return fmt.Errorf("Unix socket at %q is already running", s.Path)
 	}
 
 	err = s.removeStale()
@@ -58,12 +58,12 @@ func (s *Socket) Listen() error {
 
 	addr, err := net.ResolveUnixAddr("unix", s.Path)
 	if err != nil {
-		return fmt.Errorf("cannot resolve socket address: %v", err)
+		return fmt.Errorf("Cannot resolve socket address: %w", err)
 	}
 
 	s.listener, err = net.ListenUnix("unix", addr)
 	if err != nil {
-		return fmt.Errorf("cannot bind socket: %v", err)
+		return fmt.Errorf("Cannot bind socket: %w", err)
 	}
 
 	err = localSetAccess(s.Path, s.Group)
@@ -124,7 +124,7 @@ func (s *Socket) removeStale() error {
 	logger.Debugf("Detected stale control socket, deleting")
 	err := os.Remove(s.Path)
 	if err != nil {
-		return fmt.Errorf("could not delete stale local socket: %v", err)
+		return fmt.Errorf("Could not delete stale local socket: %w", err)
 	}
 
 	return nil
@@ -151,7 +151,7 @@ func localSetAccess(path string, group string) error {
 func socketControlSetPermissions(path string, mode os.FileMode) error {
 	err := os.Chmod(path, mode)
 	if err != nil {
-		return fmt.Errorf("cannot set permissions on local socket: %v", err)
+		return fmt.Errorf("Cannot set permissions on local socket: %w", err)
 	}
 
 	return nil
@@ -165,7 +165,7 @@ func socketControlSetOwnership(path string, groupName string) error {
 	if groupName != "" {
 		g, err := user.LookupGroup(groupName)
 		if err != nil {
-			return fmt.Errorf("cannot get group ID of '%s': %v", groupName, err)
+			return fmt.Errorf("Cannot get group ID of '%s': %w", groupName, err)
 		}
 
 		gid, err = strconv.Atoi(g.Gid)
@@ -178,7 +178,7 @@ func socketControlSetOwnership(path string, groupName string) error {
 
 	err = os.Chown(path, os.Getuid(), gid)
 	if err != nil {
-		return fmt.Errorf("cannot change ownership on local socket: %v", err)
+		return fmt.Errorf("Cannot change ownership on local socket: %w", err)
 	}
 
 	return nil

@@ -69,12 +69,12 @@ func (s *SchemaUpdate) Ensure(db *sql.DB) (int, error) {
 	err := query.Transaction(context.TODO(), db, func(ctx context.Context, tx *sql.Tx) error {
 		err := execFromFile(ctx, tx, s.path, s.hook)
 		if err != nil {
-			return fmt.Errorf("failed to execute queries from %s: %w", s.path, err)
+			return fmt.Errorf("Failed to execute queries from %s: %w", s.path, err)
 		}
 
 		exists, err := doesSchemaTableExist(tx)
 		if err != nil {
-			return fmt.Errorf("failed to check if schema table is there: %w", err)
+			return fmt.Errorf("Failed to check if schema table is there: %w", err)
 		}
 
 		var versions []int
@@ -113,7 +113,7 @@ func (s *SchemaUpdate) Ensure(db *sql.DB) (int, error) {
 		if versions == nil && s.fresh != "" {
 			_, err = tx.ExecContext(ctx, s.fresh)
 			if err != nil {
-				return fmt.Errorf("cannot apply fresh schema: %w", err)
+				return fmt.Errorf("Cannot apply fresh schema: %w", err)
 			}
 		} else {
 			err = ensureUpdatesAreApplied(ctx, tx, versions, s.updates, s.hook)
@@ -158,7 +158,7 @@ func ensureUpdatesAreApplied(ctx context.Context, tx *sql.Tx, versions []int, sc
 			if hook != nil {
 				err := hook(ctx, version, tx)
 				if err != nil {
-					return fmt.Errorf("Failed to execute hook (version %d): %v", version, err)
+					return fmt.Errorf("Failed to execute hook (version %d): %w", version, err)
 				}
 			}
 
@@ -179,7 +179,7 @@ func ensureUpdatesAreApplied(ctx context.Context, tx *sql.Tx, versions []int, sc
 			statement := `INSERT INTO schemas (version, type, updated_at) VALUES (?, ?, strftime("%s"))`
 			_, err = tx.ExecContext(ctx, statement, version, updateType)
 			if err != nil {
-				return fmt.Errorf("failed to insert version %d: %w", version, err)
+				return fmt.Errorf("Failed to insert version %d: %w", version, err)
 			}
 		}
 	}
@@ -195,13 +195,13 @@ func execFromFile(ctx context.Context, tx *sql.Tx, path string, hook schema.Hook
 
 	bytes, err := os.ReadFile(path)
 	if err != nil {
-		return fmt.Errorf("failed to read file: %w", err)
+		return fmt.Errorf("Failed to read file: %w", err)
 	}
 
 	if hook != nil {
 		err := hook(ctx, -1, tx)
 		if err != nil {
-			return fmt.Errorf("failed to execute hook: %w", err)
+			return fmt.Errorf("Failed to execute hook: %w", err)
 		}
 	}
 
@@ -212,7 +212,7 @@ func execFromFile(ctx context.Context, tx *sql.Tx, path string, hook schema.Hook
 
 	err = os.Remove(path)
 	if err != nil {
-		return fmt.Errorf("failed to remove file: %w", err)
+		return fmt.Errorf("Failed to remove file: %w", err)
 	}
 
 	return nil
@@ -231,7 +231,7 @@ SELECT COUNT(name) FROM sqlite_master WHERE type = 'table' AND name = 'schemas'
 	defer func() { _ = rows.Close() }()
 
 	if !rows.Next() {
-		return false, fmt.Errorf("schema table query returned no rows")
+		return false, fmt.Errorf("Schema table query returned no rows")
 	}
 
 	var count int

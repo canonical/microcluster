@@ -74,7 +74,7 @@ func (db *DB) waitUpgrade(bootstrap bool) error {
 			// and presumeably is waiting for other nodes
 			// to upgrade. Let's error out and shutdown
 			// since we need a greater version.
-			return false, fmt.Errorf("this node's version is behind, please upgrade")
+			return false, fmt.Errorf("This node's version is behind, please upgrade")
 		}
 
 		return nodeIsBehind, nil

@@ -34,6 +34,25 @@ func (db *DB) Open(bootstrap bool, project string) error {
 		return err
 	}
 
+	err = db.waitUpgrade(bootstrap)
+	if err != nil {
+		return err
+	}
+
+	err = cluster.PrepareStmts(db.db, project, false)
+	if err != nil {
+		return err
+	}
+
+	db.openCanceller.Cancel()
+
+	return nil
+}
+
+// waitUpgrade compares the version information of all cluster members in the database to the local version.
+// If this node's version is ahead of others, then it will block on the `db.upgradeCh` or up to a minute.
+// If this node's version is behind others, then it returns an error.
+func (db *DB) waitUpgrade(bootstrap bool) error {
 	checkSchemaVersion := func(schemaVersion uint64, clusterMemberVersions []uint64) (otherNodesBehind bool, err error) {
 		nodeIsBehind := false
 		for _, version := range clusterMemberVersions {
@@ -66,7 +85,7 @@ func (db *DB) Open(bootstrap bool, project string) error {
 	if !bootstrap {
 		checkVersions := func(ctx context.Context, current int, tx *sql.Tx) error {
 			schemaVersionInternal, schemaVersionExternal := newSchema.Version()
-			err = cluster.UpdateClusterMemberSchemaVersion(tx, schemaVersionInternal, schemaVersionExternal, db.listenAddr.URL.Host)
+			err := cluster.UpdateClusterMemberSchemaVersion(tx, schemaVersionInternal, schemaVersionExternal, db.listenAddr.URL.Host)
 			if err != nil {
 				return fmt.Errorf("Failed to update schema version when joining cluster: %w", err)
 			}
@@ -100,37 +119,21 @@ func (db *DB) Open(bootstrap bool, project string) error {
 		newSchema.Check(checkVersions)
 	}
 
-	err = db.retry(context.TODO(), func(_ context.Context) error {
-		_, err = newSchema.Ensure(db.db)
+	err := db.retry(context.TODO(), func(_ context.Context) error {
+		_, err := newSchema.Ensure(db.db)
 		return err
 	})
 
-	// Check if other nodes are behind before checking the error.
-	if otherNodesBehind {
-		// If we are not bootstrapping, wait for an upgrade notification, or wait a minute before checking again.
-		if !bootstrap {
-			logger.Warn("Waiting for other cluster members to upgrade their versions", logger.Ctx{"address": db.listenAddr.String()})
-			select {
-			case <-db.upgradeCh:
-			case <-time.After(time.Minute):
-			}
+	// If we are not bootstrapping, wait for an upgrade notification, or wait a minute before checking again.
+	if otherNodesBehind && !bootstrap {
+		logger.Warn("Waiting for other cluster members to upgrade their versions", logger.Ctx{"address": db.listenAddr.String()})
+		select {
+		case <-db.upgradeCh:
+		case <-time.After(time.Minute):
 		}
-
-		return err
 	}
 
-	if err != nil {
-		return err
-	}
-
-	err = cluster.PrepareStmts(db.db, project, false)
-	if err != nil {
-		return err
-	}
-
-	db.openCanceller.Cancel()
-
-	return nil
+	return err
 }
 
 // Transaction handles performing a transaction on the dqlite database.

@@ -39,13 +39,14 @@ const Pending Role = "PENDING"
 
 // InternalClusterMember represents the global database entry for a dqlite cluster member.
 type InternalClusterMember struct {
-	ID          int
-	Name        string `db:"primary=yes"`
-	Address     string
-	Certificate string
-	Schema      int
-	Heartbeat   time.Time
-	Role        Role
+	ID             int
+	Name           string `db:"primary=yes"`
+	Address        string
+	Certificate    string
+	SchemaInternal uint64
+	SchemaExternal uint64
+	Heartbeat      time.Time
+	Role           Role
 }
 
 // InternalClusterMemberFilter is used for filtering queries using generated methods.
@@ -73,18 +74,19 @@ func (c InternalClusterMember) ToAPI() (*internalTypes.ClusterMember, error) {
 			Address:     address,
 			Certificate: *certificate,
 		},
-		Role:          string(c.Role),
-		SchemaVersion: c.Schema,
-		LastHeartbeat: c.Heartbeat,
-		Status:        internalTypes.MemberUnreachable,
+		Role:                  string(c.Role),
+		SchemaInternalVersion: c.SchemaInternal,
+		SchemaExternalVersion: c.SchemaExternal,
+		LastHeartbeat:         c.Heartbeat,
+		Status:                internalTypes.MemberUnreachable,
 	}, nil
 }
 
 // UpdateClusterMemberSchemaVersion sets the schema version for the cluster member with the given address.
 // This helper is non-generated to work before generated statements are loaded, as we update the schema.
-func UpdateClusterMemberSchemaVersion(tx *sql.Tx, version int, address string) error {
-	stmt := "UPDATE internal_cluster_members SET schema=? WHERE address=?"
-	result, err := tx.Exec(stmt, version, address)
+func UpdateClusterMemberSchemaVersion(tx *sql.Tx, internalVersion uint64, externalVersion uint64, address string) error {
+	stmt := "UPDATE internal_cluster_members SET schema_internal=?,schema_external=? WHERE address=?"
+	result, err := tx.Exec(stmt, internalVersion, externalVersion, address)
 	if err != nil {
 		return err
 	}
@@ -102,12 +104,28 @@ func UpdateClusterMemberSchemaVersion(tx *sql.Tx, version int, address string) e
 
 // GetClusterMemberSchemaVersions returns the schema versions from all cluster members that are not pending.
 // This helper is non-generated to work before generated statements are loaded, as we update the schema.
-func GetClusterMemberSchemaVersions(ctx context.Context, tx *sql.Tx) ([]int, error) {
-	sql := "SELECT schema FROM internal_cluster_members WHERE NOT role='pending'"
-	versions, err := query.SelectIntegers(ctx, tx, sql)
-	if err != nil {
-		return nil, err
+func GetClusterMemberSchemaVersions(ctx context.Context, tx *sql.Tx) (internalSchema []uint64, externalSchema []uint64, err error) {
+	sql := "SELECT schema_internal,schema_external FROM internal_cluster_members WHERE NOT role='pending'"
+
+	internalSchema = []uint64{}
+	externalSchema = []uint64{}
+	dest := func(scan func(dest ...any) error) error {
+		var internal, external uint64
+		err := scan(&internal, &external)
+		if err != nil {
+			return err
+		}
+
+		internalSchema = append(internalSchema, internal)
+		externalSchema = append(externalSchema, external)
+
+		return nil
 	}
 
-	return versions, nil
+	err = query.Scan(ctx, tx, sql, dest)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return internalSchema, externalSchema, nil
 }

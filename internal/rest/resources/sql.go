@@ -40,7 +40,7 @@ func sqlGet(state *state.State, r *http.Request) response.Response {
 	err = state.Database.Transaction(parentCtx, func(ctx context.Context, tx *sql.Tx) error {
 		dump, err = query.Dump(ctx, tx, schemaOnly == 1)
 		if err != nil {
-			return fmt.Errorf("failed dump database: %w", err)
+			return fmt.Errorf("Failed dump database: %w", err)
 		}
 
 		return nil

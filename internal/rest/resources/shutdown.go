@@ -38,7 +38,7 @@ func shutdownPost(state *state.State, r *http.Request) response.Response {
 		if ok {
 			f.Flush()
 		} else {
-			return fmt.Errorf("http.ResponseWriter is not type http.Flusher")
+			return fmt.Errorf("ResponseWriter is not type http.Flusher")
 		}
 
 		// Send result of d.Stop() to cmdDaemon so that process stops with correct exit code from Stop().

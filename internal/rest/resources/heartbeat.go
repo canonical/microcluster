@@ -54,14 +54,15 @@ func heartbeatPost(s *state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	var schemaVersion int
+	var internalSchemaVersion, externalSchemaVersion uint64
 	err = s.Database.Transaction(s.Context, func(ctx context.Context, tx *sql.Tx) error {
 		localClusterMember, err := cluster.GetInternalClusterMember(ctx, tx, s.Name())
 		if err != nil {
 			return err
 		}
 
-		schemaVersion = localClusterMember.Schema
+		internalSchemaVersion = localClusterMember.SchemaInternal
+		externalSchemaVersion = localClusterMember.SchemaExternal
 
 		return nil
 	})
@@ -69,7 +70,7 @@ func heartbeatPost(s *state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	if schemaVersion != hbInfo.MaxSchema {
+	if internalSchemaVersion != hbInfo.MaxSchemaInternal || externalSchemaVersion != hbInfo.MaxSchemaExternal {
 		err := s.Database.Update()
 		if err != nil {
 			return response.SmartError(err)
@@ -198,8 +199,12 @@ func beginHeartbeat(s *state.State, r *http.Request) response.Response {
 	// Record the maximum schema version discovered.
 	hbInfo := types.HeartbeatInfo{ClusterMembers: clusterMap}
 	for _, node := range clusterMembers {
-		if node.SchemaVersion > hbInfo.MaxSchema {
-			hbInfo.MaxSchema = node.SchemaVersion
+		if node.SchemaInternalVersion > hbInfo.MaxSchemaInternal {
+			hbInfo.MaxSchemaInternal = node.SchemaInternalVersion
+		}
+
+		if node.SchemaExternalVersion > hbInfo.MaxSchemaExternal {
+			hbInfo.MaxSchemaExternal = node.SchemaExternalVersion
 		}
 	}
 

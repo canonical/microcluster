@@ -31,7 +31,6 @@ import (
 // MicroCluster contains some basic filesystem information for interacting with the MicroCluster daemon.
 type MicroCluster struct {
 	FileSystem *sys.OS
-	ctx        context.Context
 
 	args Args
 }
@@ -49,7 +48,7 @@ type Args struct {
 }
 
 // App returns an instance of MicroCluster with a newly initialized filesystem if one does not exist.
-func App(ctx context.Context, args Args) (*MicroCluster, error) {
+func App(args Args) (*MicroCluster, error) {
 	if args.StateDir == "" {
 		return nil, fmt.Errorf("Missing state directory")
 	}
@@ -64,7 +63,6 @@ func App(ctx context.Context, args Args) (*MicroCluster, error) {
 
 	return &MicroCluster{
 		FileSystem: os,
-		ctx:        ctx,
 		args:       args,
 	}, nil
 }
@@ -74,7 +72,7 @@ func App(ctx context.Context, args Args) (*MicroCluster, error) {
 // - `extensionsSchema` is a list of schema updates in the order that they should be applied.
 // - `extensionsAPI` is a list of endpoints to be served over `/1.0`.
 // - `hooks` are a set of functions that trigger at certain points during cluster communication.
-func (m *MicroCluster) Start(extensionsAPI []rest.Endpoint, extensionsSchema []schema.Update, hooks *config.Hooks) error {
+func (m *MicroCluster) Start(ctx context.Context, extensionsAPI []rest.Endpoint, extensionsSchema []schema.Update, hooks *config.Hooks) error {
 	// Initialize the logger.
 	err := logger.InitLogger(m.FileSystem.LogFile, "", m.args.Verbose, m.args.Debug, nil)
 	if err != nil {
@@ -88,7 +86,7 @@ func (m *MicroCluster) Start(extensionsAPI []rest.Endpoint, extensionsSchema []s
 	chIgnore := make(chan os.Signal, 1)
 	signal.Notify(chIgnore, unix.SIGHUP)
 
-	ctx, cancel := signal.NotifyContext(m.ctx, unix.SIGPWR, unix.SIGTERM, unix.SIGINT, unix.SIGQUIT)
+	ctx, cancel := signal.NotifyContext(ctx, unix.SIGPWR, unix.SIGTERM, unix.SIGINT, unix.SIGQUIT)
 	defer cancel()
 
 	err = d.Run(ctx, m.args.ListenPort, m.FileSystem.StateDir, m.FileSystem.SocketGroup, extensionsAPI, extensionsSchema, hooks)
@@ -100,14 +98,14 @@ func (m *MicroCluster) Start(extensionsAPI []rest.Endpoint, extensionsSchema []s
 }
 
 // Status returns basic status information about the cluster.
-func (m *MicroCluster) Status() (*internalTypes.Server, error) {
+func (m *MicroCluster) Status(ctx context.Context) (*internalTypes.Server, error) {
 	c, err := m.LocalClient()
 	if err != nil {
 		return nil, err
 	}
 
 	server := internalTypes.Server{}
-	err = c.QueryStruct(m.ctx, "GET", internalClient.PublicEndpoint, nil, nil, &server)
+	err = c.QueryStruct(ctx, "GET", internalClient.PublicEndpoint, nil, nil, &server)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get cluster status: %w", err)
 	}
@@ -117,7 +115,7 @@ func (m *MicroCluster) Status() (*internalTypes.Server, error) {
 
 // Ready waits for the daemon to report it has finished initial setup and is ready to be bootstrapped or join an
 // existing cluster.
-func (m *MicroCluster) Ready(timeoutSeconds int) error {
+func (m *MicroCluster) Ready(ctx context.Context, timeoutSeconds int) error {
 	finger := make(chan error, 1)
 	var errLast error
 	go func() {
@@ -151,7 +149,7 @@ func (m *MicroCluster) Ready(timeoutSeconds int) error {
 				logger.Debugf("Checking if MicroCluster daemon is ready (attempt %d)", i)
 			}
 
-			err = c.CheckReady(m.ctx)
+			err = c.CheckReady(ctx)
 			if err != nil {
 				errLast = err
 				if doLog {
@@ -182,7 +180,7 @@ func (m *MicroCluster) Ready(timeoutSeconds int) error {
 }
 
 // NewCluster bootstrapps a brand new cluster with this daemon as its only member.
-func (m *MicroCluster) NewCluster(name string, address string, config map[string]string, timeout time.Duration) error {
+func (m *MicroCluster) NewCluster(ctx context.Context, name string, address string, config map[string]string, timeout time.Duration) error {
 	c, err := m.LocalClient()
 	if err != nil {
 		return err
@@ -193,11 +191,11 @@ func (m *MicroCluster) NewCluster(name string, address string, config map[string
 		return fmt.Errorf("Received invalid address %q: %w", address, err)
 	}
 
-	return c.ControlDaemon(m.ctx, internalTypes.Control{Bootstrap: true, Address: addr, Name: name, InitConfig: config}, timeout)
+	return c.ControlDaemon(ctx, internalTypes.Control{Bootstrap: true, Address: addr, Name: name, InitConfig: config}, timeout)
 }
 
 // JoinCluster joins an existing cluster with a join token supplied by an existing cluster member.
-func (m *MicroCluster) JoinCluster(name string, address string, token string, initConfig map[string]string, timeout time.Duration) error {
+func (m *MicroCluster) JoinCluster(ctx context.Context, name string, address string, token string, initConfig map[string]string, timeout time.Duration) error {
 	c, err := m.LocalClient()
 	if err != nil {
 		return err
@@ -208,19 +206,19 @@ func (m *MicroCluster) JoinCluster(name string, address string, token string, in
 		return fmt.Errorf("Received invalid address %q: %w", address, err)
 	}
 
-	return c.ControlDaemon(m.ctx, internalTypes.Control{JoinToken: token, Address: addr, Name: name, InitConfig: initConfig}, timeout)
+	return c.ControlDaemon(ctx, internalTypes.Control{JoinToken: token, Address: addr, Name: name, InitConfig: initConfig}, timeout)
 }
 
 // NewJoinToken creates and records a new join token containing all the necessary credentials for joining a cluster.
 // Join tokens are tied to the server certificate of the joining node, and will be deleted once the node has joined the
 // cluster.
-func (m *MicroCluster) NewJoinToken(name string) (string, error) {
+func (m *MicroCluster) NewJoinToken(ctx context.Context, name string) (string, error) {
 	c, err := m.LocalClient()
 	if err != nil {
 		return "", err
 	}
 
-	secret, err := c.RequestToken(m.ctx, name)
+	secret, err := c.RequestToken(ctx, name)
 	if err != nil {
 		return "", err
 	}
@@ -229,13 +227,13 @@ func (m *MicroCluster) NewJoinToken(name string) (string, error) {
 }
 
 // ListJoinTokens lists all the join tokens currently available for use.
-func (m *MicroCluster) ListJoinTokens() ([]internalTypes.TokenRecord, error) {
+func (m *MicroCluster) ListJoinTokens(ctx context.Context) ([]internalTypes.TokenRecord, error) {
 	c, err := m.LocalClient()
 	if err != nil {
 		return nil, err
 	}
 
-	records, err := c.GetTokenRecords(m.ctx)
+	records, err := c.GetTokenRecords(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -244,13 +242,13 @@ func (m *MicroCluster) ListJoinTokens() ([]internalTypes.TokenRecord, error) {
 }
 
 // RevokeJoinToken revokes the token record stored under the given name.
-func (m *MicroCluster) RevokeJoinToken(name string) error {
+func (m *MicroCluster) RevokeJoinToken(ctx context.Context, name string) error {
 	c, err := m.LocalClient()
 	if err != nil {
 		return err
 	}
 
-	err = c.DeleteTokenRecord(m.ctx, name)
+	err = c.DeleteTokenRecord(ctx, name)
 	if err != nil {
 		return err
 	}
@@ -317,7 +315,7 @@ func (m *MicroCluster) RemoteClient(address string) (*client.Client, error) {
 }
 
 // SQL performs either a GET or POST on /internal/sql with a given query. This is a useful helper for using direct SQL.
-func (m *MicroCluster) SQL(query string) (string, *internalTypes.SQLBatch, error) {
+func (m *MicroCluster) SQL(ctx context.Context, query string) (string, *internalTypes.SQLBatch, error) {
 	if query == "-" {
 		// Read from stdin
 		bytes, err := io.ReadAll(os.Stdin)
@@ -334,7 +332,7 @@ func (m *MicroCluster) SQL(query string) (string, *internalTypes.SQLBatch, error
 	}
 
 	if query == ".dump" || query == ".schema" {
-		dump, err := c.GetSQL(context.Background(), query == ".schema")
+		dump, err := c.GetSQL(ctx, query == ".schema")
 		if err != nil {
 			return "", nil, fmt.Errorf("failed to parse dump response: %w", err)
 		}
@@ -346,7 +344,7 @@ func (m *MicroCluster) SQL(query string) (string, *internalTypes.SQLBatch, error
 		Query: query,
 	}
 
-	batch, err := c.PostSQL(context.Background(), data)
+	batch, err := c.PostSQL(ctx, data)
 
 	return "", batch, err
 }

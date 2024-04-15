@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"os"
 
@@ -36,13 +35,13 @@ func (c *cmdSQL) Run(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	m, err := microcluster.App(context.Background(), microcluster.Args{StateDir: c.common.FlagStateDir, Verbose: c.common.FlagLogVerbose, Debug: c.common.FlagLogDebug})
+	m, err := microcluster.App(microcluster.Args{StateDir: c.common.FlagStateDir, Verbose: c.common.FlagLogVerbose, Debug: c.common.FlagLogDebug})
 	if err != nil {
 		return err
 	}
 
 	query := args[0]
-	dump, batch, err := m.SQL(query)
+	dump, batch, err := m.SQL(cmd.Context(), query)
 	if err != nil {
 		return err
 	}

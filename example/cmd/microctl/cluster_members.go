@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"sort"
 
 	cli "github.com/canonical/lxd/shared/cmd"
@@ -54,7 +53,7 @@ func (c *cmdClusterMembersList) Run(cmd *cobra.Command, args []string) error {
 	}
 
 	// Get all state information for MicroCluster.
-	m, err := microcluster.App(context.Background(), microcluster.Args{StateDir: c.common.FlagStateDir, Verbose: c.common.FlagLogVerbose, Debug: c.common.FlagLogDebug})
+	m, err := microcluster.App(microcluster.Args{StateDir: c.common.FlagStateDir, Verbose: c.common.FlagLogVerbose, Debug: c.common.FlagLogDebug})
 	if err != nil {
 		return err
 	}
@@ -74,7 +73,7 @@ func (c *cmdClusterMembersList) Run(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	clusterMembers, err := client.GetClusterMembers(context.Background())
+	clusterMembers, err := client.GetClusterMembers(cmd.Context())
 	if err != nil {
 		return err
 	}
@@ -113,7 +112,7 @@ func (c *cmdClusterMemberRemove) Run(cmd *cobra.Command, args []string) error {
 		return cmd.Help()
 	}
 
-	m, err := microcluster.App(context.Background(), microcluster.Args{StateDir: c.common.FlagStateDir, Verbose: c.common.FlagLogVerbose, Debug: c.common.FlagLogDebug})
+	m, err := microcluster.App(microcluster.Args{StateDir: c.common.FlagStateDir, Verbose: c.common.FlagLogVerbose, Debug: c.common.FlagLogDebug})
 	if err != nil {
 		return err
 	}
@@ -123,7 +122,7 @@ func (c *cmdClusterMemberRemove) Run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	err = client.DeleteClusterMember(context.Background(), args[0], c.flagForce)
+	err = client.DeleteClusterMember(cmd.Context(), args[0], c.flagForce)
 	if err != nil {
 		return err
 	}

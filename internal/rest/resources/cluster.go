@@ -529,14 +529,6 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 		})
 	}
 
-	// Remove the cluster member from the database.
-	err = s.Database.Transaction(s.Context, func(ctx context.Context, tx *sql.Tx) error {
-		return cluster.DeleteInternalClusterMember(ctx, tx, info[index].Address)
-	})
-	if err != nil {
-		return response.SmartError(err)
-	}
-
 	publicKey, err := s.ClusterCert().PublicKeyX509()
 	if err != nil {
 		return response.SmartError(err)
@@ -550,6 +542,14 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 
 	// Tell the cluster member to run its PreRemove hook and return.
 	err = c.ResetClusterMember(s.Context, name, force)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	// Remove the cluster member from the database.
+	err = s.Database.Transaction(s.Context, func(ctx context.Context, tx *sql.Tx) error {
+		return cluster.DeleteInternalClusterMember(ctx, tx, info[index].Address)
+	})
 	if err != nil {
 		return response.SmartError(err)
 	}

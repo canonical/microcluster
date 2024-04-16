@@ -1,6 +1,9 @@
 package main
 
 import (
+	"context"
+	"time"
+
 	"github.com/canonical/microcluster/microcluster"
 	"github.com/spf13/cobra"
 )
@@ -33,5 +36,11 @@ func (c *cmdWaitready) Run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	return m.Ready(cmd.Context(), c.flagTimeout)
+	ctx, cancel := cmd.Context(), func() {}
+	if c.flagTimeout > 0 {
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(c.flagTimeout)*time.Second)
+	}
+	defer cancel()
+
+	return m.Ready(ctx)
 }

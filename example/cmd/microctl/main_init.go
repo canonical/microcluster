@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -54,12 +55,15 @@ func (c *cmdInit) Run(cmd *cobra.Command, args []string) error {
 		conf[key] = value
 	}
 
+	ctx, cancel := context.WithTimeout(cmd.Context(), 30*time.Second)
+	defer cancel()
+
 	if c.flagBootstrap {
-		return m.NewCluster(cmd.Context(), args[0], args[1], conf, time.Second*30)
+		return m.NewCluster(ctx, args[0], args[1], conf)
 	}
 
 	if c.flagToken != "" {
-		return m.JoinCluster(cmd.Context(), args[0], args[1], c.flagToken, conf, time.Second*30)
+		return m.JoinCluster(ctx, args[0], args[1], c.flagToken, conf)
 	}
 
 	return fmt.Errorf("Option must be one of bootstrap or token")

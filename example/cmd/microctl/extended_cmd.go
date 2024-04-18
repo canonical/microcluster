@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 
 	microClient "github.com/canonical/microcluster/client"
@@ -29,7 +28,7 @@ func (c *cmdExtended) Run(cmd *cobra.Command, args []string) error {
 		return cmd.Help()
 	}
 
-	m, err := microcluster.App(context.Background(), microcluster.Args{StateDir: c.common.FlagStateDir, Verbose: c.common.FlagLogVerbose, Debug: c.common.FlagLogDebug})
+	m, err := microcluster.App(microcluster.Args{StateDir: c.common.FlagStateDir, Verbose: c.common.FlagLogVerbose, Debug: c.common.FlagLogDebug})
 	if err != nil {
 		return err
 	}
@@ -45,7 +44,7 @@ func (c *cmdExtended) Run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	outMsg, err := client.ExtendedPostCmd(context.Background(), cli, nil)
+	outMsg, err := client.ExtendedPostCmd(cmd.Context(), cli, nil)
 	if err != nil {
 		return err
 	}

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"time"
 
 	"github.com/canonical/microcluster/microcluster"
 	"github.com/spf13/cobra"
@@ -30,10 +31,16 @@ func (c *cmdWaitready) Run(cmd *cobra.Command, args []string) error {
 		return cmd.Help()
 	}
 
-	m, err := microcluster.App(context.Background(), microcluster.Args{StateDir: c.common.FlagStateDir, Verbose: c.common.FlagLogVerbose, Debug: c.common.FlagLogDebug})
+	m, err := microcluster.App(microcluster.Args{StateDir: c.common.FlagStateDir, Verbose: c.common.FlagLogVerbose, Debug: c.common.FlagLogDebug})
 	if err != nil {
 		return err
 	}
 
-	return m.Ready(c.flagTimeout)
+	ctx, cancel := cmd.Context(), func() {}
+	if c.flagTimeout > 0 {
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(c.flagTimeout)*time.Second)
+	}
+	defer cancel()
+
+	return m.Ready(ctx)
 }

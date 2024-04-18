@@ -2,7 +2,6 @@
 package main
 
 import (
-	"context"
 	"os"
 
 	"github.com/canonical/lxd/shared/logger"
@@ -59,7 +58,7 @@ func (c *cmdDaemon) Command() *cobra.Command {
 }
 
 func (c *cmdDaemon) Run(cmd *cobra.Command, args []string) error {
-	m, err := microcluster.App(context.Background(), microcluster.Args{StateDir: c.flagStateDir, SocketGroup: c.flagSocketGroup, Verbose: c.global.flagLogVerbose, Debug: c.global.flagLogDebug})
+	m, err := microcluster.App(microcluster.Args{StateDir: c.flagStateDir, SocketGroup: c.flagSocketGroup, Verbose: c.global.flagLogVerbose, Debug: c.global.flagLogDebug})
 	if err != nil {
 		return err
 	}
@@ -153,7 +152,7 @@ func (c *cmdDaemon) Run(cmd *cobra.Command, args []string) error {
 		},
 	}
 
-	return m.Start(api.Endpoints, database.SchemaExtensions, exampleHooks)
+	return m.Start(cmd.Context(), api.Endpoints, database.SchemaExtensions, exampleHooks)
 }
 
 func main() {

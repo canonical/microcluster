@@ -1,8 +1,6 @@
 package main
 
 import (
-	"context"
-
 	"github.com/canonical/microcluster/microcluster"
 	"github.com/spf13/cobra"
 )
@@ -26,7 +24,7 @@ func (c *cmdShutdown) Run(cmd *cobra.Command, args []string) error {
 		return cmd.Help()
 	}
 
-	m, err := microcluster.App(context.Background(), microcluster.Args{StateDir: c.common.FlagStateDir, Verbose: c.common.FlagLogVerbose, Debug: c.common.FlagLogDebug})
+	m, err := microcluster.App(microcluster.Args{StateDir: c.common.FlagStateDir, Verbose: c.common.FlagLogVerbose, Debug: c.common.FlagLogDebug})
 	if err != nil {
 		return err
 	}
@@ -40,7 +38,7 @@ func (c *cmdShutdown) Run(cmd *cobra.Command, args []string) error {
 	go func() {
 		defer close(chResult)
 
-		err := client.ShutdownDaemon(context.Background())
+		err := client.ShutdownDaemon(cmd.Context())
 		if err != nil {
 			chResult <- err
 			return

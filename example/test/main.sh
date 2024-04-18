@@ -19,7 +19,14 @@ for member in "${members[@]}"; do
   microctl --state-dir "${state_dir}" waitready
 done
 
+# Ensure only valid member names are used
+! microctl --state-dir "${test_dir}/c1" init "c/1" 127.0.0.1:9001 --bootstrap
+
 microctl --state-dir "${test_dir}/c1" init "c1" 127.0.0.1:9001 --bootstrap
+
+# Ensure only valid member names are used
+token_node2=$(microctl --state-dir "${test_dir}/c1" tokens add "c/2")
+! microctl --state-dir "${test_dir}/c1" init "c/2" 127.0.0.1:9003 --token "${token_node2}"
 
 token_node2=$(microctl --state-dir "${test_dir}/c1" tokens add "c2")
 token_node3=$(microctl --state-dir "${test_dir}/c1" tokens add "c3")

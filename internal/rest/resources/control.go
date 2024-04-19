@@ -11,6 +11,7 @@ import (
 	"github.com/canonical/lxd/shared"
 	"github.com/canonical/lxd/shared/api"
 	"github.com/canonical/lxd/shared/logger"
+	"github.com/canonical/lxd/shared/validate"
 
 	"github.com/canonical/microcluster/internal/rest/access"
 	"github.com/canonical/microcluster/internal/rest/client"
@@ -37,6 +38,11 @@ func controlPost(state *state.State, r *http.Request) response.Response {
 
 	if req.Bootstrap && req.JoinToken != "" {
 		return response.SmartError(fmt.Errorf("Invalid options - received join token and bootstrap flag"))
+	}
+
+	err = validate.IsHostname(req.Name)
+	if err != nil {
+		return response.SmartError(fmt.Errorf("Invalid cluster member name %q: %w", req.Name, err))
 	}
 
 	if req.JoinToken != "" {

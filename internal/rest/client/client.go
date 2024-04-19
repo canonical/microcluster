@@ -300,6 +300,7 @@ func (c *Client) QueryStruct(ctx context.Context, method string, endpointType En
 	localURL.URL.Host = c.url.URL.Host
 	localURL.URL.Scheme = c.url.URL.Scheme
 	localURL.URL.Path = "/" + string(endpointType) + localURL.URL.Path
+	localURL.URL.RawPath = "/" + string(endpointType) + localURL.URL.RawPath
 
 	localQuery := localURL.URL.Query()
 	clientQuery := c.url.URL.Query()

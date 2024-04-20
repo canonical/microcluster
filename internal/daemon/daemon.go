@@ -539,7 +539,7 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 
 			// Run the OnNewMember hook, and skip errors on any nodes that are still in the process of joining.
 			err = internalClient.RunNewMemberHook(ctx, c.Client.UseTarget(remote.Name), internalTypes.HookNewMemberOptions{Name: localMemberInfo.Name})
-			if err != nil {
+			if err != nil && err.Error() != "Daemon not yet initialized" {
 				return err
 			}
 		}

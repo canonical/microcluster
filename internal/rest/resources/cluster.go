@@ -34,8 +34,7 @@ import (
 )
 
 var clusterCmd = rest.Endpoint{
-	Path:              "cluster",
-	AllowedBeforeInit: true,
+	Path: "cluster",
 
 	Post: rest.EndpointAction{Handler: clusterPost, AllowUntrusted: true},
 	Get:  rest.EndpointAction{Handler: clusterGet, AccessHandler: access.AllowAuthenticated},
@@ -49,10 +48,6 @@ var clusterMemberCmd = rest.Endpoint{
 }
 
 func clusterPost(s *state.State, r *http.Request) response.Response {
-	if !s.Database.IsOpen() {
-		return response.Unavailable(fmt.Errorf("Daemon not yet initialized"))
-	}
-
 	req := internalTypes.ClusterMember{}
 
 	// Parse the request.
@@ -173,10 +168,6 @@ func clusterPost(s *state.State, r *http.Request) response.Response {
 }
 
 func clusterGet(s *state.State, r *http.Request) response.Response {
-	if !s.Database.IsOpen() {
-		return response.Unavailable(fmt.Errorf("Daemon not yet initialized"))
-	}
-
 	var apiClusterMembers []internalTypes.ClusterMember
 	err := s.Database.Transaction(s.Context, func(ctx context.Context, tx *sql.Tx) error {
 		clusterMembers, err := cluster.GetInternalClusterMembers(ctx, tx)

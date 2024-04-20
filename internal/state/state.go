@@ -2,10 +2,8 @@ package state
 
 import (
 	"context"
-	"net/http"
 	"time"
 
-	"github.com/canonical/lxd/lxd/cluster/request"
 	"github.com/canonical/lxd/shared"
 	"github.com/canonical/lxd/shared/api"
 
@@ -78,12 +76,10 @@ var OnNewMemberHook func(state *State) error
 var ReloadClusterCert func() error
 
 // Cluster returns a client for every member of a cluster, except
-// this one, with the UserAgentNotifier header set if a request is given.
-func (s *State) Cluster(r *http.Request) (client.Cluster, error) {
-	if r != nil {
-		r.Header.Set("User-Agent", request.UserAgentNotifier)
-	}
-
+// this one.
+// All requests made by the client will have the UserAgentNotifier header set
+// if isNotification is true.
+func (s *State) Cluster(isNotification bool) (client.Cluster, error) {
 	c, err := s.Leader()
 	if err != nil {
 		return nil, err
@@ -106,7 +102,7 @@ func (s *State) Cluster(r *http.Request) (client.Cluster, error) {
 		}
 
 		url := api.NewURL().Scheme("https").Host(clusterMember.Address.String())
-		c, err := internalClient.New(*url, s.ServerCert(), publicKey, true)
+		c, err := internalClient.New(*url, s.ServerCert(), publicKey, isNotification)
 		if err != nil {
 			return nil, err
 		}

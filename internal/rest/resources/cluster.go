@@ -578,7 +578,15 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	cluster, err := s.Cluster(true)
+	cluster, err := s.Cluster(false)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	// Remove the node from all other truststores as well.
+	err = cluster.Query(ctx, true, func(ctx context.Context, c *client.Client) error {
+		return internalClient.DeleteTrustStoreEntry(ctx, &c.Client, name)
+	})
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -589,6 +597,7 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 	}
 
 	err = cluster.Query(s.Context, true, func(ctx context.Context, c *client.Client) error {
+		c.SetClusterNotification()
 		return c.DeleteClusterMember(ctx, name, force)
 	})
 	if err != nil {

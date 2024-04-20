@@ -103,11 +103,6 @@ func clusterPost(s *state.State, r *http.Request) response.Response {
 		return response.SmartError(fmt.Errorf("Remote with address %q exists", req.Address.String()))
 	}
 
-	newRemote := trust.Remote{
-		Location:    trust.Location{Name: req.Name, Address: req.Address},
-		Certificate: req.Certificate,
-	}
-
 	// Forward request to leader.
 	if leaderInfo.Address != s.Address().URL.Host {
 		client, err := s.Leader()
@@ -116,12 +111,6 @@ func clusterPost(s *state.State, r *http.Request) response.Response {
 		}
 
 		tokenResponse, err := client.AddClusterMember(s.Context, req)
-		if err != nil {
-			return response.SmartError(err)
-		}
-
-		// If we are not the leader, just add the cluster member to our local store for authentication.
-		err = s.Remotes().Add(s.OS.TrustDir, newRemote)
 		if err != nil {
 			return response.SmartError(err)
 		}
@@ -178,6 +167,11 @@ func clusterPost(s *state.State, r *http.Request) response.Response {
 		ClusterKey:  string(s.ClusterCert().PrivateKey()),
 
 		ClusterMembers: clusterMembers,
+	}
+
+	newRemote := trust.Remote{
+		Location:    trust.Location{Name: req.Name, Address: req.Address},
+		Certificate: req.Certificate,
 	}
 
 	// Add the cluster member to our local store for authentication.

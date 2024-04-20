@@ -49,29 +49,6 @@ var clusterMemberCmd = rest.Endpoint{
 }
 
 func clusterPost(s *state.State, r *http.Request) response.Response {
-	// If we received a forwarded request, assume the new member was successfully added on the leader,
-	// and execute the new member hook.
-	if client.IsNotification(r) {
-		ctx, cancel := context.WithTimeout(s.Context, 30*time.Second)
-		defer cancel()
-
-		// Wait for the database to be set up in case we received this request at the same time as joining ourselves.
-		for !s.Database.IsOpen() {
-			select {
-			case <-ctx.Done():
-				return response.SmartError(fmt.Errorf("Error waiting for peer to initialize: %w", ctx.Err()))
-			default:
-			}
-		}
-
-		err := state.OnNewMemberHook(s)
-		if err != nil {
-			return response.SmartError(fmt.Errorf("Failed to run post cluster member add actions: %w", err))
-		}
-
-		return response.EmptySyncResponse
-	}
-
 	if !s.Database.IsOpen() {
 		return response.Unavailable(fmt.Errorf("Daemon not yet initialized"))
 	}
@@ -254,18 +231,6 @@ var clusterDisableMu sync.Mutex
 
 // Re-execs the daemon of the cluster member with a fresh s.
 func clusterMemberPut(s *state.State, r *http.Request) response.Response {
-	force := r.URL.Query().Get("force") == "1"
-
-	// If we received a cluster notification, run the pre-removal hook and return.
-	if client.IsNotification(r) {
-		err := state.PreRemoveHook(s, force)
-		if err != nil {
-			return response.SmartError(fmt.Errorf("Failed to run pre-removal hook: %w", err))
-		}
-
-		return response.EmptySyncResponse
-	}
-
 	err := s.Database.Stop()
 	if err != nil {
 		return response.SmartError(fmt.Errorf("Failed shutting down database: %w", err))
@@ -327,17 +292,6 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 	name, err := url.PathUnescape(mux.Vars(r)["name"])
 	if err != nil {
 		return response.SmartError(err)
-	}
-
-	// If we received a forwarded request, assume the new member was successfully removed on the leader,
-	// and execute the post-remove hook.
-	if client.IsNotification(r) {
-		err := state.PostRemoveHook(s, force)
-		if err != nil {
-			return response.SmartError(fmt.Errorf("Failed to run post cluster member remove actions: %w", err))
-		}
-
-		return response.EmptySyncResponse
 	}
 
 	allRemotes := s.Remotes().RemotesByName()
@@ -534,7 +488,7 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 	}
 
 	// Tell the cluster member to run its PreRemove hook and return.
-	err = c.ResetClusterMember(s.Context, name, force)
+	err = internalClient.RunPreRemoveHook(ctx, c.UseTarget(name), internalTypes.HookRemoveMemberOptions{Force: force})
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -590,14 +544,27 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
+	// Run the PostRemove hook locally.
 	err = state.PostRemoveHook(s, force)
 	if err != nil {
 		return response.SmartError(err)
 	}
 
+	// Run the PostRemove hook on all other members.
+	remotes := s.Remotes()
 	err = cluster.Query(s.Context, true, func(ctx context.Context, c *client.Client) error {
 		c.SetClusterNotification()
-		return c.DeleteClusterMember(ctx, name, force)
+		addrPort, err := types.ParseAddrPort(c.URL().URL.Host)
+		if err != nil {
+			return err
+		}
+
+		remote := remotes.RemoteByAddress(addrPort)
+		if remote == nil {
+			return fmt.Errorf("No remote found at address %q run the post-remove hook", c.URL().URL.Host)
+		}
+
+		return internalClient.RunPostRemoveHook(ctx, c.Client.UseTarget(remote.Name), internalTypes.HookRemoveMemberOptions{Force: force})
 	})
 	if err != nil {
 		return response.SmartError(err)

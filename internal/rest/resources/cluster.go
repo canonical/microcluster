@@ -83,7 +83,6 @@ func clusterPost(s *state.State, r *http.Request) response.Response {
 		return response.BadRequest(err)
 	}
 
-	// Set a 5 second timeout in case dqlite locks up.
 	ctx, cancel := context.WithTimeout(s.Context, time.Second*30)
 	defer cancel()
 

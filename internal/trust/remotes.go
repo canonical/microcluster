@@ -73,7 +73,9 @@ func (r *Remotes) Load(dir string) error {
 		remoteData[remote.Name] = *remote
 	}
 
-	if len(remoteData) == 0 {
+	// If the refreshed truststore data is empty, and we already had data in the truststore,
+	// abort the refresh because an initialized system should always have truststore entries.
+	if len(remoteData) == 0 && len(r.data) != 0 {
 		logger.Warn("Failed to parse new remotes from truststore")
 
 		return nil

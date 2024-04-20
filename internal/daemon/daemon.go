@@ -450,7 +450,7 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 		return err
 	}
 
-	cluster, err := d.trustStore.Remotes().Cluster(true, d.ServerCert(), publicKey)
+	cluster, err := d.trustStore.Remotes().Cluster(false, d.ServerCert(), publicKey)
 	if err != nil {
 		return err
 	}
@@ -463,8 +463,39 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 		}
 	}
 
+	var lastErr error
+	var clusterConfirmation bool
+	err = cluster.Query(d.shutdownCtx, true, func(ctx context.Context, c *client.Client) error {
+		// No need to send a request to ourselves.
+		if d.address.URL.Host == c.URL().URL.Host {
+			return nil
+		}
+
+		// At this point the joiner is only trusted on the node that was leader at the time,
+		// so find it and have it instruct all dqlite members to trust this system now that it is functional.
+		if !clusterConfirmation {
+			err := internalClient.AddTrustStoreEntry(ctx, &c.Client, localMemberInfo)
+			if err != nil {
+				lastErr = err
+			} else {
+				clusterConfirmation = true
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	if !clusterConfirmation {
+		return fmt.Errorf("Failed to confirm new member %q on any existing system (%d): %w", localMemberInfo.Name, len(cluster)-1, lastErr)
+	}
+
 	// Tell the other nodes that this system is up.
 	err = cluster.Query(d.shutdownCtx, true, func(ctx context.Context, c *client.Client) error {
+		c.SetClusterNotification()
+
 		// No need to send a request to ourselves.
 		if d.address.URL.Host == c.URL().URL.Host {
 			return nil

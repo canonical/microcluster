@@ -27,9 +27,9 @@ var extendedCmd = rest.Endpoint{
 // This example shows how to forward a request to other cluster members.
 func cmdPost(state *state.State, r *http.Request) response.Response {
 	// Check the user agent header to check if we are the notifying cluster member.
-	if !client.IsForwardedRequest(r) {
+	if !client.IsNotification(r) {
 		// Get a collection of clients every other cluster member, with the notification user-agent set.
-		cluster, err := state.Cluster(r)
+		cluster, err := state.Cluster(true)
 		if err != nil {
 			return response.SmartError(fmt.Errorf("Failed to get a client for every cluster member: %w", err))
 		}

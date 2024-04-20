@@ -208,7 +208,7 @@ func beginHeartbeat(s *state.State, r *http.Request) response.Response {
 		}
 	}
 
-	clusterClients, err := s.Cluster(nil)
+	clusterClients, err := s.Cluster(false)
 	if err != nil {
 		return response.SmartError(err)
 	}

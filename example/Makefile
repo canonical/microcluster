@@ -16,8 +16,8 @@ check-unit:
 	go test ./...
 
 .PHONY: check-system
-check-system:
-	true
+check-system: build
+	./test/main.sh
 
 .PHONY: check-static
 check-static:

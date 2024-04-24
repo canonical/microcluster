@@ -15,8 +15,8 @@ type Client struct {
 	client.Client
 }
 
-// IsForwardedRequest determines if this request has been forwarded from another cluster member.
-func IsForwardedRequest(r *http.Request) bool {
+// IsNotification determines if this request is to be considered a cluster-wide notification.
+func IsNotification(r *http.Request) bool {
 	return r.Header.Get("User-Agent") == clusterRequest.UserAgentNotifier
 }
 

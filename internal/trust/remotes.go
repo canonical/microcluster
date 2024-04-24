@@ -16,6 +16,8 @@ import (
 	"github.com/google/renameio"
 	"gopkg.in/yaml.v2"
 
+	"github.com/canonical/microcluster/client"
+	internalClient "github.com/canonical/microcluster/internal/rest/client"
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/rest/types"
 )
@@ -214,6 +216,22 @@ func (r *Remotes) Addresses() map[string]types.AddrPort {
 	}
 
 	return addrs
+}
+
+// Cluster returns a set of clients for every remote, which can be concurrently queried.
+func (r *Remotes) Cluster(isNotification bool, serverCert *shared.CertInfo, publicKey *x509.Certificate) (client.Cluster, error) {
+	cluster := make(client.Cluster, 0, r.Count()-1)
+	for _, addr := range r.Addresses() {
+		url := api.NewURL().Scheme("https").Host(addr.String())
+		c, err := internalClient.New(*url, serverCert, publicKey, isNotification)
+		if err != nil {
+			return nil, err
+		}
+
+		cluster = append(cluster, client.Client{Client: *c})
+	}
+
+	return cluster, nil
 }
 
 // RemoteByAddress returns a Remote matching the given host address (or nil if none are found).

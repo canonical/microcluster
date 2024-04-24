@@ -50,7 +50,7 @@ var clusterMemberCmd = rest.Endpoint{
 func clusterPost(s *state.State, r *http.Request) response.Response {
 	// If we received a forwarded request, assume the new member was successfully added on the leader,
 	// and execute the new member hook.
-	if client.IsForwardedRequest(r) {
+	if client.IsNotification(r) {
 		ctx, cancel := context.WithTimeout(s.Context, 30*time.Second)
 		defer cancel()
 
@@ -102,11 +102,6 @@ func clusterPost(s *state.State, r *http.Request) response.Response {
 		return response.SmartError(fmt.Errorf("Remote with address %q exists", req.Address.String()))
 	}
 
-	newRemote := trust.Remote{
-		Location:    trust.Location{Name: req.Name, Address: req.Address},
-		Certificate: req.Certificate,
-	}
-
 	// Forward request to leader.
 	if leaderInfo.Address != s.Address().URL.Host {
 		client, err := s.Leader()
@@ -115,12 +110,6 @@ func clusterPost(s *state.State, r *http.Request) response.Response {
 		}
 
 		tokenResponse, err := client.AddClusterMember(s.Context, req)
-		if err != nil {
-			return response.SmartError(err)
-		}
-
-		// If we are not the leader, just add the cluster member to our local store for authentication.
-		err = s.Remotes().Add(s.OS.TrustDir, newRemote)
 		if err != nil {
 			return response.SmartError(err)
 		}
@@ -177,6 +166,11 @@ func clusterPost(s *state.State, r *http.Request) response.Response {
 		ClusterKey:  string(s.ClusterCert().PrivateKey()),
 
 		ClusterMembers: clusterMembers,
+	}
+
+	newRemote := trust.Remote{
+		Location:    trust.Location{Name: req.Name, Address: req.Address},
+		Certificate: req.Certificate,
 	}
 
 	// Add the cluster member to our local store for authentication.
@@ -250,7 +244,7 @@ func clusterMemberPut(s *state.State, r *http.Request) response.Response {
 	force := r.URL.Query().Get("force") == "1"
 
 	// If we received a cluster notification, run the pre-removal hook and return.
-	if client.IsForwardedRequest(r) {
+	if client.IsNotification(r) {
 		err := state.PreRemoveHook(s, force)
 		if err != nil {
 			return response.SmartError(fmt.Errorf("Failed to run pre-removal hook: %w", err))
@@ -324,7 +318,7 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 
 	// If we received a forwarded request, assume the new member was successfully removed on the leader,
 	// and execute the post-remove hook.
-	if client.IsForwardedRequest(r) {
+	if client.IsNotification(r) {
 		err := state.PostRemoveHook(s, force)
 		if err != nil {
 			return response.SmartError(fmt.Errorf("Failed to run post cluster member remove actions: %w", err))
@@ -583,7 +577,15 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	cluster, err := s.Cluster(nil)
+	cluster, err := s.Cluster(false)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	// Remove the node from all other truststores as well.
+	err = cluster.Query(ctx, true, func(ctx context.Context, c *client.Client) error {
+		return internalClient.DeleteTrustStoreEntry(ctx, &c.Client, name)
+	})
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -594,6 +596,7 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 	}
 
 	err = cluster.Query(s.Context, true, func(ctx context.Context, c *client.Client) error {
+		c.SetClusterNotification()
 		return c.DeleteClusterMember(ctx, name, force)
 	})
 	if err != nil {

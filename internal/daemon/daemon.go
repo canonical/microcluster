@@ -445,26 +445,17 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 	}
 
 	// Get a client for every other cluster member in the newly refreshed local store.
-	cluster := make(client.Cluster, 0, d.trustStore.Remotes().Count()-1)
-	for _, addr := range d.trustStore.Remotes().Addresses() {
-		if d.address.URL.Host == addr.String() {
-			continue
-		}
-
-		publicKey, err := d.ClusterCert().PublicKeyX509()
-		if err != nil {
-			return err
-		}
-
-		url := api.NewURL().Scheme("https").Host(addr.String())
-		c, err := internalClient.New(*url, d.ServerCert(), publicKey, true)
-		if err != nil {
-			return err
-		}
-
-		cluster = append(cluster, client.Client{Client: *c})
+	publicKey, err := d.ClusterCert().PublicKeyX509()
+	if err != nil {
+		return err
 	}
 
+	cluster, err := d.trustStore.Remotes().Cluster(false, d.ServerCert(), publicKey)
+	if err != nil {
+		return err
+	}
+
+	localMemberInfo := internalTypes.ClusterMemberLocal{Name: localNode.Name, Address: localNode.Address, Certificate: localNode.Certificate}
 	if len(joinAddresses) > 0 {
 		err = d.hooks.PreJoin(d.State(), initConfig)
 		if err != nil {
@@ -472,38 +463,52 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 		}
 	}
 
-	// Send notification that this node is upgraded to all other cluster members.
+	var lastErr error
+	var clusterConfirmation bool
 	err = cluster.Query(d.shutdownCtx, true, func(ctx context.Context, c *client.Client) error {
-		path := c.URL()
-		parts := strings.Split(string(internalClient.InternalEndpoint), "/")
-		parts = append(parts, "database")
-		path = *path.Path(parts...)
-		upgradeRequest, err := http.NewRequest("PATCH", path.String(), nil)
+		// No need to send a request to ourselves.
+		if d.address.URL.Host == c.URL().URL.Host {
+			return nil
+		}
+
+		// At this point the joiner is only trusted on the node that was leader at the time,
+		// so find it and have it instruct all dqlite members to trust this system now that it is functional.
+		if !clusterConfirmation {
+			err := internalClient.AddTrustStoreEntry(ctx, &c.Client, localMemberInfo)
+			if err != nil {
+				lastErr = err
+			} else {
+				clusterConfirmation = true
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	if !clusterConfirmation {
+		return fmt.Errorf("Failed to confirm new member %q on any existing system (%d): %w", localMemberInfo.Name, len(cluster)-1, lastErr)
+	}
+
+	// Tell the other nodes that this system is up.
+	err = cluster.Query(d.shutdownCtx, true, func(ctx context.Context, c *client.Client) error {
+		c.SetClusterNotification()
+
+		// No need to send a request to ourselves.
+		if d.address.URL.Host == c.URL().URL.Host {
+			return nil
+		}
+
+		// Send notification about this node's dqlite version to all other cluster members.
+		err = d.sendUpgradeNotification(ctx, c)
 		if err != nil {
 			return err
 		}
 
-		upgradeRequest.Header.Set("X-Dqlite-Version", fmt.Sprintf("%d", 1))
-		upgradeRequest = upgradeRequest.WithContext(ctx)
-
-		resp, err := c.Client.Do(upgradeRequest)
-		if err != nil {
-			logger.Error("Failed to send database upgrade request", logger.Ctx{"error": err})
-			return nil
-		}
-
-		defer resp.Body.Close()
-		_, err = io.Copy(io.Discard, resp.Body)
-		if err != nil {
-			logger.Error("Failed to read upgrade notification response body", logger.Ctx{"error": err})
-		}
-
-		if resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("Database upgrade notification failed: %s", resp.Status)
-		}
-
+		// If this was a join request, instruct all peers to run their OnNewMember hook.
 		if len(joinAddresses) > 0 {
-			localMemberInfo := internalTypes.ClusterMemberLocal{Name: localNode.Name, Address: localNode.Address, Certificate: localNode.Certificate}
 			_, err = c.AddClusterMember(ctx, internalTypes.ClusterMember{ClusterMemberLocal: localMemberInfo})
 			if err != nil {
 				return err
@@ -518,6 +523,38 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 
 	if len(joinAddresses) > 0 {
 		return d.hooks.PostJoin(d.State(), initConfig)
+	}
+
+	return nil
+}
+
+func (d *Daemon) sendUpgradeNotification(ctx context.Context, c *client.Client) error {
+	path := c.URL()
+	parts := strings.Split(string(internalClient.InternalEndpoint), "/")
+	parts = append(parts, "database")
+	path = *path.Path(parts...)
+	upgradeRequest, err := http.NewRequest("PATCH", path.String(), nil)
+	if err != nil {
+		return err
+	}
+
+	upgradeRequest.Header.Set("X-Dqlite-Version", fmt.Sprintf("%d", 1))
+	upgradeRequest = upgradeRequest.WithContext(ctx)
+
+	resp, err := c.Client.Do(upgradeRequest)
+	if err != nil {
+		logger.Error("Failed to send database upgrade request", logger.Ctx{"error": err})
+		return nil
+	}
+
+	defer resp.Body.Close()
+	_, err = io.Copy(io.Discard, resp.Body)
+	if err != nil {
+		logger.Error("Failed to read upgrade notification response body", logger.Ctx{"error": err})
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("Database upgrade notification failed: %s", resp.Status)
 	}
 
 	return nil

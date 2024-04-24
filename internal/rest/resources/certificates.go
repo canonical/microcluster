@@ -35,8 +35,8 @@ func clusterCertificatesPut(s *state.State, r *http.Request) response.Response {
 	}
 
 	// Forward the request to all other nodes if we are the first.
-	if !client.IsForwardedRequest(r) && s.Database.IsOpen() {
-		cluster, err := s.Cluster(r)
+	if !client.IsNotification(r) && s.Database.IsOpen() {
+		cluster, err := s.Cluster(true)
 		if err != nil {
 			return response.SmartError(err)
 		}

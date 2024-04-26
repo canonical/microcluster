@@ -344,10 +344,9 @@ func (db *DB) Stop() error {
 	db.cancel()
 
 	if db.IsOpen() {
-		err := db.db.Close()
-		if err != nil {
-			return err
-		}
+		// The database might refuse to close if many nodes are stopping at the same time,
+		// because the dqlite connection will have been lost.
+		_ = db.db.Close()
 	}
 
 	if db.dqlite != nil {

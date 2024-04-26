@@ -359,7 +359,7 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	// If we are not the leader, just update our trust store and forward the request.
+	// If we are not the leader, just forward the request.
 	if leaderInfo.Address != s.Address().URL.Host {
 		if allRemotes[name].Address.String() == s.Address().URL.Host {
 			// If the member being removed is ourselves and we are not the leader, then lock the
@@ -383,19 +383,6 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 		}
 
 		err = client.DeleteClusterMember(s.Context, name, force)
-		if err != nil {
-			return response.SmartError(err)
-		}
-
-		newRemotes := []internalTypes.ClusterMember{}
-		for _, remote := range allRemotes {
-			if remote.Name != name {
-				clusterMember := internalTypes.ClusterMemberLocal{Name: remote.Name, Address: remote.Address, Certificate: remote.Certificate}
-				newRemotes = append(newRemotes, internalTypes.ClusterMember{ClusterMemberLocal: clusterMember})
-			}
-		}
-
-		err = s.Remotes().Replace(s.OS.TrustDir, newRemotes...)
 		if err != nil {
 			return response.SmartError(err)
 		}
@@ -535,14 +522,6 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 		})
 	}
 
-	// Remove the cluster member from the database.
-	err = s.Database.Transaction(s.Context, func(ctx context.Context, tx *sql.Tx) error {
-		return cluster.DeleteInternalClusterMember(ctx, tx, info[index].Address)
-	})
-	if err != nil {
-		return response.SmartError(err)
-	}
-
 	publicKey, err := s.ClusterCert().PublicKeyX509()
 	if err != nil {
 		return response.SmartError(err)
@@ -556,6 +535,14 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 
 	// Tell the cluster member to run its PreRemove hook and return.
 	err = c.ResetClusterMember(s.Context, name, force)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	// Remove the cluster member from the database.
+	err = s.Database.Transaction(s.Context, func(ctx context.Context, tx *sql.Tx) error {
+		return cluster.DeleteInternalClusterMember(ctx, tx, info[index].Address)
+	})
 	if err != nil {
 		return response.SmartError(err)
 	}

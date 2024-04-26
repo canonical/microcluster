@@ -43,7 +43,9 @@ func (s *updateSuite) Test_updateFromV1ClusterMembers() {
 	// Update the schemas table to reflect the 3 new nodes. Assume there are 2 pre-existing external updates.
 	stmt := `INSERT INTO schemas (version, updated_at) VALUES (?, strftime("%s"))`
 	_, err = db.Exec(stmt, 1)
+	s.NoError(err)
 	_, err = db.Exec(stmt, 2)
+	s.NoError(err)
 	_, err = db.Exec(stmt, 3)
 	s.NoError(err)
 
@@ -78,7 +80,7 @@ func (s *updateSuite) Test_updateFromV1ClusterMembers() {
 	// The schema_internal column won't be updated to 2 until `waitUpgrade` is called on each node, but it should still reflect the pre-existing updateFromV0.
 	s.Equal([]int{1, 1, 1}, schemaInternal)
 	s.Equal([]int{2, 2, 2}, schemaExternal)
-	s.Equal([]int{1, 2}, versionsInternal)
+	s.Equal([]int{1, 2, 3}, versionsInternal)
 	s.Equal([]int{1, 2}, versionsExternal)
 
 	s.NoError(db.Close())

@@ -8,6 +8,7 @@ import (
 
 	"github.com/canonical/lxd/lxd/db/query"
 
+	"github.com/canonical/microcluster/internal/extensions"
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/rest/types"
 )
@@ -45,6 +46,7 @@ type InternalClusterMember struct {
 	Certificate    string
 	SchemaInternal uint64
 	SchemaExternal uint64
+	APIExtensions  extensions.Extensions
 	Heartbeat      time.Time
 	Role           Role
 }
@@ -79,6 +81,7 @@ func (c InternalClusterMember) ToAPI() (*internalTypes.ClusterMember, error) {
 		SchemaExternalVersion: c.SchemaExternal,
 		LastHeartbeat:         c.Heartbeat,
 		Status:                internalTypes.MemberUnreachable,
+		Extensions:            c.APIExtensions,
 	}, nil
 }
 
@@ -128,4 +131,54 @@ func GetClusterMemberSchemaVersions(ctx context.Context, tx *sql.Tx) (internalSc
 	}
 
 	return internalSchema, externalSchema, nil
+}
+
+// UpdateClusterMemberAPIExtensions sets the API extensions for the cluster member with the given address.
+// This helper is non-generated to work before generated statements are loaded, as we update the API extensions.
+func UpdateClusterMemberAPIExtensions(tx *sql.Tx, apiExtensions extensions.Extensions, address string) error {
+	stmt := "UPDATE internal_cluster_members SET api_extensions=? WHERE address=?"
+	result, err := tx.Exec(stmt, apiExtensions, address)
+	if err != nil {
+		return err
+	}
+
+	n, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n != 1 {
+		return fmt.Errorf("Updated %d rows instead of 1", n)
+	}
+
+	return nil
+}
+
+// GetClusterMemberAPIExtensions returns the API extensions from all cluster members that are not pending.
+// This helper is non-generated to work before generated statements are loaded, as we update the API extensions.
+func GetClusterMemberAPIExtensions(ctx context.Context, tx *sql.Tx) ([]extensions.Extensions, error) {
+	query := "SELECT api_extensions FROM internal_cluster_members WHERE NOT role='pending'"
+	rows, err := tx.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	var results []extensions.Extensions
+	for rows.Next() {
+		var ext extensions.Extensions
+		err := rows.Scan(&ext)
+		if err != nil {
+			return nil, err
+		}
+
+		results = append(results, ext)
+	}
+
+	err = rows.Err()
+	if err != nil {
+		return nil, err
+	}
+
+	return results, nil
 }

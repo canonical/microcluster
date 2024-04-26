@@ -87,6 +87,7 @@ func joinWithToken(state *state.State, req *internalTypes.Control) response.Resp
 		SchemaInternalVersion: internalVersion,
 		SchemaExternalVersion: externalVersion,
 		Secret:                token.Secret,
+		Extensions:            state.Extensions,
 	}
 
 	// Get a client to the target address.

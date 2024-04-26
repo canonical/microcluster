@@ -10,6 +10,7 @@ import (
 	"github.com/canonical/microcluster/client"
 	"github.com/canonical/microcluster/internal/db"
 	"github.com/canonical/microcluster/internal/endpoints"
+	"github.com/canonical/microcluster/internal/extensions"
 	internalClient "github.com/canonical/microcluster/internal/rest/client"
 	"github.com/canonical/microcluster/internal/sys"
 	"github.com/canonical/microcluster/internal/trust"
@@ -55,6 +56,9 @@ type State struct {
 
 	// Stop fully stops the daemon, its database, and all listeners.
 	Stop func() (exit func(), stopErr error)
+
+	// Runtime extensions.
+	Extensions extensions.Extensions
 }
 
 // StopListeners stops the network listeners and the fsnotify listener.

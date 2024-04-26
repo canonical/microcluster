@@ -11,6 +11,7 @@ import (
 	"github.com/canonical/microcluster/example/api"
 	"github.com/canonical/microcluster/example/database"
 	"github.com/canonical/microcluster/example/version"
+	"github.com/canonical/microcluster/internal/extensions"
 	"github.com/canonical/microcluster/microcluster"
 	"github.com/canonical/microcluster/state"
 )
@@ -70,6 +71,42 @@ func (c *cmdDaemon) Run(cmd *cobra.Command, args []string) error {
 			logCtx := logger.Ctx{}
 			for k, v := range initConfig {
 				logCtx[k] = v
+			}
+
+			// You can check your app extensions using the *state.State object.
+			hasMissingExt := s.Extensions.HasExtension("missing_extension")
+			if !hasMissingExt {
+				logger.Warn("The 'missing_extension' is not registered")
+			}
+
+			// You can also check the internal extensions. (starting with "internal:" prefix)
+			// These are read-only and defined at the MicroCluster level and cannot be added at runtime
+			hasInternalExt := s.Extensions.HasExtension("internal:runtime_extension_v1")
+			if !hasInternalExt {
+				logger.Warn("Every system should have the 'internal:runtime_extension_v1' extension")
+			}
+
+			// You can also register new extensions at runtime.
+			err := s.Extensions.Register([]string{"new_extension_at_runtime_1", "new_extension_at_runtime_2"})
+			if err != nil {
+				return err
+			}
+
+			// This shows the number of extensions that are registered (internal and external).
+			numberOfExtensions := s.Extensions.Version()
+			logger.Infof("The number of extensions is %d", numberOfExtensions)
+
+			// You can also create a new registry of extensions from a list of extensions.
+			// This is useful to communicate a system's extensions to other systems, for comparison purposes for example.
+			newExt, err := extensions.NewExtensionRegistryFromList([]string{"internal:runtime_extension_v1", "new_extension_at_runtime_1", "new_extension_at_runtime_2", "custom_extension_a_0", "custom_extension_a_1"})
+			if err != nil {
+				return err
+			}
+
+			// You can compare the extensions of two systems.
+			err = s.Extensions.IsSameVersion(newExt)
+			if err != nil {
+				return err
 			}
 
 			logger.Info("This is a hook that runs after the daemon is initialized and bootstrapped")
@@ -152,7 +189,7 @@ func (c *cmdDaemon) Run(cmd *cobra.Command, args []string) error {
 		},
 	}
 
-	return m.Start(cmd.Context(), api.Endpoints, database.SchemaExtensions, exampleHooks)
+	return m.Start(cmd.Context(), api.Endpoints, database.SchemaExtensions, api.Extensions(), exampleHooks)
 }
 
 func main() {

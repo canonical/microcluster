@@ -123,6 +123,12 @@ func clusterPost(s *state.State, r *http.Request) response.Response {
 		return response.SyncResponse(true, tokenResponse)
 	}
 
+	// Check if the joining node's extensions are compatible with the leader's.
+	err = s.Extensions.IsSameVersion(req.Extensions)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
 	err = s.Database.Transaction(s.Context, func(ctx context.Context, tx *sql.Tx) error {
 		dbClusterMember := cluster.InternalClusterMember{
 			Name:           req.Name,
@@ -130,6 +136,7 @@ func clusterPost(s *state.State, r *http.Request) response.Response {
 			Certificate:    req.Certificate.String(),
 			SchemaInternal: req.SchemaInternalVersion,
 			SchemaExternal: req.SchemaExternalVersion,
+			APIExtensions:  req.Extensions,
 			Heartbeat:      time.Time{},
 			Role:           cluster.Pending,
 		}

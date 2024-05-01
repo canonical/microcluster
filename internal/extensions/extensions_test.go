@@ -18,13 +18,18 @@ func TestValidateExternalExtension(t *testing.T) {
 		wantError bool
 	}{
 		{"Valid Extension", "valid_extension", false},
+		{"Valid Extension with multiple underscores", "a_0_a_0_a_0", false},
+		{"Valid single-character Extension", "a", false},
+		{"Valid single-character Extension with one underscore", "a_0", false},
 		{"Empty Extension", "", true},
+		{"Valid Start Numeric", "123_invalid", false},
 		{"Invalid Characters", "Invalid-Extension!", true},
 		{"Invalid Start Underscore", "_invalidextension", true},
 		{"Invalid End Underscore", "invalidextension_", true},
 		{"Invalid Non Alphanumeric", "invalid-extension", true},
-		{"Valid Start Numeric", "123_invalid", false},
 		{"Invalid Start Underscore", "_invalid_123", true},
+		{"Invalid sequential underscores", "a__0", true},
+		{"Invalid only underscore", "_", true},
 	}
 
 	for _, c := range cases {
@@ -46,11 +51,16 @@ func TestValidateInternalExtension(t *testing.T) {
 		wantError bool
 	}{
 		{"Valid Internal Extension", "internal:runtime_extension_v1", false},
+		{"Valid Internal Extension with multiple underscores", "internal:a_0_a_0_a_0", false},
+		{"Valid Internal single-character Extension", "internal:a", false},
+		{"Valid Internal single-character Extension with one underscore", "internal:a_0", false},
 		{"Missing Prefix", "runtime_extension_v1", true},
 		{"Empty Extension", "", true},
 		{"Invalid Format", "internal:_invalid_extension", true},
 		{"Valid with Numbers", "internal:valid_extension_123", false},
 		{"Invalid Character", "internal:invalid-extension", true},
+		{"Invalid sequential underscores", "internal:a__0", true},
+		{"Invalid only underscore", "internal:_", true},
 	}
 
 	for _, c := range cases {

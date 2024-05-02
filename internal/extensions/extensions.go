@@ -9,8 +9,8 @@ import (
 	"github.com/canonical/lxd/shared"
 )
 
-var internalExtensionRegex = regexp.MustCompile(`^internal:([a-z0-9]|[a-z0-9]_[a-z0-9])+$`)
-var externalExtensionRegex = regexp.MustCompile(`^([a-z0-9]|[a-z0-9]_[a-z0-9])+$`)
+var internalExtensionRegex = regexp.MustCompile(`^internal:[a-z0-9]+(_[a-z0-9]+)*$`)
+var externalExtensionRegex = regexp.MustCompile(`^[a-z0-9]+(_[a-z0-9]+)*$`)
 
 // Extensions represents a registry of extensions.
 //

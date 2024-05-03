@@ -50,36 +50,10 @@ func (db *DB) Open(ext extensions.Extensions, bootstrap bool, project string) er
 	return nil
 }
 
-// waitUpgrade compares the version information of all cluster members in the database to the local version.
-// If this node's version is ahead of others, then it will block on the `db.upgradeCh` or up to a minute.
+// waitUpgradeAPI compares the version information of all cluster members in the database to the local version.
+// If this node's version is ahead of others, then it will block on the `db.apiUpgradeCh` or up to 30s.
 // If this node's version is behind others, then it returns an error.
-func (db *DB) waitUpgrade(bootstrap bool, ext extensions.Extensions) error {
-	checkSchemaVersion := func(schemaVersion uint64, clusterMemberVersions []uint64) (otherNodesBehind bool, err error) {
-		nodeIsBehind := false
-		for _, version := range clusterMemberVersions {
-			if schemaVersion == version {
-				// Versions are equal, there's hope for the
-				// update. Let's check the next node.
-				continue
-			}
-
-			if schemaVersion > version {
-				// Our version is bigger, we should stop here
-				// and wait for other nodes to be upgraded and
-				// restarted.
-				nodeIsBehind = true
-				continue
-			}
-
-			// Another node has a version greater than ours
-			// and presumeably is waiting for other nodes
-			// to upgrade. Let's error out and shutdown
-			// since we need a greater version.
-			return false, fmt.Errorf("This node's version is behind, please upgrade")
-		}
-
-		return nodeIsBehind, nil
-	}
+func (db *DB) waitUpgradeAPI(ext extensions.Extensions) error {
 
 	checkAPIExtensions := func(currentAPIExtensions extensions.Extensions, clusterMemberAPIExtensions []extensions.Extensions) (otherNodesBehind bool, err error) {
 		logger.Warnf("Local API extensions: %v, cluster members API extensions: %v", currentAPIExtensions, clusterMemberAPIExtensions)
@@ -103,6 +77,83 @@ func (db *DB) waitUpgrade(bootstrap bool, ext extensions.Extensions) error {
 				// since we need a greater version.
 				return false, fmt.Errorf("This node's API extensions are behind, please upgrade")
 			}
+		}
+
+		return nodeIsBehind, nil
+	}
+
+	otherNodesBehind := false
+	err := db.retry(context.TODO(), func(_ context.Context) error {
+		otherNodesBehindAPI := false
+		// Perform the API extensions check.
+		err := query.Transaction(context.TODO(), db.db, func(ctx context.Context, tx *sql.Tx) error {
+			err := cluster.UpdateClusterMemberAPIExtensions(tx, ext, db.listenAddr.URL.Host)
+			if err != nil {
+				return fmt.Errorf("Failed to update API extensions when joining cluster: %w", err)
+			}
+
+			clusterMembersAPIExtensions, err := cluster.GetClusterMemberAPIExtensions(ctx, tx)
+			if err != nil {
+				return fmt.Errorf("Failed to get other members' API extensions: %w", err)
+			}
+
+			otherNodesBehindAPI, err = checkAPIExtensions(ext, clusterMembersAPIExtensions)
+			if err != nil {
+				return err
+			}
+
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+
+		if otherNodesBehindAPI {
+			otherNodesBehind = true
+			return schema.ErrGracefulAbort
+		}
+
+		return nil
+	})
+
+	// If we are not bootstrapping, wait for an upgrade notification, or wait a minute before checking again.
+	if otherNodesBehind {
+		logger.Warn("Waiting for other cluster members to upgrade their versions", logger.Ctx{"address": db.listenAddr.String()})
+		select {
+		case <-db.apiUpgradeCh:
+		case <-time.After(30 * time.Second):
+		}
+	}
+
+	return err
+}
+
+// waitUpgradeSchema compares the version information of all cluster members in the database to the local version.
+// If this node's version is ahead of others, then it will block on the `db.schemaUpgradeCh` or up to 30s.
+// If this node's version is behind others, then it returns an error.
+func (db *DB) waitUpgradeSchema(bootstrap bool) error {
+	checkSchemaVersion := func(schemaVersion uint64, clusterMemberVersions []uint64) (otherNodesBehind bool, err error) {
+		nodeIsBehind := false
+		for _, version := range clusterMemberVersions {
+			if schemaVersion == version {
+				// Versions are equal, there's hope for the
+				// update. Let's check the next node.
+				continue
+			}
+
+			if schemaVersion > version {
+				// Our version is bigger, we should stop here
+				// and wait for other nodes to be upgraded and
+				// restarted.
+				nodeIsBehind = true
+				continue
+			}
+
+			// Another node has a version greater than ours
+			// and presumeably is waiting for other nodes
+			// to upgrade. Let's error out and shutdown
+			// since we need a greater version.
+			return false, fmt.Errorf("This node's version is behind, please upgrade")
 		}
 
 		return nodeIsBehind, nil
@@ -149,49 +200,15 @@ func (db *DB) waitUpgrade(bootstrap bool, ext extensions.Extensions) error {
 
 	err := db.retry(context.TODO(), func(_ context.Context) error {
 		_, err := newSchema.Ensure(db.db)
-		if err != nil {
-			return err
-		}
 
-		if !bootstrap {
-			otherNodesBehindAPI := false
-			// Perform the API extensions check.
-			err = query.Transaction(context.TODO(), db.db, func(ctx context.Context, tx *sql.Tx) error {
-				err := cluster.UpdateClusterMemberAPIExtensions(tx, ext, db.listenAddr.URL.Host)
-				if err != nil {
-					return fmt.Errorf("Failed to update API extensions when joining cluster: %w", err)
-				}
-
-				clusterMembersAPIExtensions, err := cluster.GetClusterMemberAPIExtensions(ctx, tx)
-				if err != nil {
-					return fmt.Errorf("Failed to get other members' API extensions: %w", err)
-				}
-
-				otherNodesBehindAPI, err = checkAPIExtensions(ext, clusterMembersAPIExtensions)
-				if err != nil {
-					return err
-				}
-
-				return nil
-			})
-			if err != nil {
-				return err
-			}
-
-			if otherNodesBehindAPI {
-				otherNodesBehind = true
-				return schema.ErrGracefulAbort
-			}
-		}
-
-		return nil
+		return err
 	})
 
 	// If we are not bootstrapping, wait for an upgrade notification, or wait a minute before checking again.
 	if otherNodesBehind && !bootstrap {
 		logger.Warn("Waiting for other cluster members to upgrade their versions", logger.Ctx{"address": db.listenAddr.String()})
 		select {
-		case <-db.upgradeCh:
+		case <-db.schemaUpgradeCh:
 		case <-time.After(30 * time.Second):
 		}
 	}

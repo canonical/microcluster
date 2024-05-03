@@ -472,13 +472,6 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 
 	localMemberInfo := internalTypes.ClusterMemberLocal{Name: localNode.Name, Address: localNode.Address, Certificate: localNode.Certificate}
 	if len(joinAddresses) > 0 {
-		err = d.hooks.PreJoin(d.State(), initConfig)
-		if err != nil {
-			return err
-		}
-	}
-
-	if len(joinAddresses) > 0 {
 		var lastErr error
 		var clusterConfirmation bool
 		err = cluster.Query(d.shutdownCtx, true, func(ctx context.Context, c *client.Client) error {
@@ -519,11 +512,32 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 		}
 
 		// Send notification about this node's dqlite version to all other cluster members.
-		err = d.sendUpgradeNotification(ctx, c)
+		err = d.sendUpgradeNotification(ctx, c, db.UpgradeSchema)
 		if err != nil {
 			return err
 		}
 
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	// Attempt to open the database if we are joining or restarting.
+	err = d.db.Open(bootstrap, d.Extensions)
+	if err != nil {
+		return err
+	}
+
+	if len(joinAddresses) > 0 {
+		err = d.hooks.PreJoin(d.State(), initConfig)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Tell the other nodes that this system is up.
+	err = cluster.Query(d.shutdownCtx, true, func(ctx context.Context, c *client.Client) error {
 		// If this was a join request, instruct all peers to run their OnNewMember hook.
 		if len(joinAddresses) > 0 {
 			_, err = c.AddClusterMember(ctx, internalTypes.ClusterMember{ClusterMemberLocal: localMemberInfo})
@@ -542,14 +556,37 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 		return d.hooks.PostJoin(d.State(), initConfig)
 	}
 
+	// Tell the other nodes that this system is up.
+	err = cluster.Query(d.shutdownCtx, true, func(ctx context.Context, c *client.Client) error {
+		c.SetClusterNotification()
+
+		// No need to send a request to ourselves.
+		if d.address.URL.Host == c.URL().URL.Host {
+			return nil
+		}
+
+		// Send notification about this node's dqlite version to all other cluster members.
+		err = d.sendUpgradeNotification(ctx, c, db.UpgradeAPI)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
-func (d *Daemon) sendUpgradeNotification(ctx context.Context, c *client.Client) error {
+func (d *Daemon) sendUpgradeNotification(ctx context.Context, c *client.Client, upgradeType db.UpgradeType) error {
 	path := c.URL()
 	parts := strings.Split(string(internalClient.InternalEndpoint), "/")
 	parts = append(parts, "database")
 	path = *path.Path(parts...)
+	path = *path.WithQuery("upgradeType", string(upgradeType))
+
 	upgradeRequest, err := http.NewRequest("PATCH", path.String(), nil)
 	if err != nil {
 		return err

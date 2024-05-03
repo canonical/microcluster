@@ -106,7 +106,12 @@ func (db *DB) Bootstrap(extensions extensions.Extensions, project string, addr a
 		return fmt.Errorf("Failed to bootstrap dqlite: %w", err)
 	}
 
-	err = db.Open(extensions, true, project)
+	err = db.Init(true, project)
+	if err != nil {
+		return err
+	}
+
+	err = db.Open(true, extensions)
 	if err != nil {
 		return err
 	}
@@ -129,7 +134,7 @@ func (db *DB) Bootstrap(extensions extensions.Extensions, project string, addr a
 }
 
 // Join a dqlite cluster with the address of a member.
-func (db *DB) Join(extensions extensions.Extensions, project string, addr api.URL, joinAddresses ...string) error {
+func (db *DB) Join(project string, addr api.URL, joinAddresses ...string) error {
 	for {
 		var err error
 		db.listenAddr = addr
@@ -142,7 +147,7 @@ func (db *DB) Join(extensions extensions.Extensions, project string, addr api.UR
 			return fmt.Errorf("Failed to join dqlite cluster %w", err)
 		}
 
-		err = db.Open(extensions, false, project)
+		err = db.Init(false, project)
 		if err == nil {
 			break
 		}
@@ -167,13 +172,13 @@ func (db *DB) Join(extensions extensions.Extensions, project string, addr api.UR
 }
 
 // StartWithCluster starts up dqlite and joins the cluster.
-func (db *DB) StartWithCluster(extensions extensions.Extensions, project string, addr api.URL, clusterMembers map[string]types.AddrPort) error {
+func (db *DB) StartWithCluster(project string, addr api.URL, clusterMembers map[string]types.AddrPort) error {
 	allClusterAddrs := []string{}
 	for _, clusterMemberAddrs := range clusterMembers {
 		allClusterAddrs = append(allClusterAddrs, clusterMemberAddrs.String())
 	}
 
-	return db.Join(extensions, project, addr, allClusterAddrs...)
+	return db.Join(project, addr, allClusterAddrs...)
 }
 
 // Leader returns a client connected to the leader of the dqlite cluster.

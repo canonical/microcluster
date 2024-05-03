@@ -27,9 +27,9 @@ const (
 	UpgradeSchema UpgradeType = "schema"
 )
 
-// Open opens the dqlite database and loads the schema.
-// Returns true if we need to wait for other nodes to catch up to our version.
-func (db *DB) Open(ext extensions.Extensions, bootstrap bool, project string) error {
+// Init starts dqlite, checks schema upgrades, and prepares registered statements.
+// If this node is bootstrapping, this also sets the database status to open.
+func (db *DB) Init(bootstrap bool, project string) error {
 	ctx, cancel := context.WithTimeout(db.ctx, 30*time.Second)
 	defer cancel()
 
@@ -43,7 +43,7 @@ func (db *DB) Open(ext extensions.Extensions, bootstrap bool, project string) er
 		return err
 	}
 
-	err = db.waitUpgrade(bootstrap, ext)
+	err = db.waitUpgradeSchema(bootstrap)
 	if err != nil {
 		return err
 	}
@@ -51,6 +51,28 @@ func (db *DB) Open(ext extensions.Extensions, bootstrap bool, project string) er
 	err = cluster.PrepareStmts(db.db, project, false)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+// Open verifies API upgrades if we are not bootstrapping, before setting the database status to open.
+func (db *DB) Open(bootstrap bool, ext extensions.Extensions) error {
+	if !bootstrap {
+		for {
+			err := db.waitUpgradeAPI(ext)
+			if err == nil {
+				break
+			}
+
+			// If this is a graceful abort, then we should loop back
+			// and check our API version again in case another node updated the database.
+			if errors.Is(err, schema.ErrGracefulAbort) {
+				continue
+			}
+
+			return err
+		}
 	}
 
 	db.openCanceller.Cancel()

@@ -67,6 +67,7 @@ func (s *SchemaUpdate) Ensure(db *sql.DB) (int, error) {
 	var current int
 	aborted := false
 	versions := []int{0, 0}
+	var updateSchemaTable bool
 	var exists bool
 	err := query.Transaction(context.TODO(), db, func(ctx context.Context, tx *sql.Tx) error {
 		err := execFromFile(ctx, tx, s.path, s.hook)
@@ -79,20 +80,45 @@ func (s *SchemaUpdate) Ensure(db *sql.DB) (int, error) {
 			return fmt.Errorf("Failed to check if schema table is there: %w", err)
 		}
 
+		// Check if we have already run updateFromV1, which modifies the
+		// schemas table and is required to continue with applying schema updates.
+		if exists {
+			stmt := "SELECT count(name) FROM pragma_table_info('schemas') WHERE name IN ('type');"
+
+			var count int
+			err = tx.QueryRow(stmt).Scan(&count)
+			if err != nil {
+				return err
+			}
+
+			updateSchemaTable = count != 1
+		}
+
 		return nil
 	})
 	if err != nil {
 		return -1, err
 	}
 
+	// If we need to update the schemas table, disable foreign keys
+	// so references to the `internal_cluster_members` table do not get dropped.
+	if updateSchemaTable {
+		_, err = db.Exec("PRAGMA foreign_keys=OFF")
+		if err != nil {
+			return -1, err
+		}
+	}
+
 	err = query.Transaction(context.TODO(), db, func(ctx context.Context, tx *sql.Tx) error {
-		if exists {
+		if exists && updateSchemaTable {
 			// updateFromV1 changes the schema table and needs to be run before we calculate the schema version.
 			err := updateFromV1(ctx, tx)
 			if err != nil {
 				return err
 			}
+		}
 
+		if exists {
 			// maxVersionsStmt grabs the highest schema `version` column for each `type` (updateInternal/0) (updateExternal/1).
 			// The result is list of size 2, with index 0 corresponding to the max internal version and index 1 to the max external version, thanks to UNION ALL.
 			// The selected column must default to zero, otherwise query.SelectIntegers will fail to parse a null value as an integer.
@@ -123,7 +149,25 @@ func (s *SchemaUpdate) Ensure(db *sql.DB) (int, error) {
 	}
 
 	if aborted {
+		// If we are returning early, re-enable foreign keys.
+		if updateSchemaTable {
+			_, err = db.Exec("PRAGMA foreign_keys=ON")
+			if err != nil {
+				return -1, err
+			}
+		}
+
 		return current, schema.ErrGracefulAbort
+	}
+
+	// If there are internal schema updates to run, ensure foreign keys are disabled
+	// so any external tables that reference internal ones are not wiped.
+	hasInternaUpdates := versions[updateInternal] < len(s.updates[updateInternal])
+	if hasInternaUpdates && !updateSchemaTable {
+		_, err = db.Exec("PRAGMA foreign_keys=OFF")
+		if err != nil {
+			return -1, err
+		}
 	}
 
 	err = query.Transaction(context.TODO(), db, func(ctx context.Context, tx *sql.Tx) error {
@@ -145,6 +189,14 @@ func (s *SchemaUpdate) Ensure(db *sql.DB) (int, error) {
 	})
 	if err != nil {
 		return -1, err
+	}
+
+	// Re-enable foreign keys if they were disabled before applying external schema updates.
+	if hasInternaUpdates {
+		_, err = db.Exec("PRAGMA foreign_keys=ON")
+		if err != nil {
+			return -1, err
+		}
 	}
 
 	err = query.Transaction(context.TODO(), db, func(ctx context.Context, tx *sql.Tx) error {

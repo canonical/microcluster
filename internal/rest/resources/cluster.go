@@ -362,8 +362,9 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 		}
 	}
 
+	// If we can't find the node in dqlite, that means it failed to fully initialize. It still might have a record in our database so continue along anyway.
 	if index < 0 {
-		return response.SmartError(fmt.Errorf("No dqlite cluster member exists with the given name %q", name))
+		logger.Errorf("No dqlite record exists for %q, deleting from internal record instead", remote.Name)
 	}
 
 	localClient, err := internalClient.New(s.OS.ControlSocket(), nil, nil, false)
@@ -484,16 +485,18 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 
 	// Remove the cluster member from the database.
 	err = s.Database.Transaction(s.Context, func(ctx context.Context, tx *sql.Tx) error {
-		return cluster.DeleteInternalClusterMember(ctx, tx, info[index].Address)
+		return cluster.DeleteInternalClusterMember(ctx, tx, remote.Address.String())
 	})
 	if err != nil {
 		return response.SmartError(err)
 	}
 
-	// Remove the node from dqlite.
-	err = leader.Remove(s.Context, info[index].ID)
-	if err != nil {
-		return response.SmartError(err)
+	// Remove the node from dqlite, if it has a record there.
+	if index >= 0 {
+		err = leader.Remove(s.Context, info[index].ID)
+		if err != nil {
+			return response.SmartError(err)
+		}
 	}
 
 	newRemotes := []internalTypes.ClusterMember{}

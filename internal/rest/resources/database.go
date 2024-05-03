@@ -7,6 +7,7 @@ import (
 
 	"github.com/canonical/lxd/lxd/response"
 
+	"github.com/canonical/microcluster/internal/db"
 	"github.com/canonical/microcluster/internal/state"
 	"github.com/canonical/microcluster/rest"
 )
@@ -41,6 +42,11 @@ func databasePost(state *state.State, r *http.Request) response.Response {
 }
 
 func databasePatch(state *state.State, r *http.Request) response.Response {
+	upgradeType := db.UpgradeType(r.URL.Query().Get("upgradeType"))
+	if upgradeType != db.UpgradeAPI && upgradeType != db.UpgradeSchema {
+		return response.BadRequest(fmt.Errorf("Invalid upgrade type: %q", upgradeType))
+	}
+
 	// Compare the dqlite version of the connecting client with our own.
 	versionHeader := r.Header.Get("X-Dqlite-Version")
 	if versionHeader == "" {
@@ -54,7 +60,7 @@ func databasePatch(state *state.State, r *http.Request) response.Response {
 	}
 
 	// Notify this node that a schema upgrade has occured, in case we are waiting on one.
-	state.Database.NotifyUpgraded()
+	state.Database.NotifyUpgraded(upgradeType)
 
 	return response.EmptySyncResponse
 }

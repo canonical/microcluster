@@ -385,7 +385,7 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 		}
 	}
 
-	if len(clusterMembers)-numPending < 2 {
+	if len(clusterMembers)-numPending < 1 {
 		return response.SmartError(fmt.Errorf("Cannot remove cluster members, there are no remaining non-pending members"))
 	}
 

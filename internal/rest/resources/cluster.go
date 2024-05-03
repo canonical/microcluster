@@ -480,7 +480,7 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 
 	// Tell the cluster member to run its PreRemove hook and return.
 	err = internalClient.RunPreRemoveHook(ctx, c.UseTarget(name), internalTypes.HookRemoveMemberOptions{Force: force})
-	if err != nil {
+	if err != nil && !force {
 		return response.SmartError(err)
 	}
 
@@ -506,7 +506,7 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 	}
 
 	err = internalClient.DeleteTrustStoreEntry(ctx, localClient, name)
-	if err != nil {
+	if err != nil && !force {
 		return response.SmartError(err)
 	}
 
@@ -516,7 +516,7 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 	}
 
 	err = c.ResetClusterMember(s.Context, name, force)
-	if err != nil {
+	if err != nil && !force {
 		return response.SmartError(err)
 	}
 

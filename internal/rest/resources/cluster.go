@@ -145,10 +145,12 @@ func clusterPost(s *state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
+	localRemote := remotes.RemotesByName()[s.Name()]
 	tokenResponse := internalTypes.TokenResponse{
 		ClusterCert: types.X509Certificate{Certificate: clusterCert},
 		ClusterKey:  string(s.ClusterCert().PrivateKey()),
 
+		TrustedMember:  internalTypes.ClusterMemberLocal{Name: s.Name(), Address: localRemote.Address, Certificate: localRemote.Certificate},
 		ClusterMembers: clusterMembers,
 	}
 

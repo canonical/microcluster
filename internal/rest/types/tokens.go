@@ -15,15 +15,35 @@ type TokenRecord struct {
 
 // TokenResponse holds the information for connecting to a cluster by a node with a valid join token.
 type TokenResponse struct {
-	ClusterCert    types.X509Certificate `json:"cluster_cert" yaml:"cluster_cert"`
-	ClusterKey     string                `json:"cluster_key" yaml:"cluster_key"`
-	ClusterMembers []ClusterMemberLocal  `json:"cluster_members" yaml:"cluster_members"`
+	// ClusterCert is the public key used across the cluster.
+	ClusterCert types.X509Certificate `json:"cluster_cert" yaml:"cluster_cert"`
+
+	// ClusterKey is the private key used across the cluster.
+	ClusterKey string `json:"cluster_key" yaml:"cluster_key"`
+
+	// ClusterMembers is the full list of cluster members that are currently present and available in the cluster.
+	// The joiner supplies this list to dqlite so that it can start its database.
+	ClusterMembers []ClusterMemberLocal `json:"cluster_members" yaml:"cluster_members"`
+
+	// TrustedMember contains the address of the existing cluster member
+	// who was dqlite leader at the time that the joiner supplied its join token.
+	//
+	// The trusted member will have already recorded the joiner's information in
+	// its local truststore, and thus will trust requests from the joiner prior to fully joining.
+	TrustedMember ClusterMemberLocal `json:"trusted_member" yaml:"trusted_member"`
 }
 
 // Token holds the information that is presented to the joining node when requesting a token.
 type Token struct {
-	Secret        string           `json:"secret" yaml:"secret"`
-	Fingerprint   string           `json:"fingerprint" yaml:"fingerprint"`
+	// Secret is the underlying secret string used to authenticate the token.
+	Secret string `json:"secret" yaml:"secret"`
+
+	// Fingerprint is the fingerprint of the cluster certificate,
+	// so that the joiner can verify that the public key of the cluster matches this request.
+	Fingerprint string `json:"fingerprint" yaml:"fingerprint"`
+
+	// JoinAddresses is the list of addresses of the existing cluster members that the joiner may supply the token to.
+	// Internally, the first system to accept the token will forward it to the dqlite leader.
 	JoinAddresses []types.AddrPort `json:"join_addresses" yaml:"join_addresses"`
 }
 

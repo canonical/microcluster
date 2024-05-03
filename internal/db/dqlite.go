@@ -45,10 +45,11 @@ type DB struct {
 	dbName string // This is db.bin.
 	os     *sys.OS
 
-	db        *sql.DB
-	dqlite    *dqlite.App
-	acceptCh  chan net.Conn
-	upgradeCh chan struct{}
+	db              *sql.DB
+	dqlite          *dqlite.App
+	acceptCh        chan net.Conn
+	schemaUpgradeCh chan struct{}
+	apiUpgradeCh    chan struct{}
 
 	openCanceller *cancel.Canceller
 
@@ -70,15 +71,16 @@ func NewDB(ctx context.Context, serverCert *shared.CertInfo, clusterCert func() 
 	shutdownCtx, shutdownCancel := context.WithCancel(ctx)
 
 	return &DB{
-		serverCert:    serverCert,
-		clusterCert:   clusterCert,
-		dbName:        filepath.Base(os.DatabasePath()),
-		os:            os,
-		acceptCh:      make(chan net.Conn),
-		upgradeCh:     make(chan struct{}),
-		ctx:           shutdownCtx,
-		cancel:        shutdownCancel,
-		openCanceller: cancel.New(context.Background()),
+		serverCert:      serverCert,
+		clusterCert:     clusterCert,
+		dbName:          filepath.Base(os.DatabasePath()),
+		os:              os,
+		acceptCh:        make(chan net.Conn),
+		schemaUpgradeCh: make(chan struct{}),
+		apiUpgradeCh:    make(chan struct{}),
+		ctx:             shutdownCtx,
+		cancel:          shutdownCancel,
+		openCanceller:   cancel.New(context.Background()),
 	}
 }
 
@@ -199,10 +201,18 @@ func (db *DB) IsOpen() bool {
 }
 
 // NotifyUpgraded sends a notification that we can stop waiting for a cluster member to be upgraded.
-func (db *DB) NotifyUpgraded() {
-	select {
-	case db.upgradeCh <- struct{}{}:
-	default:
+func (db *DB) NotifyUpgraded(upgradeType UpgradeType) {
+	switch upgradeType {
+	case UpgradeAPI:
+		select {
+		case db.apiUpgradeCh <- struct{}{}:
+		default:
+		}
+	case UpgradeSchema:
+		select {
+		case db.schemaUpgradeCh <- struct{}{}:
+		default:
+		}
 	}
 }
 

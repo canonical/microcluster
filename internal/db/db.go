@@ -19,6 +19,14 @@ import (
 	"github.com/canonical/microcluster/internal/sys"
 )
 
+type UpgradeType string
+
+const (
+	UpgradeAPI UpgradeType = "api"
+
+	UpgradeSchema UpgradeType = "schema"
+)
+
 // Open opens the dqlite database and loads the schema.
 // Returns true if we need to wait for other nodes to catch up to our version.
 func (db *DB) Open(ext extensions.Extensions, bootstrap bool, project string) error {

@@ -367,19 +367,20 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 		logger.Errorf("No dqlite record exists for %q, deleting from internal record instead", remote.Name)
 	}
 
-	localClient, err := internalClient.New(s.OS.ControlSocket(), nil, nil, false)
-	if err != nil {
-		return response.SmartError(err)
-	}
+	var clusterMembers []cluster.InternalClusterMember
+	err = s.Database.Transaction(r.Context(), func(ctx context.Context, tx *sql.Tx) error {
+		var err error
+		clusterMembers, err = cluster.GetInternalClusterMembers(ctx, tx)
 
-	clusterMembers, err := localClient.GetClusterMembers(s.Context)
+		return err
+	})
 	if err != nil {
 		return response.SmartError(err)
 	}
 
 	numPending := 0
 	for _, clusterMember := range clusterMembers {
-		if clusterMember.Role == string(cluster.Pending) {
+		if clusterMember.Role == cluster.Pending {
 			numPending++
 		}
 	}

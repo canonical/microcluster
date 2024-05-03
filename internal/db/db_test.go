@@ -228,14 +228,14 @@ func (s *dbSuite) Test_waitUpgradeSchema() {
 		manager.SetExternalUpdates(updates)
 
 		if t.expectWait {
-			db.upgradeCh <- struct{}{}
+			db.schemaUpgradeCh <- struct{}{}
 		}
 
 		// Set a no-op schema manager so that we can go through the schema upgrade logic without running any real updates.
 		db.schema = manager.Schema()
 
 		// Run the upgrade function to wait, error, or succeed.
-		err = db.waitUpgrade(false, apiExtensions)
+		err = db.waitUpgradeSchema(false)
 		if t.expectErr != nil {
 			s.Equal(t.expectErr, err)
 		} else if t.expectWait {
@@ -395,14 +395,14 @@ func (s *dbSuite) Test_waitUpgradeAPI() {
 		manager.SetExternalUpdates(updates)
 
 		if t.expectWait {
-			db.upgradeCh <- struct{}{}
+			db.apiUpgradeCh <- struct{}{}
 		}
 
 		// Set a no-op schema manager so that we can go through the schema upgrade logic without running any real updates.
 		db.schema = manager.Schema()
 
 		// Run the upgrade function to wait, error, or succeed.
-		err = db.waitUpgrade(false, t.upgradedLocalAPIExtensions)
+		err = db.waitUpgradeAPI(t.upgradedLocalAPIExtensions)
 		if t.expectErr != nil {
 			s.Equal(t.expectErr, err)
 		} else if t.expectWait {
@@ -448,8 +448,10 @@ func (s *dbSuite) Test_waitUpgradeSchemaAndAPI() {
 		name              string
 		upgradedLocalInfo versionsWithExtensions
 		clusterMembers    []versionsWithExtensions
-		expectErr         error
-		expectWait        bool
+		expectErrAPI      error
+		expectErrSchema   error
+		expectWaitAPI     bool
+		expectWaitSchema  bool
 	}{
 		{
 			name: "Local node in sync, no other nodes",
@@ -470,7 +472,8 @@ func (s *dbSuite) Test_waitUpgradeSchemaAndAPI() {
 				{schemaInt: 1, schemaExt: 1, ext: extensions.Extensions{"internal:a"}},
 				{schemaInt: 1, schemaExt: 1, ext: extensions.Extensions{"internal:a"}},
 			},
-			expectErr: fmt.Errorf("This node's version is behind, please upgrade"),
+			expectErrAPI:    nil,
+			expectErrSchema: fmt.Errorf("This node's version is behind, please upgrade"),
 		},
 		{
 			name: "Local node ahead, all other nodes behind",
@@ -483,7 +486,8 @@ func (s *dbSuite) Test_waitUpgradeSchemaAndAPI() {
 				{schemaInt: 1, schemaExt: 1, ext: extensions.Extensions{"internal:a", "b", "c"}},
 				{schemaInt: 1, schemaExt: 1, ext: extensions.Extensions{"internal:a", "b", "c"}},
 			},
-			expectWait: true,
+			expectWaitAPI:    false,
+			expectWaitSchema: true,
 		},
 		{
 			name: "Mixed node versions, some ahead and some behind",
@@ -496,7 +500,8 @@ func (s *dbSuite) Test_waitUpgradeSchemaAndAPI() {
 				{schemaInt: 2, schemaExt: 2, ext: extensions.Extensions{"internal:a", "b"}},
 				{schemaInt: 0, schemaExt: 0, ext: extensions.Extensions{"internal:a", "b"}},
 			},
-			expectErr: fmt.Errorf("This node's version is behind, please upgrade"),
+			expectErrAPI:    nil,
+			expectErrSchema: fmt.Errorf("This node's version is behind, please upgrade"),
 		},
 	}
 
@@ -570,18 +575,32 @@ func (s *dbSuite) Test_waitUpgradeSchemaAndAPI() {
 
 		manager.SetExternalUpdates(updates)
 
-		if t.expectWait {
-			db.upgradeCh <- struct{}{}
+		if t.expectWaitSchema {
+			db.schemaUpgradeCh <- struct{}{}
 		}
 
 		// Set a no-op schema manager so that we can go through the schema upgrade logic without running any real updates.
 		db.schema = manager.Schema()
 
 		// Run the upgrade function to wait, error, or succeed.
-		err = db.waitUpgrade(false, t.upgradedLocalInfo.ext)
-		if t.expectErr != nil {
-			s.Equal(t.expectErr, err)
-		} else if t.expectWait {
+		err = db.waitUpgradeSchema(false)
+		if t.expectErrSchema != nil {
+			s.Equal(t.expectErrSchema, err)
+		} else if t.expectWaitSchema {
+			s.Equal(schema.ErrGracefulAbort, err)
+		} else {
+			s.NoError(err)
+		}
+
+		if t.expectWaitAPI {
+			db.apiUpgradeCh <- struct{}{}
+		}
+
+		// Run the upgrade function to wait, error, or succeed.
+		err = db.waitUpgradeAPI(t.upgradedLocalInfo.ext)
+		if t.expectErrAPI != nil {
+			s.Equal(t.expectErrAPI, err)
+		} else if t.expectWaitAPI {
 			s.Equal(schema.ErrGracefulAbort, err)
 		} else {
 			s.NoError(err)
@@ -613,7 +632,7 @@ func (s *dbSuite) Test_waitUpgradeSchemaAndAPI() {
 
 		// If there's an error, the internal_cluster_members table will be rolled back.
 		minVersion := t.upgradedLocalInfo.schemaInt + 1
-		if t.expectErr != nil {
+		if t.expectErrSchema != nil {
 			minVersion = 0
 		}
 
@@ -624,7 +643,7 @@ func (s *dbSuite) Test_waitUpgradeSchemaAndAPI() {
 
 		// If there's an error, the internal_cluster_members table will be rolled back.
 		minVersion = t.upgradedLocalInfo.schemaExt + 1
-		if t.expectErr != nil {
+		if t.expectErrSchema != nil {
 			minVersion = 0
 		}
 
@@ -638,7 +657,7 @@ func (s *dbSuite) Test_waitUpgradeSchemaAndAPI() {
 
 		s.Equal(len(t.clusterMembers)+1, len(allExtensions))
 
-		if t.expectErr == nil && t.expectWait == false {
+		if t.expectErrAPI == nil && t.expectWaitAPI == false {
 			for _, c := range t.clusterMembers {
 				err = t.upgradedLocalInfo.ext.IsSameVersion(c.ext)
 				s.NoError(err)
@@ -650,7 +669,7 @@ func (s *dbSuite) Test_waitUpgradeSchemaAndAPI() {
 // NewTedb returns a sqlite DB set up with the default microcluster schema.
 func NewTestDB(extensionsExternal []schema.Update) (*DB, error) {
 	var err error
-	db := &DB{ctx: context.Background(), listenAddr: *api.NewURL().Host("10.0.0.0:8443"), upgradeCh: make(chan struct{}, 1)}
+	db := &DB{ctx: context.Background(), listenAddr: *api.NewURL().Host("10.0.0.0:8443"), schemaUpgradeCh: make(chan struct{}, 1), apiUpgradeCh: make(chan struct{}, 1)}
 	db.db, err = sql.Open("sqlite3", ":memory:")
 	if err != nil {
 		return nil, err

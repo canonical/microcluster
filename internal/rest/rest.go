@@ -201,7 +201,7 @@ func HandleEndpoint(state *state.State, mux *mux.Router, version string, e rest.
 			handleRequest = handleDatabaseRequest
 		}
 
-		trusted, err := authenticate(state, r)
+		trusted, err := access.Authenticate(state, r, state.Remotes().CertificatesNative())
 		if err != nil {
 			resp = response.Forbidden(fmt.Errorf("Failed to authenticate request: %w", err))
 		} else {
@@ -240,44 +240,4 @@ func HandleEndpoint(state *state.State, mux *mux.Router, version string, e rest.
 	if e.Name != "" {
 		route.Name(e.Name)
 	}
-}
-
-// authenticate ensures the request certificates are trusted before proceeding.
-// - Requests over the unix socket are always allowed.
-// - HTTP requests require our cluster cert, or remote certs.
-func authenticate(state *internalState.State, r *http.Request) (bool, error) {
-	if r.RemoteAddr == "@" {
-		return true, nil
-	}
-
-	if state.Address().URL.Host == "" {
-		logger.Info("Allowing unauthenticated request to un-initialized system")
-		return true, nil
-	}
-
-	var trustedCerts map[string]x509.Certificate
-	switch r.Host {
-	case state.Address().URL.Host:
-		trustedCerts = state.Remotes().CertificatesNative()
-	default:
-		return false, fmt.Errorf("Invalid request address %q", r.Host)
-	}
-
-	if r.TLS != nil {
-		for _, cert := range r.TLS.PeerCertificates {
-			trusted, fingerprint := util.CheckTrustState(*cert, trustedCerts, nil, false)
-			if trusted {
-				remote := state.Remotes().RemoteByCertificateFingerprint(fingerprint)
-				if remote == nil {
-					// The cert fingerprint can no longer be matched back against what is in the truststore (e.g. file
-					// was deleted), so we are no longer trusted.
-					return false, nil
-				}
-
-				return true, nil
-			}
-		}
-	}
-
-	return false, nil
 }

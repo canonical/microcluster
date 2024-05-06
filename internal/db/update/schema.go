@@ -66,18 +66,26 @@ func (s *SchemaUpdate) Version() (internalVersion uint64, externalVersion uint64
 func (s *SchemaUpdate) Ensure(db *sql.DB) (int, error) {
 	var current int
 	aborted := false
+	versions := []int{0, 0}
+	var exists bool
 	err := query.Transaction(context.TODO(), db, func(ctx context.Context, tx *sql.Tx) error {
 		err := execFromFile(ctx, tx, s.path, s.hook)
 		if err != nil {
 			return fmt.Errorf("Failed to execute queries from %s: %w", s.path, err)
 		}
 
-		exists, err := doesSchemaTableExist(tx)
+		exists, err = doesSchemaTableExist(tx)
 		if err != nil {
 			return fmt.Errorf("Failed to check if schema table is there: %w", err)
 		}
 
-		var versions []int
+		return nil
+	})
+	if err != nil {
+		return -1, err
+	}
+
+	err = query.Transaction(context.TODO(), db, func(ctx context.Context, tx *sql.Tx) error {
 		if exists {
 			// updateFromV1 changes the schema table and needs to be run before we calculate the schema version.
 			err := updateFromV1(ctx, tx)
@@ -97,26 +105,37 @@ func (s *SchemaUpdate) Ensure(db *sql.DB) (int, error) {
 
 		if s.check != nil {
 			err := s.check(ctx, current, tx)
+			if err != nil && err != schema.ErrGracefulAbort {
+				return err
+			}
+
 			if err == schema.ErrGracefulAbort {
 				// Abort the update gracefully, committing what
 				// we've done so far.
 				aborted = true
-				return nil
-			}
-			if err != nil {
-				return err
 			}
 		}
 
+		return nil
+	})
+	if err != nil {
+		return -1, err
+	}
+
+	if aborted {
+		return current, schema.ErrGracefulAbort
+	}
+
+	err = query.Transaction(context.TODO(), db, func(ctx context.Context, tx *sql.Tx) error {
 		// When creating the schema from scratch, use the fresh dump if
 		// available. Otherwise just apply all relevant updates.
-		if versions == nil && s.fresh != "" {
+		if versions[updateExternal] == 0 && versions[updateInternal] == 0 && s.fresh != "" {
 			_, err = tx.ExecContext(ctx, s.fresh)
 			if err != nil {
 				return fmt.Errorf("Cannot apply fresh schema: %w", err)
 			}
 		} else {
-			err = ensureUpdatesAreApplied(ctx, tx, versions, s.updates, s.hook)
+			err = ensureUpdatesAreApplied(ctx, tx, updateInternal, versions[updateInternal], s.updates[updateInternal], s.hook)
 			if err != nil {
 				return err
 			}
@@ -127,60 +146,62 @@ func (s *SchemaUpdate) Ensure(db *sql.DB) (int, error) {
 	if err != nil {
 		return -1, err
 	}
-	if aborted {
-		return current, schema.ErrGracefulAbort
+
+	err = query.Transaction(context.TODO(), db, func(ctx context.Context, tx *sql.Tx) error {
+		if s.fresh == "" || versions[updateInternal] > 0 || versions[updateExternal] > 0 {
+			err = ensureUpdatesAreApplied(ctx, tx, updateExternal, versions[updateExternal], s.updates[updateExternal], s.hook)
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		return -1, err
 	}
+
 	return current, nil
 }
 
 // Apply any pending update that was not yet applied.
-func ensureUpdatesAreApplied(ctx context.Context, tx *sql.Tx, versions []int, schemaUpdates map[updateType][]schema.Update, hook schema.Hook) error {
-	if versions == nil {
-		versions = []int{0, 0}
+func ensureUpdatesAreApplied(ctx context.Context, tx *sql.Tx, updateType updateType, version int, updates []schema.Update, hook schema.Hook) error {
+	if version > len(updates) {
+		return fmt.Errorf("Schema version %d is more recent than expected %d", version, len(updates))
 	}
 
-	// Internal updates should be run before external ones.
-	updateOrder := []updateType{updateInternal, updateExternal}
-	for _, updateType := range updateOrder {
-		updates := schemaUpdates[updateType]
-		version := versions[updateType]
-		if version > len(updates) {
-			return fmt.Errorf("Schema version '%d' is more recent than expected '%d'", version, len(updates))
+	// If there are no updates, there's nothing to do.
+	if len(updates) == 0 {
+		return nil
+	}
+
+	// Apply missing updates.
+	for _, update := range updates[version:] {
+		if hook != nil {
+			err := hook(ctx, version, tx)
+			if err != nil {
+				return fmt.Errorf("Failed to execute hook (version %d): %w", version, err)
+			}
 		}
 
-		// If there are no updates, there's nothing to do.
-		if len(updates) == 0 {
-			return nil
+		err := update(ctx, tx)
+		if err != nil {
+			return fmt.Errorf("Failed to apply update %d: %w", version, err)
 		}
 
-		// Apply missing updates.
-		for _, update := range updates[version:] {
-			if hook != nil {
-				err := hook(ctx, version, tx)
-				if err != nil {
-					return fmt.Errorf("Failed to execute hook (version %d): %w", version, err)
-				}
-			}
-
-			err := update(ctx, tx)
+		if updateType == updateInternal && version == 0 {
+			err = updateFromV1(ctx, tx)
 			if err != nil {
-				return fmt.Errorf("Failed to apply update %d: %w", version, err)
+				return fmt.Errorf("Failed to apply special update 1: %w", err)
 			}
+		}
 
-			if updateType == updateInternal && version == 0 {
-				err = updateFromV1(ctx, tx)
-				if err != nil {
-					return fmt.Errorf("Failed to apply special update 1: %w", err)
-				}
-			}
+		version++
 
-			version++
-
-			statement := `INSERT INTO schemas (version, type, updated_at) VALUES (?, ?, strftime("%s"))`
-			_, err = tx.ExecContext(ctx, statement, version, updateType)
-			if err != nil {
-				return fmt.Errorf("Failed to insert version %d: %w", version, err)
-			}
+		statement := `INSERT INTO schemas (version, type, updated_at) VALUES (?, ?, strftime("%s"))`
+		_, err = tx.ExecContext(ctx, statement, version, updateType)
+		if err != nil {
+			return fmt.Errorf("Failed to insert version %d: %w", version, err)
 		}
 	}
 

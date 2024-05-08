@@ -13,10 +13,10 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/canonical/microcluster/cluster"
-	"github.com/canonical/microcluster/internal/rest/access"
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/internal/state"
 	"github.com/canonical/microcluster/rest"
+	"github.com/canonical/microcluster/rest/access"
 	"github.com/canonical/microcluster/rest/types"
 )
 

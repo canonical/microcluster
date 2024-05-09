@@ -98,7 +98,7 @@ func (c *cmdDaemon) Run(cmd *cobra.Command, args []string) error {
 
 			// You can also create a new registry of extensions from a list of extensions.
 			// This is useful to communicate a system's extensions to other systems, for comparison purposes for example.
-			newExt, err := extensions.NewExtensionRegistryFromList([]string{"internal:runtime_extension_v1", "new_extension_at_runtime_1", "new_extension_at_runtime_2", "custom_extension_a_0", "custom_extension_a_1"})
+			newExt, err := extensions.NewExtensionRegistryFromList([]string{"internal:runtime_extension_v1", "custom_extension_a_0", "custom_extension_a_1", "new_extension_at_runtime_1", "new_extension_at_runtime_2"})
 			if err != nil {
 				return err
 			}

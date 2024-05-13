@@ -43,6 +43,7 @@ var InternalEndpoints = &Resources{
 		heartbeatCmd,
 		trustCmd,
 		trustEntryCmd,
+		hooksCmd,
 	},
 }
 

@@ -510,6 +510,7 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 	}
 
 	// Tell the other nodes that this system is up.
+	remotes := d.trustStore.Remotes()
 	err = cluster.Query(d.shutdownCtx, true, func(ctx context.Context, c *client.Client) error {
 		c.SetClusterNotification()
 
@@ -526,8 +527,19 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 
 		// If this was a join request, instruct all peers to run their OnNewMember hook.
 		if len(joinAddresses) > 0 {
-			_, err = c.AddClusterMember(ctx, internalTypes.ClusterMember{ClusterMemberLocal: localMemberInfo})
+			addrPort, err := types.ParseAddrPort(c.URL().URL.Host)
 			if err != nil {
+				return err
+			}
+
+			remote := remotes.RemoteByAddress(addrPort)
+			if remote == nil {
+				return fmt.Errorf("No remote found at address %q run the post-remove hook", c.URL().URL.Host)
+			}
+
+			// Run the OnNewMember hook, and skip errors on any nodes that are still in the process of joining.
+			err = internalClient.RunNewMemberHook(ctx, c.Client.UseTarget(remote.Name), internalTypes.HookNewMemberOptions{Name: localMemberInfo.Name})
+			if err != nil && err.Error() != "Daemon not yet initialized" {
 				return err
 			}
 		}

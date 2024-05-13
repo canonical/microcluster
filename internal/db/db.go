@@ -82,7 +82,7 @@ func (db *DB) waitUpgrade(bootstrap bool, ext extensions.Extensions) error {
 	}
 
 	checkAPIExtensions := func(currentAPIExtensions extensions.Extensions, clusterMemberAPIExtensions []extensions.Extensions) (otherNodesBehind bool, err error) {
-		logger.Warnf("Local API extensions: %v, cluster members API extensions: %v", currentAPIExtensions, clusterMemberAPIExtensions)
+		logger.Debugf("Local API extensions: %v, cluster members API extensions: %v", currentAPIExtensions, clusterMemberAPIExtensions)
 
 		nodeIsBehind := false
 		for _, extensions := range clusterMemberAPIExtensions {

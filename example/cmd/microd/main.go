@@ -11,7 +11,6 @@ import (
 	"github.com/canonical/microcluster/example/api"
 	"github.com/canonical/microcluster/example/database"
 	"github.com/canonical/microcluster/example/version"
-	"github.com/canonical/microcluster/internal/extensions"
 	"github.com/canonical/microcluster/microcluster"
 	"github.com/canonical/microcluster/state"
 )
@@ -95,19 +94,6 @@ func (c *cmdDaemon) Run(cmd *cobra.Command, args []string) error {
 			// This shows the number of extensions that are registered (internal and external).
 			numberOfExtensions := s.Extensions.Version()
 			logger.Infof("The number of extensions is %d", numberOfExtensions)
-
-			// You can also create a new registry of extensions from a list of extensions.
-			// This is useful to communicate a system's extensions to other systems, for comparison purposes for example.
-			newExt, err := extensions.NewExtensionRegistryFromList([]string{"internal:runtime_extension_v1", "custom_extension_a_0", "custom_extension_a_1", "new_extension_at_runtime_1", "new_extension_at_runtime_2"})
-			if err != nil {
-				return err
-			}
-
-			// You can compare the extensions of two systems.
-			err = s.Extensions.IsSameVersion(newExt)
-			if err != nil {
-				return err
-			}
 
 			logger.Info("This is a hook that runs after the daemon is initialized and bootstrapped")
 			logger.Info("Here are the extra configuration keys that were passed into the init --bootstrap command", logCtx)

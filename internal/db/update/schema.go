@@ -103,7 +103,7 @@ func (s *SchemaUpdate) Ensure(db *sql.DB) (int, error) {
 	// If we need to update the schemas table, disable foreign keys
 	// so references to the `internal_cluster_members` table do not get dropped.
 	if updateSchemaTable {
-		_, err = db.Exec("PRAGMA foreign_keys=OFF")
+		_, err = db.Exec("PRAGMA foreign_keys=OFF; PRAGMA legacy_alter_table=ON")
 		if err != nil {
 			return -1, err
 		}
@@ -151,7 +151,7 @@ func (s *SchemaUpdate) Ensure(db *sql.DB) (int, error) {
 	if aborted {
 		// If we are returning early, re-enable foreign keys.
 		if updateSchemaTable {
-			_, err = db.Exec("PRAGMA foreign_keys=ON")
+			_, err = db.Exec("PRAGMA foreign_keys=ON; PRAGMA legacy_alter_table=OFF")
 			if err != nil {
 				return -1, err
 			}
@@ -164,7 +164,7 @@ func (s *SchemaUpdate) Ensure(db *sql.DB) (int, error) {
 	// so any external tables that reference internal ones are not wiped.
 	hasInternaUpdates := versions[updateInternal] < len(s.updates[updateInternal])
 	if hasInternaUpdates && !updateSchemaTable {
-		_, err = db.Exec("PRAGMA foreign_keys=OFF")
+		_, err = db.Exec("PRAGMA foreign_keys=OFF; PRAGMA legacy_alter_table=ON")
 		if err != nil {
 			return -1, err
 		}
@@ -193,7 +193,7 @@ func (s *SchemaUpdate) Ensure(db *sql.DB) (int, error) {
 
 	// Re-enable foreign keys if they were disabled before applying external schema updates.
 	if hasInternaUpdates {
-		_, err = db.Exec("PRAGMA foreign_keys=ON")
+		_, err = db.Exec("PRAGMA foreign_keys=ON; PRAGMA legacy_alter_table=OFF")
 		if err != nil {
 			return -1, err
 		}

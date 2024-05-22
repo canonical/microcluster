@@ -47,9 +47,9 @@ jobs:
       - name: Run static analysis
         run: |
           set -eux
-          make check-static || echo "XXX: Ignoring failures for now"
+          make check-static
 
-          make -C example check-static || echo "XXX: Ignoring failures for now"
+          make -C example check-static
 
       - name: Unit tests (all)
         run: |

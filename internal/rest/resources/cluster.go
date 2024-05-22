@@ -266,12 +266,11 @@ func clusterMemberPut(s *state.State, r *http.Request) response.Response {
 
 		// Send the response before replacing the LXD daemon process.
 		f, ok := w.(http.Flusher)
-		if ok {
-			f.Flush()
-		} else {
+		if !ok {
 			return fmt.Errorf("ResponseWriter is not type http.Flusher")
 		}
 
+		f.Flush()
 		return nil
 	})
 }
@@ -339,12 +338,11 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 
 			// Send the response before replacing the LXD daemon process.
 			f, ok := w.(http.Flusher)
-			if ok {
-				f.Flush()
-			} else {
+			if !ok {
 				return fmt.Errorf("ResponseWriter is not type http.Flusher")
 			}
 
+			f.Flush()
 			return nil
 		})
 	}
@@ -456,12 +454,11 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 
 			// Send the response before replacing the LXD daemon process.
 			f, ok := w.(http.Flusher)
-			if ok {
-				f.Flush()
-			} else {
+			if !ok {
 				return fmt.Errorf("ResponseWriter is not type http.Flusher")
 			}
 
+			f.Flush()
 			return nil
 		})
 	}

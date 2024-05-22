@@ -292,7 +292,12 @@ func dqliteNetworkDial(ctx context.Context, addr string, db *DB) (net.Conn, erro
 		return nil, fmt.Errorf("Failed connecting to HTTP endpoint %q: %w", addr, err)
 	}
 
-	revert.Add(func() { conn.Close() })
+	revert.Add(func() {
+		err := conn.Close()
+		if err != nil {
+			logger.Error("Failed to close connection to dqlite", logger.Ctx{"error": err})
+		}
+	})
 	logCtx := logger.AddContext(logger.Ctx{"local": conn.LocalAddr().String(), "remote": conn.RemoteAddr().String()})
 	logCtx.Debug("Dqlite connected outbound")
 

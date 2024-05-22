@@ -30,7 +30,6 @@ import (
 	"github.com/canonical/microcluster/internal/db/update"
 	"github.com/canonical/microcluster/internal/extensions"
 	"github.com/canonical/microcluster/internal/rest/client"
-	internalClient "github.com/canonical/microcluster/internal/rest/client"
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/internal/sys"
 	"github.com/canonical/microcluster/rest/types"
@@ -272,7 +271,7 @@ func dqliteNetworkDial(ctx context.Context, addr string, db *DB) (net.Conn, erro
 		Host:       addr,
 	}
 
-	path := fmt.Sprintf("https://%s/%s/%s", addr, internalClient.InternalEndpoint, "database")
+	path := fmt.Sprintf("https://%s/%s/%s", addr, client.InternalEndpoint, "database")
 	request.URL, err = url.Parse(path)
 	if err != nil {
 		return nil, err

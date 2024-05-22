@@ -149,5 +149,4 @@ func (t *hooksSuite) Test_hooks() {
 			t.Equal(false, isForce)
 		}
 	}
-
 }

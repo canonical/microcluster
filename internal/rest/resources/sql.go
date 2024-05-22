@@ -12,6 +12,7 @@ import (
 
 	"github.com/canonical/lxd/lxd/db/query"
 	"github.com/canonical/lxd/lxd/response"
+	"github.com/canonical/lxd/shared/logger"
 
 	"github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/internal/state"
@@ -103,7 +104,12 @@ func sqlSelect(ctx context.Context, tx *sql.Tx, query string, result *types.SQLR
 		return fmt.Errorf("Failed to execute query: %w", err)
 	}
 
-	defer rows.Close()
+	defer func() {
+		err := rows.Close()
+		if err != nil {
+			logger.Error("Failed to close rows after SQL POST request", logger.Ctx{"error": err})
+		}
+	}()
 
 	result.Columns, err = rows.Columns()
 	if err != nil {

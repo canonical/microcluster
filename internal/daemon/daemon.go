@@ -306,7 +306,7 @@ func (d *Daemon) initStore() error {
 	return nil
 }
 
-func (d *Daemon) initServer(resources ...*resources.Resources) *http.Server {
+func (d *Daemon) initServer(resources ...rest.Resources) *http.Server {
 	/* Setup the web server */
 	mux := mux.NewRouter()
 	mux.StrictSlash(false)

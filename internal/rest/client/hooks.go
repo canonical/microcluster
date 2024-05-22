@@ -9,7 +9,7 @@ import (
 	"github.com/canonical/microcluster/internal/rest/types"
 )
 
-// RunPreRemoveHook executes the PreRemove hook with the given configuration on the cluster member targetted by this client.
+// RunPreRemoveHook executes the PreRemove hook with the given configuration on the cluster member targeted by this client.
 func RunPreRemoveHook(ctx context.Context, c *Client, config types.HookRemoveMemberOptions) error {
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
@@ -17,7 +17,7 @@ func RunPreRemoveHook(ctx context.Context, c *Client, config types.HookRemoveMem
 	return c.QueryStruct(queryCtx, "POST", InternalEndpoint, api.NewURL().Path("hooks", string(types.PreRemove)), config, nil)
 }
 
-// RunPostRemoveHook executes the PostRemove hook with the given configuration on the cluster member targetted by this client.
+// RunPostRemoveHook executes the PostRemove hook with the given configuration on the cluster member targeted by this client.
 func RunPostRemoveHook(ctx context.Context, c *Client, config types.HookRemoveMemberOptions) error {
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
@@ -25,7 +25,7 @@ func RunPostRemoveHook(ctx context.Context, c *Client, config types.HookRemoveMe
 	return c.QueryStruct(queryCtx, "POST", InternalEndpoint, api.NewURL().Path("hooks", string(types.PostRemove)), config, nil)
 }
 
-// RunNewMemberHook executes the OnNewMember hook with the given configuration on the cluster member targetted by this client.
+// RunNewMemberHook executes the OnNewMember hook with the given configuration on the cluster member targeted by this client.
 func RunNewMemberHook(ctx context.Context, c *Client, config types.HookNewMemberOptions) error {
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()

@@ -67,5 +67,4 @@ func (c *Client) UpdateClusterCertificate(ctx context.Context, args apiTypes.Clu
 
 	endpoint := api.NewURL().Path("cluster", "certificates")
 	return c.QueryStruct(queryCtx, "PUT", InternalEndpoint, endpoint, args, nil)
-
 }

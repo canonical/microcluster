@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/canonical/lxd/lxd/db/query"
+	"github.com/canonical/lxd/shared/logger"
 
 	"github.com/canonical/microcluster/internal/extensions"
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
@@ -162,7 +163,12 @@ func GetClusterMemberAPIExtensions(ctx context.Context, tx *sql.Tx) ([]extension
 		return nil, err
 	}
 
-	defer rows.Close()
+	defer func() {
+		err := rows.Close()
+		if err != nil {
+			logger.Error("Failed to close rows after reading API extensions", logger.Ctx{"error": err})
+		}
+	}()
 
 	var results []extensions.Extensions
 	for rows.Next() {

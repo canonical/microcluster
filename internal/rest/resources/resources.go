@@ -12,7 +12,7 @@ type Resources struct {
 }
 
 // UnixEndpoints are the endpoints available over the unix socket.
-var UnixEndpoints = &Resources{
+var UnixEndpoints = Resources{
 	Path: client.ControlEndpoint,
 	Endpoints: []rest.Endpoint{
 		controlCmd,
@@ -21,7 +21,7 @@ var UnixEndpoints = &Resources{
 }
 
 // PublicEndpoints are the /cluster/1.0 API endpoints available without authentication.
-var PublicEndpoints = &Resources{
+var PublicEndpoints = Resources{
 	Path: client.PublicEndpoint,
 	Endpoints: []rest.Endpoint{
 		api10Cmd,
@@ -33,7 +33,7 @@ var PublicEndpoints = &Resources{
 }
 
 // InternalEndpoints are the /cluster/internal API endpoints available at the listen address.
-var InternalEndpoints = &Resources{
+var InternalEndpoints = Resources{
 	Path: client.InternalEndpoint,
 	Endpoints: []rest.Endpoint{
 		databaseCmd,
@@ -48,7 +48,7 @@ var InternalEndpoints = &Resources{
 }
 
 // ExtendedEndpoints holds all the endpoints added by external usage of MicroCluster.
-var ExtendedEndpoints = &Resources{
+var ExtendedEndpoints = Resources{
 	Path:      client.ExtendedEndpoint,
 	Endpoints: []rest.Endpoint{},
 }

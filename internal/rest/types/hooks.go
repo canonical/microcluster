@@ -40,6 +40,7 @@ type HookRemoveMemberOptions struct {
 	Force bool `json:"force" yaml:"force"`
 }
 
+// HookNewMemberOptions holds configuration pertaining to the OnNewMember hook.
 type HookNewMemberOptions struct {
 	// Name is the name of the new cluster member that joined the cluster, triggering this hook.
 	Name string `json:"name" yaml:"name"`

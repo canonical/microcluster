@@ -19,6 +19,7 @@ type X509Certificate struct {
 	*x509.Certificate
 }
 
+// ParseX509Certificate decodes the given PEM encoded string and parses it into an X509Certificate.
 func ParseX509Certificate(certStr string) (*X509Certificate, error) {
 	block, _ := pem.Decode([]byte(certStr))
 	if block == nil {

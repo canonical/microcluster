@@ -5,12 +5,6 @@ import (
 	"github.com/canonical/microcluster/rest"
 )
 
-// Resources represents all the resources served over the same path.
-type Resources struct {
-	Path      client.EndpointType
-	Endpoints []rest.Endpoint
-}
-
 // UnixEndpoints are the endpoints available over the unix socket.
 var UnixEndpoints = Resources{
 	Path: client.ControlEndpoint,

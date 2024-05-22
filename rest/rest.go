@@ -37,5 +37,11 @@ type Endpoint struct {
 	AllowedBeforeInit     bool // Whether we should return Unavailabel Error (503) if the daemon has not been initialized (is not yet part of a cluster).
 }
 
+// Resources represents all the resources served over the same path.
+type Resources struct {
+	Path      EndpointType
+	Endpoints []Endpoint
+}
+
 // EndpointType is a type specifying the endpoint on which the resource exists.
 type EndpointType client.EndpointType

@@ -22,7 +22,7 @@ var externalExtensionRegex = regexp.MustCompile(`^[a-z0-9]+(_[a-z0-9]+)*$`)
 // e.g, `internal:runtime_extension_v1`, `internal:runtime_extension_v2`, ...
 //
 // External extensions are related to capabilities of MicroCluster-backed services.
-// e.g, `microovn_custom_encapsulation_ip`
+// e.g, `microovn_custom_encapsulation_ip`.
 type Extensions []string
 
 // Populate internal extensions here.
@@ -77,7 +77,7 @@ func (e Extensions) Version() int {
 
 // NewExtensionRegistry creates a new instance of the Extensions struct, which represents a registry of extensions.
 // We have the option to populate the internal extensions or not. Having s option becomes handy
-// when we want to create a custom registry of extensions (see `NewExtensionRegistryFromList`)
+// when we want to create a custom registry of extensions (see `NewExtensionRegistryFromList`).
 func NewExtensionRegistry(populateInternal bool) (Extensions, error) {
 	extensions := Extensions{}
 	var err error

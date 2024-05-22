@@ -4,9 +4,10 @@ import (
 	"sort"
 
 	cli "github.com/canonical/lxd/shared/cmd"
+	"github.com/spf13/cobra"
+
 	"github.com/canonical/microcluster/client"
 	"github.com/canonical/microcluster/microcluster"
-	"github.com/spf13/cobra"
 )
 
 type cmdClusterMembers struct {

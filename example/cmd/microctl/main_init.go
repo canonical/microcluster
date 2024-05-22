@@ -6,8 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/canonical/microcluster/microcluster"
 	"github.com/spf13/cobra"
+
+	"github.com/canonical/microcluster/microcluster"
 )
 
 type cmdInit struct {

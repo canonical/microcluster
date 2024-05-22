@@ -3,10 +3,11 @@ package main
 import (
 	"fmt"
 
+	"github.com/spf13/cobra"
+
 	microClient "github.com/canonical/microcluster/client"
 	"github.com/canonical/microcluster/example/client"
 	"github.com/canonical/microcluster/microcluster"
-	"github.com/spf13/cobra"
 )
 
 type cmdExtended struct {

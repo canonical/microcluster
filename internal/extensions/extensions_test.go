@@ -135,7 +135,7 @@ func TestExtensionsValuerAndScanner(t *testing.T) {
 	db, err := sql.Open("sqlite3", ":memory:")
 	assert.NoError(t, err)
 
-	defer db.Close()
+	defer db.Close() //nolint:errcheck // Not relevant for the test.
 
 	_, err = db.Exec("CREATE TABLE internal_cluster_members (api_extensions TEXT NOT NULL DEFAULT '[]')")
 	require.NoError(t, err)
@@ -150,7 +150,7 @@ func TestExtensionsValuerAndScanner(t *testing.T) {
 	// Retrieve the data
 	var retrievedExts Extensions
 	row := db.QueryRow("SELECT api_extensions FROM internal_cluster_members")
-	row.Scan(&retrievedExts)
+	err = row.Scan(&retrievedExts)
 	assert.NoError(t, err)
 
 	// Check if the retrieved data is equal to the original data

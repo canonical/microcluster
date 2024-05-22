@@ -4,11 +4,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"log"
 	"testing"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestValidateExternalExtension(t *testing.T) {
@@ -138,9 +138,7 @@ func TestExtensionsValuerAndScanner(t *testing.T) {
 	defer db.Close()
 
 	_, err = db.Exec("CREATE TABLE internal_cluster_members (api_extensions TEXT NOT NULL DEFAULT '[]')")
-	if err != nil {
-		log.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	exts := Extensions{"internal:runtime_extension_v1", "microovn_custom_encapsulation_ip"}
 	res, err := db.Exec("INSERT INTO internal_cluster_members (api_extensions) VALUES (?)", exts)

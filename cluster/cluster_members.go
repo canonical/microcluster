@@ -32,10 +32,10 @@ import (
 //go:generate mapper method -i -e internal_cluster_member DeleteOne-by-Address table=internal_cluster_members
 //go:generate mapper method -i -e internal_cluster_member Update table=internal_cluster_members
 
-// Role is the role of the dqlite cluster member, with the addition of "pending" for nodes about to be added or
-// removed.
+// Role is the role of the dqlite cluster member.
 type Role string
 
+// Pending indicates that a node is about to be added or removed.
 const Pending Role = "PENDING"
 
 // InternalClusterMember represents the global database entry for a dqlite cluster member.

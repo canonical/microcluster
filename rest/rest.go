@@ -4,7 +4,10 @@ import (
 	"net/http"
 
 	"github.com/canonical/lxd/lxd/response"
+	"github.com/canonical/lxd/shared"
+
 	"github.com/canonical/microcluster/internal/rest/client"
+	"github.com/canonical/microcluster/rest/types"
 	"github.com/canonical/microcluster/state"
 )
 
@@ -45,3 +48,11 @@ type Resources struct {
 
 // EndpointType is a type specifying the endpoint on which the resource exists.
 type EndpointType client.EndpointType
+
+// Server contains configuration and handlers for additional listeners to be instantiated after app startup.
+type Server struct {
+	Protocol    string
+	Address     types.AddrPort
+	Certificate *shared.CertInfo
+	Resources   []Resources
+}

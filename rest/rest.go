@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/canonical/lxd/lxd/response"
-
+	"github.com/canonical/microcluster/internal/rest/client"
 	"github.com/canonical/microcluster/state"
 )
 
@@ -36,3 +36,6 @@ type Endpoint struct {
 	AllowedDuringShutdown bool // Whether we should return Unavailable Error (503) if daemon is shutting down.
 	AllowedBeforeInit     bool // Whether we should return Unavailabel Error (503) if the daemon has not been initialized (is not yet part of a cluster).
 }
+
+// EndpointType is a type specifying the endpoint on which the resource exists.
+type EndpointType client.EndpointType

@@ -6,8 +6,8 @@ import (
 )
 
 // UnixEndpoints are the endpoints available over the unix socket.
-var UnixEndpoints = Resources{
-	Path: client.ControlEndpoint,
+var UnixEndpoints = rest.Resources{
+	Path: rest.EndpointType(client.ControlEndpoint),
 	Endpoints: []rest.Endpoint{
 		controlCmd,
 		shutdownCmd,
@@ -15,8 +15,8 @@ var UnixEndpoints = Resources{
 }
 
 // PublicEndpoints are the /cluster/1.0 API endpoints available without authentication.
-var PublicEndpoints = Resources{
-	Path: client.PublicEndpoint,
+var PublicEndpoints = rest.Resources{
+	Path: rest.EndpointType(client.PublicEndpoint),
 	Endpoints: []rest.Endpoint{
 		api10Cmd,
 		clusterCmd,
@@ -27,8 +27,8 @@ var PublicEndpoints = Resources{
 }
 
 // InternalEndpoints are the /cluster/internal API endpoints available at the listen address.
-var InternalEndpoints = Resources{
-	Path: client.InternalEndpoint,
+var InternalEndpoints = rest.Resources{
+	Path: rest.EndpointType(client.InternalEndpoint),
 	Endpoints: []rest.Endpoint{
 		databaseCmd,
 		clusterCertificatesCmd,
@@ -42,7 +42,7 @@ var InternalEndpoints = Resources{
 }
 
 // ExtendedEndpoints holds all the endpoints added by external usage of MicroCluster.
-var ExtendedEndpoints = Resources{
-	Path:      client.ExtendedEndpoint,
+var ExtendedEndpoints = rest.Resources{
+	Path:      rest.EndpointType(client.ExtendedEndpoint),
 	Endpoints: []rest.Endpoint{},
 }

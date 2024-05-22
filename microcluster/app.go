@@ -167,7 +167,6 @@ func (m *MicroCluster) Ready(ctx context.Context) error {
 
 	select {
 	case <-finger:
-		break
 	case <-ctx.Done():
 		return fmt.Errorf("MicroCluster still not running after context deadline exceeded: %w", errLast)
 	}

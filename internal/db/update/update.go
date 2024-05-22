@@ -18,10 +18,12 @@ CREATE TABLE schemas (
 );
 `
 
+// SchemaUpdateManager contains a map of schema update type to slice of schema.Update.
 type SchemaUpdateManager struct {
 	updates map[updateType][]schema.Update
 }
 
+// NewSchema returns a new SchemaUpdateManager containing microcluster schema updates.
 func NewSchema() *SchemaUpdateManager {
 	return &SchemaUpdateManager{
 		updates: map[updateType][]schema.Update{
@@ -52,14 +54,16 @@ func (s *SchemaUpdateManager) SetExternalUpdates(updates []schema.Update) {
 	s.updates[updateExternal] = updates
 }
 
-func (m *SchemaUpdateManager) Schema() *SchemaUpdate {
-	schema := &SchemaUpdate{updates: m.updates}
+// Schema returns a SchemaUpdate from the SchemaUpdateManager config.
+func (s *SchemaUpdateManager) Schema() *SchemaUpdate {
+	schema := &SchemaUpdate{updates: s.updates}
 	schema.Fresh("")
 	return schema
 }
 
-func (m *SchemaUpdateManager) AppendSchema(extensions []schema.Update) {
-	m.updates[updateExternal] = extensions
+// AppendSchema sets the given schema updates as the list of external extensions on the update manager.
+func (s *SchemaUpdateManager) AppendSchema(extensions []schema.Update) {
+	s.updates[updateExternal] = extensions
 }
 
 func updateFromV2(ctx context.Context, tx *sql.Tx) error {

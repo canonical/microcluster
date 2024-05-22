@@ -13,23 +13,23 @@ type cmdClusterMembers struct {
 	common *CmdControl
 }
 
-func (c *cmdClusterMembers) Command() *cobra.Command {
+func (c *cmdClusterMembers) command() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "cluster",
 		Short: "manage cluster members.",
-		RunE:  c.Run,
+		RunE:  c.run,
 	}
 
 	var cmdRemove = cmdClusterMemberRemove{common: c.common}
-	cmd.AddCommand(cmdRemove.Command())
+	cmd.AddCommand(cmdRemove.command())
 
 	var cmdList = cmdClusterMembersList{common: c.common}
-	cmd.AddCommand(cmdList.Command())
+	cmd.AddCommand(cmdList.command())
 
 	return cmd
 }
 
-func (c *cmdClusterMembers) Run(cmd *cobra.Command, args []string) error {
+func (c *cmdClusterMembers) run(cmd *cobra.Command, args []string) error {
 	return cmd.Help()
 }
 
@@ -37,17 +37,17 @@ type cmdClusterMembersList struct {
 	common *CmdControl
 }
 
-func (c *cmdClusterMembersList) Command() *cobra.Command {
+func (c *cmdClusterMembersList) command() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list <address>",
 		Short: "List cluster members locally, or remotely if an address is specified.",
-		RunE:  c.Run,
+		RunE:  c.run,
 	}
 
 	return cmd
 }
 
-func (c *cmdClusterMembersList) Run(cmd *cobra.Command, args []string) error {
+func (c *cmdClusterMembersList) run(cmd *cobra.Command, args []string) error {
 	if len(args) > 1 {
 		return cmd.Help()
 	}
@@ -95,11 +95,11 @@ type cmdClusterMemberRemove struct {
 	flagForce bool
 }
 
-func (c *cmdClusterMemberRemove) Command() *cobra.Command {
+func (c *cmdClusterMemberRemove) command() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "remove <name>",
 		Short: "Remove the cluster member with the given name.",
-		RunE:  c.Run,
+		RunE:  c.run,
 	}
 
 	cmd.Flags().BoolVarP(&c.flagForce, "force", "f", false, "Forcibly remove the cluster member")
@@ -107,7 +107,7 @@ func (c *cmdClusterMemberRemove) Command() *cobra.Command {
 	return cmd
 }
 
-func (c *cmdClusterMemberRemove) Run(cmd *cobra.Command, args []string) error {
+func (c *cmdClusterMemberRemove) run(cmd *cobra.Command, args []string) error {
 	if len(args) != 1 {
 		return cmd.Help()
 	}

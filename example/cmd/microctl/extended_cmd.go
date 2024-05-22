@@ -13,17 +13,17 @@ type cmdExtended struct {
 	common *CmdControl
 }
 
-func (c *cmdExtended) Command() *cobra.Command {
+func (c *cmdExtended) command() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "extended <address>",
 		Short: "An extended command not part of the default MicroCluster API",
-		RunE:  c.Run,
+		RunE:  c.run,
 	}
 
 	return cmd
 }
 
-func (c *cmdExtended) Run(cmd *cobra.Command, args []string) error {
+func (c *cmdExtended) run(cmd *cobra.Command, args []string) error {
 	if len(args) > 1 {
 		return cmd.Help()
 	}

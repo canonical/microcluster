@@ -18,11 +18,11 @@ type cmdInit struct {
 	flagConfig    []string
 }
 
-func (c *cmdInit) Command() *cobra.Command {
+func (c *cmdInit) command() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "init <name> <address>",
 		Short: "Initialize the network endpoint and create or join a new cluster",
-		RunE:  c.Run,
+		RunE:  c.run,
 		Example: `  microctl init member1 127.0.0.1:8443 --bootstrap
     microctl init member1 127.0.0.1:8443 --token <token>`,
 	}
@@ -35,7 +35,7 @@ func (c *cmdInit) Command() *cobra.Command {
 	return cmd
 }
 
-func (c *cmdInit) Run(cmd *cobra.Command, args []string) error {
+func (c *cmdInit) run(cmd *cobra.Command, args []string) error {
 	if len(args) != 2 {
 		return cmd.Help()
 	}

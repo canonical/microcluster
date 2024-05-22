@@ -68,6 +68,8 @@ type Daemon struct {
 
 	// stop is a sync.Once which wraps the daemon's stop sequence. Each call will block until the first one completes.
 	stop func() error
+
+	extensionServers []rest.Server
 }
 
 // NewDaemon initializes the Daemon context and channels.
@@ -95,8 +97,9 @@ func NewDaemon(project string) *Daemon {
 // Run initializes the Daemon with the given configuration, starts the database, and blocks until the daemon is cancelled.
 // - `extensionsAPI` is a list of endpoints to be served over `/1.0`.
 // - `extensionsSchema` is a list of schema updates in the order that they should be applied.
+// - `extensionServers` is a list of rest.Server that will be initialized and managed by microcluster.
 // - `hooks` are a set of functions that trigger at certain points during cluster communication.
-func (d *Daemon) Run(ctx context.Context, listenPort string, stateDir string, socketGroup string, extensionsAPI []rest.Endpoint, extensionsSchema []schema.Update, apiExtensions []string, hooks *config.Hooks) error {
+func (d *Daemon) Run(ctx context.Context, listenPort string, stateDir string, socketGroup string, extensionsAPI []rest.Endpoint, extensionsSchema []schema.Update, apiExtensions []string, extensionServers []rest.Server, hooks *config.Hooks) error {
 	d.shutdownCtx, d.shutdownCancel = context.WithCancel(ctx)
 	if stateDir == "" {
 		stateDir = os.Getenv(sys.StateDir)
@@ -116,6 +119,8 @@ func (d *Daemon) Run(ctx context.Context, listenPort string, stateDir string, so
 	if err != nil {
 		return fmt.Errorf("Failed to initialize directory structure: %w", err)
 	}
+
+	d.extensionServers = extensionServers
 
 	err = d.init(listenPort, extensionsAPI, extensionsSchema, apiExtensions, hooks)
 	if err != nil {
@@ -433,6 +438,12 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 			return err
 		}
 
+		// Add extension servers before post-bootstrap hook.
+		err = d.addExtensionServers()
+		if err != nil {
+			return err
+		}
+
 		err = d.hooks.PostBootstrap(d.State(), initConfig)
 		if err != nil {
 			return fmt.Errorf("Failed to run post-bootstrap actions: %w", err)
@@ -550,8 +561,32 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 		return err
 	}
 
+	// Add extension servers before post-join hook.
+	err = d.addExtensionServers()
+	if err != nil {
+		return err
+	}
+
 	if len(joinAddresses) > 0 {
 		return d.hooks.PostJoin(d.State(), initConfig)
+	}
+
+	return nil
+}
+
+// addExtensionServers initialises a new *endpoints.Network for each extension server and adds it to the Daemon endpoints.
+func (d *Daemon) addExtensionServers() error {
+	var networks []endpoints.Endpoint
+	for _, extensionServer := range d.extensionServers {
+		server := d.initServer(extensionServer.Resources...)
+		url := api.NewURL().Scheme(extensionServer.Protocol).Host(extensionServer.Address.String())
+		network := endpoints.NewNetwork(d.shutdownCtx, endpoints.EndpointNetwork, server, *url, extensionServer.Certificate)
+		networks = append(networks, network)
+	}
+
+	err := d.endpoints.Add(networks...)
+	if err != nil {
+		return err
 	}
 
 	return nil

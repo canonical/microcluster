@@ -53,6 +53,7 @@ func (c *cmdDaemon) command() *cobra.Command {
 	}
 
 	cmd.RunE = c.run
+	cmd.PreRunE = c.global.run
 
 	return cmd
 }

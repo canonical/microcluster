@@ -117,8 +117,8 @@ func sqlSelect(ctx context.Context, tx *sql.Tx, query string, result *types.SQLR
 	}
 
 	for rows.Next() {
-		row := make([]interface{}, len(result.Columns))
-		rowPointers := make([]interface{}, len(result.Columns))
+		row := make([]any, len(result.Columns))
+		rowPointers := make([]any, len(result.Columns))
 		for i := range row {
 			rowPointers[i] = &row[i]
 		}

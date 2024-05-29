@@ -52,7 +52,7 @@ func (s *updateSuite) Test_updateFromV1ClusterMembers() {
 	// Create a schema manager that corresponds to the manual configuration above.
 	dummyUpdate := func(ctx context.Context, tx *sql.Tx) error { return nil }
 	schemaMgr := NewSchema()
-	schemaMgr.AppendSchema([]schema.Update{dummyUpdate, dummyUpdate})
+	schemaMgr.AppendSchema([]schema.Update{dummyUpdate, dummyUpdate}, nil)
 
 	// Apply the updates the regular way.
 	_, err = schemaMgr.Schema().Ensure(db)
@@ -80,7 +80,14 @@ func (s *updateSuite) Test_updateFromV1ClusterMembers() {
 	// The schema_internal column won't be updated to 2 until `waitUpgrade` is called on each node, but it should still reflect the pre-existing updateFromV0.
 	s.Equal([]int{1, 1, 1}, schemaInternal)
 	s.Equal([]int{2, 2, 2}, schemaExternal)
-	s.Equal([]int{1, 2, 3}, versionsInternal)
+
+	internalUpdates := NewSchema().updates[updateInternal]
+	expectedUpdates := make([]int, len(internalUpdates))
+	for i := range internalUpdates {
+		expectedUpdates[i] = i + 1
+	}
+
+	s.Equal(expectedUpdates, versionsInternal)
 	s.Equal([]int{1, 2}, versionsExternal)
 
 	s.NoError(db.Close())

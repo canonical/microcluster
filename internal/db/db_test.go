@@ -656,7 +656,7 @@ func NewTestDB(extensionsExternal []schema.Update) (*DB, error) {
 		return nil, err
 	}
 
-	db.SetSchema(extensionsExternal)
+	db.SetSchema(extensionsExternal, nil)
 	_, err = db.schema.Ensure(db.db)
 	if err != nil {
 		return nil, err

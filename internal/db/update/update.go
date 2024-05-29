@@ -6,6 +6,8 @@ import (
 	"fmt"
 
 	"github.com/canonical/lxd/lxd/db/schema"
+
+	"github.com/canonical/microcluster/internal/extensions"
 )
 
 // CreateSchema is the default schema applied when bootstrapping the database.
@@ -21,6 +23,8 @@ CREATE TABLE schemas (
 // SchemaUpdateManager contains a map of schema update type to slice of schema.Update.
 type SchemaUpdateManager struct {
 	updates map[updateType][]schema.Update
+
+	apiExtensions extensions.Extensions
 }
 
 // NewSchema returns a new SchemaUpdateManager containing microcluster schema updates.
@@ -61,9 +65,10 @@ func (s *SchemaUpdateManager) Schema() *SchemaUpdate {
 	return schema
 }
 
-// AppendSchema sets the given schema updates as the list of external extensions on the update manager.
-func (s *SchemaUpdateManager) AppendSchema(extensions []schema.Update) {
-	s.updates[updateExternal] = extensions
+// AppendSchema sets the given schema and API updates as the list of external extensions on the update manager.
+func (s *SchemaUpdateManager) AppendSchema(schemaExtensions []schema.Update, apiExtensions extensions.Extensions) {
+	s.updates[updateExternal] = schemaExtensions
+	s.apiExtensions = apiExtensions
 }
 
 func updateFromV2(ctx context.Context, tx *sql.Tx) error {

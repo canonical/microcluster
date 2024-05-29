@@ -81,10 +81,10 @@ func NewDB(ctx context.Context, serverCert *shared.CertInfo, clusterCert func() 
 	}
 }
 
-// SetSchema sets schema extensions on the DB.
-func (db *DB) SetSchema(schemaExtensions []schema.Update) {
+// SetSchema sets schema and API extensions on the DB.
+func (db *DB) SetSchema(schemaExtensions []schema.Update, apiExtensions extensions.Extensions) {
 	s := update.NewSchema()
-	s.AppendSchema(schemaExtensions)
+	s.AppendSchema(schemaExtensions, apiExtensions)
 	db.schema = s.Schema()
 }
 

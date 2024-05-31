@@ -3,6 +3,7 @@ package rest
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -201,8 +202,8 @@ func HandleEndpoint(state *state.State, mux *mux.Router, version string, e rest.
 			handleRequest = handleDatabaseRequest
 		}
 
-		trusted, err := access.Authenticate(state, r, state.Remotes().CertificatesNative())
-		if err != nil {
+		trusted, err := access.Authenticate(state, r, state.Address().URL.Host, state.Remotes().CertificatesNative())
+		if err != nil && !errors.As(err, &access.ErrInvalidHost{}) {
 			resp = response.Forbidden(fmt.Errorf("Failed to authenticate request: %w", err))
 		} else {
 			r = internalAccess.SetRequestAuthentication(r, trusted)

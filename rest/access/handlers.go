@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/canonical/lxd/lxd/request"
 	"github.com/canonical/lxd/lxd/response"
 	"github.com/canonical/lxd/lxd/util"
 	"github.com/canonical/lxd/shared/logger"
 
+	"github.com/canonical/microcluster/internal/rest/access"
 	"github.com/canonical/microcluster/internal/state"
 	"github.com/canonical/microcluster/rest/types"
 )
@@ -23,11 +25,23 @@ func (e ErrInvalidHost) Unwrap() error {
 	return e.error
 }
 
-// AllowAuthenticated is an AccessHandler which allows all requests.
-// This function doesn't do anything itself, except return the EmptySyncResponse that allows the request to
-// proceed. However in order to access any API route you must be authenticated, unless the handler's AllowUntrusted
-// property is set to true or you are an admin.
+// AllowAuthenticated checks if the request is trusted by extracting access.TrustedRequest from the request context.
+// This handler is used as an access handler by default if AllowUntrusted is false on a rest.EndpointAction.
 func AllowAuthenticated(state *state.State, r *http.Request) response.Response {
+	trusted := r.Context().Value(request.CtxAccess)
+	if trusted == nil {
+		return response.Forbidden(nil)
+	}
+
+	trustedReq, ok := trusted.(access.TrustedRequest)
+	if !ok {
+		return response.Forbidden(nil)
+	}
+
+	if !trustedReq.Trusted {
+		return response.Forbidden(nil)
+	}
+
 	return response.EmptySyncResponse
 }
 

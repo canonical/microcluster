@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/canonical/lxd/lxd/db/query"
+	"github.com/canonical/lxd/shared/logger"
 
 	"github.com/canonical/microcluster/internal/extensions"
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
@@ -32,10 +33,10 @@ import (
 //go:generate mapper method -i -e internal_cluster_member DeleteOne-by-Address table=internal_cluster_members
 //go:generate mapper method -i -e internal_cluster_member Update table=internal_cluster_members
 
-// Role is the role of the dqlite cluster member, with the addition of "pending" for nodes about to be added or
-// removed.
+// Role is the role of the dqlite cluster member.
 type Role string
 
+// Pending indicates that a node is about to be added or removed.
 const Pending Role = "PENDING"
 
 // InternalClusterMember represents the global database entry for a dqlite cluster member.
@@ -162,7 +163,12 @@ func GetClusterMemberAPIExtensions(ctx context.Context, tx *sql.Tx) ([]extension
 		return nil, err
 	}
 
-	defer rows.Close()
+	defer func() {
+		err := rows.Close()
+		if err != nil {
+			logger.Error("Failed to close rows after reading API extensions", logger.Ctx{"error": err})
+		}
+	}()
 
 	var results []extensions.Extensions
 	for rows.Next() {

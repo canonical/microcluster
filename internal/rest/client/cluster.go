@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/canonical/lxd/shared/api"
+
 	"github.com/canonical/microcluster/internal/rest/types"
 	apiTypes "github.com/canonical/microcluster/rest/types"
 )
@@ -67,5 +68,4 @@ func (c *Client) UpdateClusterCertificate(ctx context.Context, args apiTypes.Clu
 
 	endpoint := api.NewURL().Path("cluster", "certificates")
 	return c.QueryStruct(queryCtx, "PUT", InternalEndpoint, endpoint, args, nil)
-
 }

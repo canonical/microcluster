@@ -17,8 +17,8 @@ type SQLBatch struct {
 
 // SQLResult represents the result of executing a SQL command.
 type SQLResult struct {
-	Type         string          `json:"type" yaml:"type"`
-	Columns      []string        `json:"columns" yaml:"columns"`
-	Rows         [][]interface{} `json:"rows" yaml:"rows"`
-	RowsAffected int64           `json:"rows_affected" yaml:"rows_affected"`
+	Type         string   `json:"type" yaml:"type"`
+	Columns      []string `json:"columns" yaml:"columns"`
+	Rows         [][]any  `json:"rows" yaml:"rows"`
+	RowsAffected int64    `json:"rows_affected" yaml:"rows_affected"`
 }

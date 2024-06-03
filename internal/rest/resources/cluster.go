@@ -25,12 +25,11 @@ import (
 	"github.com/canonical/microcluster/cluster"
 	internalClient "github.com/canonical/microcluster/internal/rest/client"
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
-	"github.com/canonical/microcluster/rest/access"
-	"github.com/canonical/microcluster/rest/types"
-
 	"github.com/canonical/microcluster/internal/state"
 	"github.com/canonical/microcluster/internal/trust"
 	"github.com/canonical/microcluster/rest"
+	"github.com/canonical/microcluster/rest/access"
+	"github.com/canonical/microcluster/rest/types"
 )
 
 var clusterCmd = rest.Endpoint{
@@ -267,12 +266,11 @@ func clusterMemberPut(s *state.State, r *http.Request) response.Response {
 
 		// Send the response before replacing the LXD daemon process.
 		f, ok := w.(http.Flusher)
-		if ok {
-			f.Flush()
-		} else {
+		if !ok {
 			return fmt.Errorf("ResponseWriter is not type http.Flusher")
 		}
 
+		f.Flush()
 		return nil
 	})
 }
@@ -340,12 +338,11 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 
 			// Send the response before replacing the LXD daemon process.
 			f, ok := w.(http.Flusher)
-			if ok {
-				f.Flush()
-			} else {
+			if !ok {
 				return fmt.Errorf("ResponseWriter is not type http.Flusher")
 			}
 
+			f.Flush()
 			return nil
 		})
 	}
@@ -457,12 +454,11 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 
 			// Send the response before replacing the LXD daemon process.
 			f, ok := w.(http.Flusher)
-			if ok {
-				f.Flush()
-			} else {
+			if !ok {
 				return fmt.Errorf("ResponseWriter is not type http.Flusher")
 			}
 
+			f.Flush()
 			return nil
 		})
 	}

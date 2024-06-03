@@ -1,25 +1,26 @@
 package main
 
 import (
-	"github.com/canonical/microcluster/microcluster"
 	"github.com/spf13/cobra"
+
+	"github.com/canonical/microcluster/microcluster"
 )
 
 type cmdShutdown struct {
 	common *CmdControl
 }
 
-func (c *cmdShutdown) Command() *cobra.Command {
+func (c *cmdShutdown) command() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "shutdown",
 		Short: "Shutdown MicroCluster daemon",
-		RunE:  c.Run,
+		RunE:  c.run,
 	}
 
 	return cmd
 }
 
-func (c *cmdShutdown) Run(cmd *cobra.Command, args []string) error {
+func (c *cmdShutdown) run(cmd *cobra.Command, args []string) error {
 	if len(args) != 0 {
 		return cmd.Help()
 	}

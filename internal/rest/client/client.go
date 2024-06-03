@@ -115,7 +115,6 @@ func tlsHTTPClient(clientCert *shared.CertInfo, remoteCert *x509.Certificate, pr
 		if err != nil {
 			return nil, fmt.Errorf("Failed to parse TLS config: %w", err)
 		}
-
 	}
 
 	tlsDialContext := func(t *http.Transport) func(context.Context, string, string) (net.Conn, error) {

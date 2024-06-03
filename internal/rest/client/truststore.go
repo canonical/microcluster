@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/canonical/lxd/shared/api"
+
 	"github.com/canonical/microcluster/internal/rest/types"
 )
 

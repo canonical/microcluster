@@ -6,9 +6,9 @@ import (
 
 	"github.com/canonical/lxd/lxd/response"
 
-	"github.com/canonical/microcluster/rest/access"
 	"github.com/canonical/microcluster/internal/state"
 	"github.com/canonical/microcluster/rest"
+	"github.com/canonical/microcluster/rest/access"
 )
 
 var shutdownCmd = rest.Endpoint{
@@ -36,10 +36,10 @@ func shutdownPost(state *state.State, r *http.Request) response.Response {
 		// Send the response before the daemon process ends.
 		f, ok := w.(http.Flusher)
 		if ok {
-			f.Flush()
-		} else {
 			return fmt.Errorf("ResponseWriter is not type http.Flusher")
 		}
+
+		f.Flush()
 
 		// Send result of d.Stop() to cmdDaemon so that process stops with correct exit code from Stop().
 		go func() {

@@ -31,7 +31,7 @@ type cmdGlobal struct {
 	flagLogVerbose bool
 }
 
-func (c *cmdGlobal) Run(cmd *cobra.Command, args []string) error {
+func (c *cmdGlobal) run(cmd *cobra.Command, args []string) error {
 	Debug = c.flagLogDebug
 	Verbose = c.flagLogVerbose
 
@@ -45,19 +45,20 @@ type cmdDaemon struct {
 	flagSocketGroup string
 }
 
-func (c *cmdDaemon) Command() *cobra.Command {
+func (c *cmdDaemon) command() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "microd",
 		Short:   "Example daemon for MicroCluster - This will start a daemon with a running control socket and no database",
 		Version: version.Version,
 	}
 
-	cmd.RunE = c.Run
+	cmd.RunE = c.run
+	cmd.PreRunE = c.global.run
 
 	return cmd
 }
 
-func (c *cmdDaemon) Run(cmd *cobra.Command, args []string) error {
+func (c *cmdDaemon) run(cmd *cobra.Command, args []string) error {
 	m, err := microcluster.App(microcluster.Args{StateDir: c.flagStateDir, SocketGroup: c.flagSocketGroup, Verbose: c.global.flagLogVerbose, Debug: c.global.flagLogDebug})
 	if err != nil {
 		return err
@@ -180,7 +181,7 @@ func (c *cmdDaemon) Run(cmd *cobra.Command, args []string) error {
 
 func main() {
 	daemonCmd := cmdDaemon{global: &cmdGlobal{}}
-	app := daemonCmd.Command()
+	app := daemonCmd.command()
 	app.SilenceUsage = true
 	app.CompletionOptions = cobra.CompletionOptions{DisableDefaultCmd: true}
 

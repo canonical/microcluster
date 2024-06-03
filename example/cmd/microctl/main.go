@@ -42,25 +42,25 @@ func main() {
 	app.SetVersionTemplate("{{.Version}}\n")
 
 	var cmdInit = cmdInit{common: &commonCmd}
-	app.AddCommand(cmdInit.Command())
+	app.AddCommand(cmdInit.command())
 
 	var cmdPeers = cmdClusterMembers{common: &commonCmd}
-	app.AddCommand(cmdPeers.Command())
+	app.AddCommand(cmdPeers.command())
 
 	var cmdShutdown = cmdShutdown{common: &commonCmd}
-	app.AddCommand(cmdShutdown.Command())
+	app.AddCommand(cmdShutdown.command())
 
 	var cmdSQL = cmdSQL{common: &commonCmd}
-	app.AddCommand(cmdSQL.Command())
+	app.AddCommand(cmdSQL.command())
 
 	var cmdSecrets = cmdSecrets{common: &commonCmd}
-	app.AddCommand(cmdSecrets.Command())
+	app.AddCommand(cmdSecrets.command())
 
 	var cmdWaitready = cmdWaitready{common: &commonCmd}
-	app.AddCommand(cmdWaitready.Command())
+	app.AddCommand(cmdWaitready.command())
 
 	var cmdExtended = cmdExtended{common: &commonCmd}
-	app.AddCommand(cmdExtended.Command())
+	app.AddCommand(cmdExtended.command())
 
 	app.InitDefaultHelpCmd()
 

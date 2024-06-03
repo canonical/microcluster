@@ -288,6 +288,7 @@ func (r *Remotes) CertificatesNative() map[string]x509.Certificate {
 	return certMap
 }
 
+// Count returns the number of remotes.
 func (r *Remotes) Count() int {
 	r.updateMu.RLock()
 	defer r.updateMu.RUnlock()

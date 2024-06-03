@@ -53,7 +53,7 @@ func databasePatch(state *state.State, r *http.Request) response.Response {
 		return response.BadRequest(fmt.Errorf("Invalid dqlite vesion: %w", err))
 	}
 
-	// Notify this node that a schema upgrade has occured, in case we are waiting on one.
+	// Notify this node that a schema upgrade has occurred, in case we are waiting on one.
 	state.Database.NotifyUpgraded()
 
 	return response.EmptySyncResponse

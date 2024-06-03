@@ -11,11 +11,12 @@ import (
 	"testing"
 
 	"github.com/canonical/lxd/shared/api"
-	"github.com/canonical/microcluster/internal/rest/types"
-	"github.com/canonical/microcluster/internal/state"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+
+	"github.com/canonical/microcluster/internal/rest/types"
+	"github.com/canonical/microcluster/internal/state"
 )
 
 type hooksSuite struct {
@@ -149,5 +150,4 @@ func (t *hooksSuite) Test_hooks() {
 			t.Equal(false, isForce)
 		}
 	}
-
 }

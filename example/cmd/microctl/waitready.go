@@ -4,8 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/canonical/microcluster/microcluster"
 	"github.com/spf13/cobra"
+
+	"github.com/canonical/microcluster/microcluster"
 )
 
 type cmdWaitready struct {
@@ -14,11 +15,11 @@ type cmdWaitready struct {
 	flagTimeout int
 }
 
-func (c *cmdWaitready) Command() *cobra.Command {
+func (c *cmdWaitready) command() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "waitready",
 		Short: "Wait for the daemon to be ready to process requests",
-		RunE:  c.Run,
+		RunE:  c.run,
 	}
 
 	cmd.Flags().IntVarP(&c.flagTimeout, "timeout", "t", 0, "Number of seconds to wait before giving up"+"``")
@@ -26,7 +27,7 @@ func (c *cmdWaitready) Command() *cobra.Command {
 	return cmd
 }
 
-func (c *cmdWaitready) Run(cmd *cobra.Command, args []string) error {
+func (c *cmdWaitready) run(cmd *cobra.Command, args []string) error {
 	if len(args) > 0 {
 		return cmd.Help()
 	}

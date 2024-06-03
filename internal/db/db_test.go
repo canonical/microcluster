@@ -428,7 +428,7 @@ func (s *dbSuite) Test_waitUpgradeAPI() {
 
 		s.Equal(len(t.clusterMembersExtensions)+1, len(allExtensions))
 
-		if t.expectErr == nil && t.expectWait == false {
+		if t.expectErr == nil && !t.expectWait {
 			for _, c := range t.clusterMembersExtensions {
 				err = t.upgradedLocalAPIExtensions.IsSameVersion(c)
 				s.NoError(err)
@@ -638,7 +638,7 @@ func (s *dbSuite) Test_waitUpgradeSchemaAndAPI() {
 
 		s.Equal(len(t.clusterMembers)+1, len(allExtensions))
 
-		if t.expectErr == nil && t.expectWait == false {
+		if t.expectErr == nil && !t.expectWait {
 			for _, c := range t.clusterMembers {
 				err = t.upgradedLocalInfo.ext.IsSameVersion(c.ext)
 				s.NoError(err)

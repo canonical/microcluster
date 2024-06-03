@@ -5,34 +5,35 @@ import (
 	"sort"
 
 	cli "github.com/canonical/lxd/shared/cmd"
-	"github.com/canonical/microcluster/microcluster"
 	"github.com/spf13/cobra"
+
+	"github.com/canonical/microcluster/microcluster"
 )
 
 type cmdSecrets struct {
 	common *CmdControl
 }
 
-func (c *cmdSecrets) Command() *cobra.Command {
+func (c *cmdSecrets) command() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "tokens",
 		Short: "Manage join tokens for MicroCluster",
-		RunE:  c.Run,
+		RunE:  c.run,
 	}
 
 	var cmdAdd = cmdTokensAdd{common: c.common}
-	cmd.AddCommand(cmdAdd.Command())
+	cmd.AddCommand(cmdAdd.command())
 
 	var cmdList = cmdTokensList{common: c.common}
-	cmd.AddCommand(cmdList.Command())
+	cmd.AddCommand(cmdList.command())
 
 	var cmdRevoke = cmdTokensRevoke{common: c.common}
-	cmd.AddCommand(cmdRevoke.Command())
+	cmd.AddCommand(cmdRevoke.command())
 
 	return cmd
 }
 
-func (c *cmdSecrets) Run(cmd *cobra.Command, args []string) error {
+func (c *cmdSecrets) run(cmd *cobra.Command, args []string) error {
 	return cmd.Help()
 }
 
@@ -40,17 +41,17 @@ type cmdTokensAdd struct {
 	common *CmdControl
 }
 
-func (c *cmdTokensAdd) Command() *cobra.Command {
+func (c *cmdTokensAdd) command() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "add <name>",
 		Short: "Add a new join token under the given name",
-		RunE:  c.Run,
+		RunE:  c.run,
 	}
 
 	return cmd
 }
 
-func (c *cmdTokensAdd) Run(cmd *cobra.Command, args []string) error {
+func (c *cmdTokensAdd) run(cmd *cobra.Command, args []string) error {
 	if len(args) != 1 {
 		return cmd.Help()
 	}
@@ -74,17 +75,17 @@ type cmdTokensList struct {
 	common *CmdControl
 }
 
-func (c *cmdTokensList) Command() *cobra.Command {
+func (c *cmdTokensList) command() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List join tokens available for use",
-		RunE:  c.Run,
+		RunE:  c.run,
 	}
 
 	return cmd
 }
 
-func (c *cmdTokensList) Run(cmd *cobra.Command, args []string) error {
+func (c *cmdTokensList) run(cmd *cobra.Command, args []string) error {
 	if len(args) != 0 {
 		return cmd.Help()
 	}
@@ -114,17 +115,17 @@ type cmdTokensRevoke struct {
 	common *CmdControl
 }
 
-func (c *cmdTokensRevoke) Command() *cobra.Command {
+func (c *cmdTokensRevoke) command() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "revoke <name>",
 		Short: "Revoke the join token with the given name",
-		RunE:  c.Run,
+		RunE:  c.run,
 	}
 
 	return cmd
 }
 
-func (c *cmdTokensRevoke) Run(cmd *cobra.Command, args []string) error {
+func (c *cmdTokensRevoke) run(cmd *cobra.Command, args []string) error {
 	if len(args) != 1 {
 		return cmd.Help()
 	}

@@ -39,7 +39,11 @@ func NewWatcher(ctx context.Context, root string) (*Watcher, error) {
 	// Listen for events across the given root dir.
 	err = watcher.watchDir(root)
 	if err != nil {
-		watcher.Close()
+		closeErr := watcher.Close()
+		if closeErr != nil {
+			logger.Error("Failed to close filesystem watcher", logger.Ctx{"error": closeErr})
+		}
+
 		return nil, err
 	}
 
@@ -75,7 +79,11 @@ func (w *Watcher) handleEvents(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			logger.Info("Closing filesystem watcher")
-			w.Close()
+			err := w.Close()
+			if err != nil {
+				logger.Error("Failed to close filesystem watcher", logger.Ctx{"error": err})
+			}
+
 			return
 		case event := <-w.Events:
 			// Only handle write/remove events.

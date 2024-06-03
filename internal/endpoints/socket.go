@@ -68,7 +68,11 @@ func (s *Socket) Listen() error {
 
 	err = localSetAccess(s.Path, s.Group)
 	if err != nil {
-		s.listener.Close()
+		closeErr := s.listener.Close()
+		if closeErr != nil {
+			logger.Error("Failed to close socket listener", logger.Ctx{"error": closeErr})
+		}
+
 		return err
 	}
 

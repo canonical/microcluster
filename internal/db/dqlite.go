@@ -30,7 +30,6 @@ import (
 	"github.com/canonical/microcluster/internal/db/update"
 	"github.com/canonical/microcluster/internal/extensions"
 	"github.com/canonical/microcluster/internal/rest/client"
-	internalClient "github.com/canonical/microcluster/internal/rest/client"
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/internal/sys"
 	"github.com/canonical/microcluster/rest/types"
@@ -82,12 +81,14 @@ func NewDB(ctx context.Context, serverCert *shared.CertInfo, clusterCert func() 
 	}
 }
 
+// SetSchema sets schema extensions on the DB.
 func (db *DB) SetSchema(schemaExtensions []schema.Update) {
 	s := update.NewSchema()
 	s.AppendSchema(schemaExtensions)
 	db.schema = s.Schema()
 }
 
+// Schema returns the update.SchemaUpdate for the DB.
 func (db *DB) Schema() *update.SchemaUpdate {
 	return db.schema
 }
@@ -112,7 +113,6 @@ func (db *DB) Bootstrap(extensions extensions.Extensions, project string, addr a
 	// Apply initial API extensions on the bootstrap node.
 	clusterRecord.APIExtensions = extensions
 	err = db.Transaction(db.ctx, func(ctx context.Context, tx *sql.Tx) error {
-
 		_, err := cluster.CreateInternalClusterMember(ctx, tx, clusterRecord)
 
 		return err
@@ -272,7 +272,7 @@ func dqliteNetworkDial(ctx context.Context, addr string, db *DB) (net.Conn, erro
 		Host:       addr,
 	}
 
-	path := fmt.Sprintf("https://%s/%s/%s", addr, internalClient.InternalEndpoint, "database")
+	path := fmt.Sprintf("https://%s/%s/%s", addr, client.InternalEndpoint, "database")
 	request.URL, err = url.Parse(path)
 	if err != nil {
 		return nil, err
@@ -292,7 +292,12 @@ func dqliteNetworkDial(ctx context.Context, addr string, db *DB) (net.Conn, erro
 		return nil, fmt.Errorf("Failed connecting to HTTP endpoint %q: %w", addr, err)
 	}
 
-	revert.Add(func() { conn.Close() })
+	revert.Add(func() {
+		err := conn.Close()
+		if err != nil {
+			logger.Error("Failed to close connection to dqlite", logger.Ctx{"error": err})
+		}
+	})
 	logCtx := logger.AddContext(logger.Ctx{"local": conn.LocalAddr().String(), "remote": conn.RemoteAddr().String()})
 	logCtx.Debug("Dqlite connected outbound")
 

@@ -500,16 +500,12 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 		}
 	}
 
-	newRemotes := []internalTypes.ClusterMember{}
-	for _, remote := range allRemotes {
-		if remote.Name != name {
-			clusterMember := internalTypes.ClusterMemberLocal{Name: remote.Name, Address: remote.Address, Certificate: remote.Certificate}
-			newRemotes = append(newRemotes, internalTypes.ClusterMember{ClusterMemberLocal: clusterMember})
-		}
+	localClient, err := internalClient.New(s.OS.ControlSocket(), nil, nil, false)
+	if err != nil {
+		return response.SmartError(err)
 	}
 
-	// Remove the cluster member from the leader's trust store.
-	err = s.Remotes().Replace(s.OS.TrustDir, newRemotes...)
+	err = internalClient.DeleteTrustStoreEntry(ctx, localClient, name)
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -525,14 +521,6 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 	}
 
 	cluster, err := s.Cluster(false)
-	if err != nil {
-		return response.SmartError(err)
-	}
-
-	// Remove the node from all other truststores as well.
-	err = cluster.Query(ctx, true, func(ctx context.Context, c *client.Client) error {
-		return internalClient.DeleteTrustStoreEntry(ctx, &c.Client, name)
-	})
 	if err != nil {
 		return response.SmartError(err)
 	}

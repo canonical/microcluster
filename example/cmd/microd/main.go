@@ -167,8 +167,8 @@ func (c *cmdDaemon) run(cmd *cobra.Command, args []string) error {
 		},
 
 		// OnNewMember is run after a new member has joined.
-		OnNewMember: func(s state.State) error {
-			logger.Infof("This is a hook that is run on peer %q when a new cluster member has joined", s.Name())
+		OnNewMember: func(s state.State, newMember types.ClusterMemberLocal) error {
+			logger.Infof("This is a hook that is run on peer %q when the new cluster member %q has joined", s.Name(), newMember.Name)
 
 			return nil
 		},

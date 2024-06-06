@@ -298,6 +298,7 @@ func (d *Daemon) applyHooks(hooks *state.Hooks) {
 	noOpRemoveHook := func(s state.State, force bool) error { return nil }
 	noOpInitHook := func(s state.State, initConfig map[string]string) error { return nil }
 	noOpConfigHook := func(s state.State, config types.DaemonConfig) error { return nil }
+	noOpNewMemberHook := func(s state.State, newMember types.ClusterMemberLocal) error { return nil }
 
 	if hooks == nil {
 		d.hooks = state.Hooks{}
@@ -330,7 +331,7 @@ func (d *Daemon) applyHooks(hooks *state.Hooks) {
 	}
 
 	if d.hooks.OnNewMember == nil {
-		d.hooks.OnNewMember = noOpHook
+		d.hooks.OnNewMember = noOpNewMemberHook
 	}
 
 	if d.hooks.PreRemove == nil {
@@ -650,7 +651,7 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 			}
 
 			// Run the OnNewMember hook, and skip errors on any nodes that are still in the process of joining.
-			err = internalClient.RunNewMemberHook(ctx, c.Client.UseTarget(remote.Name), internalTypes.HookNewMemberOptions{Name: localMemberInfo.Name})
+			err = internalClient.RunNewMemberHook(ctx, c.Client.UseTarget(remote.Name), internalTypes.HookNewMemberOptions{NewMember: localMemberInfo})
 			if err != nil && !api.StatusErrorCheck(err, http.StatusServiceUnavailable) {
 				return err
 			}

@@ -29,6 +29,7 @@ type Extensions []string
 // Populate internal extensions here.
 var internalExtensions = Extensions{
 	"internal:runtime_extension_v1",
+	"internal:rename_core_endpoints",
 }
 
 // validateExternalExtension validates the given external extension.

@@ -168,7 +168,7 @@ func (s *dbSuite) Test_waitUpgradeSchema() {
 		s.NoError(err)
 
 		// Generate a cluster member for the local node.
-		_, err = cluster.CreateInternalClusterMember(ctx, tx, cluster.InternalClusterMember{
+		_, err = cluster.CreateCoreClusterMember(ctx, tx, cluster.CoreClusterMember{
 			Name:           fmt.Sprintf("cluster-member-%d", 0),
 			Address:        fmt.Sprintf("10.0.0.%d:8443", 0),
 			Certificate:    fmt.Sprintf("test-cert-%d", 0),
@@ -183,7 +183,7 @@ func (s *dbSuite) Test_waitUpgradeSchema() {
 
 		// Generate a cluster member entry for all other expected nodes.
 		for j, clusterMember := range t.clusterMembers {
-			_, err = cluster.CreateInternalClusterMember(ctx, tx, cluster.InternalClusterMember{
+			_, err = cluster.CreateCoreClusterMember(ctx, tx, cluster.CoreClusterMember{
 				Name:           fmt.Sprintf("cluster-member-%d", j+1),
 				Address:        fmt.Sprintf("10.0.0.%d:8443", j+1),
 				Certificate:    fmt.Sprintf("test-cert-%d", j+1),
@@ -247,10 +247,10 @@ func (s *dbSuite) Test_waitUpgradeSchema() {
 		tx, err = db.db.BeginTx(ctx, nil)
 		s.NoError(err)
 
-		schemaInternal, err := query.SelectIntegers(ctx, tx, "SELECT schema_internal FROM internal_cluster_members ORDER BY id")
+		schemaInternal, err := query.SelectIntegers(ctx, tx, "SELECT schema_internal FROM core_cluster_members ORDER BY id")
 		s.NoError(err)
 
-		schemaExternal, err := query.SelectIntegers(ctx, tx, "SELECT schema_external FROM internal_cluster_members ORDER BY id")
+		schemaExternal, err := query.SelectIntegers(ctx, tx, "SELECT schema_external FROM core_cluster_members ORDER BY id")
 		s.NoError(err)
 
 		s.NoError(tx.Commit())
@@ -258,7 +258,7 @@ func (s *dbSuite) Test_waitUpgradeSchema() {
 		s.Equal(len(t.clusterMembers)+1, len(schemaInternal))
 		s.Equal(len(t.clusterMembers)+1, len(schemaExternal))
 
-		// If there's an error, the internal_cluster_members table will be rolled back.
+		// If there's an error, the core_cluster_members table will be rolled back.
 		minVersion := t.upgradedLocalInfo.schemaInt + 1
 		if t.expectErr != nil {
 			minVersion = 0
@@ -269,7 +269,7 @@ func (s *dbSuite) Test_waitUpgradeSchema() {
 			internalVersions = append(internalVersions, int(c.schemaInt)+1)
 		}
 
-		// If there's an error, the internal_cluster_members table will be rolled back.
+		// If there's an error, the core_cluster_members table will be rolled back.
 		minVersion = t.upgradedLocalInfo.schemaExt + 1
 		if t.expectErr != nil {
 			minVersion = 0
@@ -344,7 +344,7 @@ func (s *dbSuite) Test_waitUpgradeAPI() {
 		s.NoError(err)
 
 		// Generate a cluster member for the local node.
-		_, err = cluster.CreateInternalClusterMember(ctx, tx, cluster.InternalClusterMember{
+		_, err = cluster.CreateCoreClusterMember(ctx, tx, cluster.CoreClusterMember{
 			Name:           fmt.Sprintf("cluster-member-%d", 0),
 			Address:        fmt.Sprintf("10.0.0.%d:8443", 0),
 			Certificate:    fmt.Sprintf("test-cert-%d", 0),
@@ -359,7 +359,7 @@ func (s *dbSuite) Test_waitUpgradeAPI() {
 
 		// Generate a cluster member entry for all other expected nodes.
 		for j, clusterMemberExtensions := range t.clusterMembersExtensions {
-			_, err = cluster.CreateInternalClusterMember(ctx, tx, cluster.InternalClusterMember{
+			_, err = cluster.CreateCoreClusterMember(ctx, tx, cluster.CoreClusterMember{
 				Name:           fmt.Sprintf("cluster-member-%d", j+1),
 				Address:        fmt.Sprintf("10.0.0.%d:8443", j+1),
 				Certificate:    fmt.Sprintf("test-cert-%d", j+1),
@@ -414,7 +414,7 @@ func (s *dbSuite) Test_waitUpgradeAPI() {
 		tx, err = db.db.BeginTx(ctx, nil)
 		s.NoError(err)
 
-		res, err := query.SelectStrings(ctx, tx, "SELECT api_extensions FROM internal_cluster_members ORDER BY id")
+		res, err := query.SelectStrings(ctx, tx, "SELECT api_extensions FROM core_cluster_members ORDER BY id")
 		s.NoError(err)
 		allExtensions := make([]extensions.Extensions, 0)
 		for _, r := range res {
@@ -511,7 +511,7 @@ func (s *dbSuite) Test_waitUpgradeSchemaAndAPI() {
 		s.NoError(err)
 
 		// Generate a cluster member for the local node.
-		_, err = cluster.CreateInternalClusterMember(ctx, tx, cluster.InternalClusterMember{
+		_, err = cluster.CreateCoreClusterMember(ctx, tx, cluster.CoreClusterMember{
 			Name:           fmt.Sprintf("cluster-member-%d", 0),
 			Address:        fmt.Sprintf("10.0.0.%d:8443", 0),
 			Certificate:    fmt.Sprintf("test-cert-%d", 0),
@@ -526,7 +526,7 @@ func (s *dbSuite) Test_waitUpgradeSchemaAndAPI() {
 
 		// Generate a cluster member entry for all other expected nodes.
 		for j, clusterMember := range t.clusterMembers {
-			_, err = cluster.CreateInternalClusterMember(ctx, tx, cluster.InternalClusterMember{
+			_, err = cluster.CreateCoreClusterMember(ctx, tx, cluster.CoreClusterMember{
 				Name:           fmt.Sprintf("cluster-member-%d", j+1),
 				Address:        fmt.Sprintf("10.0.0.%d:8443", j+1),
 				Certificate:    fmt.Sprintf("test-cert-%d", j+1),
@@ -590,13 +590,13 @@ func (s *dbSuite) Test_waitUpgradeSchemaAndAPI() {
 		tx, err = db.db.BeginTx(ctx, nil)
 		s.NoError(err)
 
-		schemaInternal, err := query.SelectIntegers(ctx, tx, "SELECT schema_internal FROM internal_cluster_members ORDER BY id")
+		schemaInternal, err := query.SelectIntegers(ctx, tx, "SELECT schema_internal FROM core_cluster_members ORDER BY id")
 		s.NoError(err)
 
-		schemaExternal, err := query.SelectIntegers(ctx, tx, "SELECT schema_external FROM internal_cluster_members ORDER BY id")
+		schemaExternal, err := query.SelectIntegers(ctx, tx, "SELECT schema_external FROM core_cluster_members ORDER BY id")
 		s.NoError(err)
 
-		res, err := query.SelectStrings(ctx, tx, "SELECT api_extensions FROM internal_cluster_members ORDER BY id")
+		res, err := query.SelectStrings(ctx, tx, "SELECT api_extensions FROM core_cluster_members ORDER BY id")
 		s.NoError(err)
 		allExtensions := make([]extensions.Extensions, 0)
 		for _, r := range res {
@@ -611,7 +611,7 @@ func (s *dbSuite) Test_waitUpgradeSchemaAndAPI() {
 		s.Equal(len(t.clusterMembers)+1, len(schemaInternal))
 		s.Equal(len(t.clusterMembers)+1, len(schemaExternal))
 
-		// If there's an error, the internal_cluster_members table will be rolled back.
+		// If there's an error, the core_cluster_members table will be rolled back.
 		minVersion := t.upgradedLocalInfo.schemaInt + 1
 		if t.expectErr != nil {
 			minVersion = 0
@@ -622,7 +622,7 @@ func (s *dbSuite) Test_waitUpgradeSchemaAndAPI() {
 			internalVersions = append(internalVersions, int(c.schemaInt)+1)
 		}
 
-		// If there's an error, the internal_cluster_members table will be rolled back.
+		// If there's an error, the core_cluster_members table will be rolled back.
 		minVersion = t.upgradedLocalInfo.schemaExt + 1
 		if t.expectErr != nil {
 			minVersion = 0

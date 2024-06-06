@@ -137,11 +137,11 @@ func TestExtensionsValuerAndScanner(t *testing.T) {
 
 	defer db.Close() //nolint:errcheck // Not relevant for the test.
 
-	_, err = db.Exec("CREATE TABLE internal_cluster_members (api_extensions TEXT NOT NULL DEFAULT '[]')")
+	_, err = db.Exec("CREATE TABLE core_cluster_members (api_extensions TEXT NOT NULL DEFAULT '[]')")
 	require.NoError(t, err)
 
 	exts := Extensions{"internal:runtime_extension_v1", "microovn_custom_encapsulation_ip"}
-	res, err := db.Exec("INSERT INTO internal_cluster_members (api_extensions) VALUES (?)", exts)
+	res, err := db.Exec("INSERT INTO core_cluster_members (api_extensions) VALUES (?)", exts)
 	assert.NoError(t, err)
 	n, err := res.RowsAffected()
 	assert.NoError(t, err)
@@ -149,7 +149,7 @@ func TestExtensionsValuerAndScanner(t *testing.T) {
 
 	// Retrieve the data
 	var retrievedExts Extensions
-	row := db.QueryRow("SELECT api_extensions FROM internal_cluster_members")
+	row := db.QueryRow("SELECT api_extensions FROM core_cluster_members")
 	err = row.Scan(&retrievedExts)
 	assert.NoError(t, err)
 

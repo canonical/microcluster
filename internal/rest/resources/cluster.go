@@ -47,7 +47,7 @@ var clusterMemberCmd = rest.Endpoint{
 }
 
 func clusterPost(s *state.State, r *http.Request) response.Response {
-	req := internalTypes.ClusterMember{}
+	req := types.ClusterMember{}
 
 	// Parse the request.
 	err := json.NewDecoder(r.Body).Decode(&req)
@@ -129,9 +129,9 @@ func clusterPost(s *state.State, r *http.Request) response.Response {
 	}
 
 	remotes := s.Remotes()
-	clusterMembers := make([]internalTypes.ClusterMemberLocal, 0, remotes.Count())
+	clusterMembers := make([]types.ClusterMemberLocal, 0, remotes.Count())
 	for _, clusterMember := range remotes.RemotesByName() {
-		clusterMember := internalTypes.ClusterMemberLocal{
+		clusterMember := types.ClusterMemberLocal{
 			Name:        clusterMember.Name,
 			Address:     clusterMember.Address,
 			Certificate: clusterMember.Certificate,
@@ -150,7 +150,7 @@ func clusterPost(s *state.State, r *http.Request) response.Response {
 		ClusterCert: types.X509Certificate{Certificate: clusterCert},
 		ClusterKey:  string(s.ClusterCert().PrivateKey()),
 
-		TrustedMember:  internalTypes.ClusterMemberLocal{Name: s.Name(), Address: localRemote.Address, Certificate: localRemote.Certificate},
+		TrustedMember:  types.ClusterMemberLocal{Name: s.Name(), Address: localRemote.Address, Certificate: localRemote.Certificate},
 		ClusterMembers: clusterMembers,
 	}
 
@@ -169,14 +169,14 @@ func clusterPost(s *state.State, r *http.Request) response.Response {
 }
 
 func clusterGet(s *state.State, r *http.Request) response.Response {
-	var apiClusterMembers []internalTypes.ClusterMember
+	var apiClusterMembers []types.ClusterMember
 	err := s.Database.Transaction(s.Context, func(ctx context.Context, tx *sql.Tx) error {
 		clusterMembers, err := cluster.GetCoreClusterMembers(ctx, tx)
 		if err != nil {
 			return err
 		}
 
-		apiClusterMembers = make([]internalTypes.ClusterMember, 0, len(clusterMembers))
+		apiClusterMembers = make([]types.ClusterMember, 0, len(clusterMembers))
 		for _, clusterMember := range clusterMembers {
 			apiClusterMember, err := clusterMember.ToAPI()
 			if err != nil {
@@ -207,7 +207,7 @@ func clusterGet(s *state.State, r *http.Request) response.Response {
 
 		err = d.CheckReady(s.Context)
 		if err == nil {
-			apiClusterMembers[i].Status = internalTypes.MemberOnline
+			apiClusterMembers[i].Status = types.MemberOnline
 		} else {
 			logger.Warnf("Failed to get status of cluster member with address %q: %v", addr.String(), err)
 		}

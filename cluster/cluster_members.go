@@ -10,7 +10,6 @@ import (
 	"github.com/canonical/lxd/shared/logger"
 
 	"github.com/canonical/microcluster/internal/extensions"
-	internalTypes "github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/rest/types"
 )
 
@@ -60,7 +59,7 @@ type CoreClusterMemberFilter struct {
 
 // ToAPI returns the api struct for a ClusterMember database entity.
 // The cluster member's status will be reported as unreachable by default.
-func (c CoreClusterMember) ToAPI() (*internalTypes.ClusterMember, error) {
+func (c CoreClusterMember) ToAPI() (*types.ClusterMember, error) {
 	address, err := types.ParseAddrPort(c.Address)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to parse address %q of database cluster member: %w", c.Address, err)
@@ -71,8 +70,8 @@ func (c CoreClusterMember) ToAPI() (*internalTypes.ClusterMember, error) {
 		return nil, fmt.Errorf("Failed to parse certificate of database cluster member with address %q: %w", c.Address, err)
 	}
 
-	return &internalTypes.ClusterMember{
-		ClusterMemberLocal: internalTypes.ClusterMemberLocal{
+	return &types.ClusterMember{
+		ClusterMemberLocal: types.ClusterMemberLocal{
 			Name:        c.Name,
 			Address:     address,
 			Certificate: *certificate,
@@ -81,7 +80,7 @@ func (c CoreClusterMember) ToAPI() (*internalTypes.ClusterMember, error) {
 		SchemaInternalVersion: c.SchemaInternal,
 		SchemaExternalVersion: c.SchemaExternal,
 		LastHeartbeat:         c.Heartbeat,
-		Status:                internalTypes.MemberUnreachable,
+		Status:                types.MemberUnreachable,
 		Extensions:            c.APIExtensions,
 	}, nil
 }

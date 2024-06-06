@@ -15,9 +15,10 @@ import (
 	"github.com/canonical/microcluster/client"
 	"github.com/canonical/microcluster/cluster"
 	internalClient "github.com/canonical/microcluster/internal/rest/client"
-	"github.com/canonical/microcluster/internal/rest/types"
+	internalTypes "github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/internal/state"
 	"github.com/canonical/microcluster/rest"
+	"github.com/canonical/microcluster/rest/types"
 )
 
 var heartbeatCmd = rest.Endpoint{
@@ -27,7 +28,7 @@ var heartbeatCmd = rest.Endpoint{
 }
 
 func heartbeatPost(s *state.State, r *http.Request) response.Response {
-	var hbInfo types.HeartbeatInfo
+	var hbInfo internalTypes.HeartbeatInfo
 	err := json.NewDecoder(r.Body).Decode(&hbInfo)
 	if err != nil {
 		return response.SmartError(err)
@@ -197,7 +198,7 @@ func beginHeartbeat(s *state.State, r *http.Request) response.Response {
 	clusterMap[s.Address().URL.Host] = leaderEntry
 
 	// Record the maximum schema version discovered.
-	hbInfo := types.HeartbeatInfo{ClusterMembers: clusterMap}
+	hbInfo := internalTypes.HeartbeatInfo{ClusterMembers: clusterMap}
 	for _, node := range clusterMembers {
 		if node.SchemaInternalVersion > hbInfo.MaxSchemaInternal {
 			hbInfo.MaxSchemaInternal = node.SchemaInternalVersion

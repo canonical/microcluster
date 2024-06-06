@@ -32,13 +32,13 @@ const (
 	ExtendedEndpoint EndpointType = "1.0"
 
 	// PublicEndpoint - Internally managed APIs available without authentication.
-	PublicEndpoint EndpointType = "cluster/1.0"
+	PublicEndpoint EndpointType = "core/1.0"
 
 	// InternalEndpoint - all endpoints restricted to trusted servers.
-	InternalEndpoint EndpointType = "cluster/internal"
+	InternalEndpoint EndpointType = "core/internal"
 
 	// ControlEndpoint - all endpoints available on the local unix socket.
-	ControlEndpoint EndpointType = "cluster/control"
+	ControlEndpoint EndpointType = "core/control"
 )
 
 // Client is a rest client for the daemon.

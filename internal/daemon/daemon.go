@@ -582,7 +582,7 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 		return err
 	}
 
-	localMemberInfo := internalTypes.ClusterMemberLocal{Name: localNode.Name, Address: localNode.Address, Certificate: localNode.Certificate}
+	localMemberInfo := types.ClusterMemberLocal{Name: localNode.Name, Address: localNode.Address, Certificate: localNode.Certificate}
 	if len(joinAddresses) > 0 {
 		err = d.hooks.PreJoin(d.State(), initConfig)
 		if err != nil {

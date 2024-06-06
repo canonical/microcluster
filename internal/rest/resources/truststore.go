@@ -13,10 +13,10 @@ import (
 
 	"github.com/canonical/microcluster/client"
 	internalClient "github.com/canonical/microcluster/internal/rest/client"
-	internalTypes "github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/internal/trust"
 	"github.com/canonical/microcluster/rest"
 	"github.com/canonical/microcluster/rest/access"
+	"github.com/canonical/microcluster/rest/types"
 	"github.com/canonical/microcluster/state"
 )
 
@@ -35,7 +35,7 @@ var trustEntryCmd = rest.Endpoint{
 }
 
 func trustPost(s state.State, r *http.Request) response.Response {
-	req := internalTypes.ClusterMemberLocal{}
+	req := types.ClusterMemberLocal{}
 
 	// Parse the request.
 	err := json.NewDecoder(r.Body).Decode(&req)
@@ -121,10 +121,10 @@ func trustDelete(s state.State, r *http.Request) response.Response {
 	remotesMap = remotes.RemotesByName()
 	delete(remotesMap, name)
 
-	newRemotes := make([]internalTypes.ClusterMember, 0, len(remotesMap))
+	newRemotes := make([]types.ClusterMember, 0, len(remotesMap))
 	for _, remote := range remotesMap {
-		newRemote := internalTypes.ClusterMember{
-			ClusterMemberLocal: internalTypes.ClusterMemberLocal{
+		newRemote := types.ClusterMember{
+			ClusterMemberLocal: types.ClusterMemberLocal{
 				Name:        remote.Name,
 				Address:     remote.Address,
 				Certificate: remote.Certificate,

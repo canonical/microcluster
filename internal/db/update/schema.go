@@ -104,7 +104,7 @@ func (s *SchemaUpdate) Ensure(db *sql.DB) (int, error) {
 	}
 
 	// If we need to update the schemas table, disable foreign keys
-	// so references to the `internal_cluster_members` table do not get dropped.
+	// so references to the `core_cluster_members` table do not get dropped.
 	if updateSchemaTable {
 		_, err = db.Exec("PRAGMA foreign_keys=OFF; PRAGMA legacy_alter_table=ON")
 		if err != nil {

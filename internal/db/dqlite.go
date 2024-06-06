@@ -114,7 +114,7 @@ func (db *DB) Schema() *update.SchemaUpdate {
 }
 
 // Bootstrap dqlite.
-func (db *DB) Bootstrap(extensions extensions.Extensions, project string, addr api.URL, clusterRecord cluster.InternalClusterMember) error {
+func (db *DB) Bootstrap(extensions extensions.Extensions, project string, addr api.URL, clusterRecord cluster.CoreClusterMember) error {
 	var err error
 	db.listenAddr = addr
 	db.dqlite, err = dqlite.New(db.os.DatabaseDir,
@@ -133,7 +133,7 @@ func (db *DB) Bootstrap(extensions extensions.Extensions, project string, addr a
 	// Apply initial API extensions on the bootstrap node.
 	clusterRecord.APIExtensions = extensions
 	err = db.Transaction(db.ctx, func(ctx context.Context, tx *sql.Tx) error {
-		_, err := cluster.CreateInternalClusterMember(ctx, tx, clusterRecord)
+		_, err := cluster.CreateCoreClusterMember(ctx, tx, clusterRecord)
 
 		return err
 	})

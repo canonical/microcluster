@@ -88,7 +88,7 @@ func proxyTarget(action rest.EndpointAction, s state.State, r *http.Request) res
 
 	var targetURL *api.URL
 	err = s.Database().Transaction(r.Context(), func(ctx context.Context, tx *sql.Tx) error {
-		clusterMember, err := cluster.GetInternalClusterMember(ctx, tx, target)
+		clusterMember, err := cluster.GetCoreClusterMember(ctx, tx, target)
 		if err != nil {
 			return fmt.Errorf("Failed to get cluster member for request target name %q: %w", target, err)
 		}

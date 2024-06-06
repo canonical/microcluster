@@ -116,7 +116,7 @@ func clusterPost(s state.State, r *http.Request) response.Response {
 	}
 
 	err = s.Database().Transaction(r.Context(), func(ctx context.Context, tx *sql.Tx) error {
-		dbClusterMember := cluster.InternalClusterMember{
+		dbClusterMember := cluster.CoreClusterMember{
 			Name:           req.Name,
 			Address:        req.Address.String(),
 			Certificate:    req.Certificate.String(),
@@ -127,17 +127,17 @@ func clusterPost(s state.State, r *http.Request) response.Response {
 			Role:           cluster.Pending,
 		}
 
-		record, err := cluster.GetInternalTokenRecord(ctx, tx, req.Secret)
+		record, err := cluster.GetCoreTokenRecord(ctx, tx, req.Secret)
 		if err != nil {
 			return err
 		}
 
-		_, err = cluster.CreateInternalClusterMember(ctx, tx, dbClusterMember)
+		_, err = cluster.CreateCoreClusterMember(ctx, tx, dbClusterMember)
 		if err != nil {
 			return err
 		}
 
-		return cluster.DeleteInternalTokenRecord(ctx, tx, record.Name)
+		return cluster.DeleteCoreTokenRecord(ctx, tx, record.Name)
 	})
 	if err != nil {
 		return response.SmartError(err)
@@ -230,10 +230,10 @@ func clusterGet(s state.State, r *http.Request) response.Response {
 	var apiClusterMembers []internalTypes.ClusterMember
 	err := s.Database().Transaction(r.Context(), func(ctx context.Context, tx *sql.Tx) error {
 		var err error
-		var clusterMembers []cluster.InternalClusterMember
+		var clusterMembers []cluster.CoreClusterMember
 		var awaitingUpgrade map[string]bool
 		if status == db.StatusReady {
-			clusterMembers, err = cluster.GetInternalClusterMembers(ctx, tx)
+			clusterMembers, err = cluster.GetCoreClusterMembers(ctx, tx)
 		} else {
 			schemaInternal, schemaExternal, apiExtensions := s.Database().Schema().Version()
 			clusterMembers, awaitingUpgrade, err = cluster.GetUpgradingClusterMembers(ctx, tx, schemaInternal, schemaExternal, apiExtensions)
@@ -463,10 +463,10 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 		logger.Errorf("No dqlite record exists for %q, deleting from internal record instead", remote.Name)
 	}
 
-	var clusterMembers []cluster.InternalClusterMember
+	var clusterMembers []cluster.CoreClusterMember
 	err = s.Database().Transaction(r.Context(), func(ctx context.Context, tx *sql.Tx) error {
 		var err error
-		clusterMembers, err = cluster.GetInternalClusterMembers(ctx, tx)
+		clusterMembers, err = cluster.GetCoreClusterMembers(ctx, tx)
 
 		return err
 	})
@@ -582,7 +582,7 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 
 	// Remove the cluster member from the database.
 	err = s.Database().Transaction(r.Context(), func(ctx context.Context, tx *sql.Tx) error {
-		return cluster.DeleteInternalClusterMember(ctx, tx, remote.Address.String())
+		return cluster.DeleteCoreClusterMember(ctx, tx, remote.Address.String())
 	})
 	if err != nil {
 		return response.SmartError(err)

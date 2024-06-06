@@ -79,7 +79,7 @@ func tokensPost(state state.State, r *http.Request) response.Response {
 	}
 
 	err = state.Database().Transaction(r.Context(), func(ctx context.Context, tx *sql.Tx) error {
-		_, err = cluster.CreateInternalTokenRecord(ctx, tx, cluster.InternalTokenRecord{Name: req.Name, Secret: tokenKey})
+		_, err = cluster.CreateCoreTokenRecord(ctx, tx, cluster.CoreTokenRecord{Name: req.Name, Secret: tokenKey})
 		return err
 	})
 	if err != nil {
@@ -103,7 +103,7 @@ func tokensGet(state state.State, r *http.Request) response.Response {
 	var records []internalTypes.TokenRecord
 	err = state.Database().Transaction(r.Context(), func(ctx context.Context, tx *sql.Tx) error {
 		var err error
-		tokens, err := cluster.GetInternalTokenRecords(ctx, tx)
+		tokens, err := cluster.GetCoreTokenRecords(ctx, tx)
 		if err != nil {
 			return err
 		}
@@ -134,7 +134,7 @@ func tokenDelete(state state.State, r *http.Request) response.Response {
 	}
 
 	err = state.Database().Transaction(r.Context(), func(ctx context.Context, tx *sql.Tx) error {
-		return cluster.DeleteInternalTokenRecord(ctx, tx, name)
+		return cluster.DeleteCoreTokenRecord(ctx, tx, name)
 	})
 	if err != nil {
 		return response.SmartError(err)

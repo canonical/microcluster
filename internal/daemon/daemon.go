@@ -525,7 +525,7 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 
 	// If bootstrapping the first node, just open the database and create an entry for ourselves.
 	if bootstrap {
-		clusterMember := cluster.InternalClusterMember{
+		clusterMember := cluster.CoreClusterMember{
 			Name:        localNode.Name,
 			Address:     localNode.Address.String(),
 			Certificate: localNode.Certificate.String(),

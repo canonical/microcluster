@@ -3,6 +3,7 @@ package rest
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -23,37 +24,23 @@ import (
 )
 
 func handleAPIRequest(action rest.EndpointAction, state *state.State, w http.ResponseWriter, r *http.Request) response.Response {
-	trusted := r.Context().Value(request.CtxAccess)
-	if trusted == nil {
-		return response.Forbidden(nil)
-	}
-
-	trustedReq, ok := trusted.(internalAccess.TrustedRequest)
-	if !ok {
-		return response.Forbidden(nil)
-	}
-
-	// If the request is not trusted, only allow it if AllowUntrusted is set.
-	if !trustedReq.Trusted && !action.AllowUntrusted {
-		return response.Forbidden(nil)
-	}
-
 	if action.Handler == nil {
 		return response.NotImplemented(nil)
 	}
 
-	if action.AccessHandler != nil {
-		// Defer access control to custom handler.
-		accessResp := action.AccessHandler(state, r)
-		if accessResp != response.EmptySyncResponse {
-			return accessResp
+	// If allow untrusted is not set, the request must be authenticated via core authentication (e.g. certificate in truststore).
+	if !action.AllowUntrusted {
+		resp := access.AllowAuthenticated(state, r)
+		if resp != response.EmptySyncResponse {
+			return resp
 		}
-	} else if !action.AllowUntrusted {
-		// Set the default access handler if one isn't specified.
-		action.AccessHandler = access.AllowAuthenticated
-		accessResp := action.AccessHandler(state, r)
-		if accessResp != response.EmptySyncResponse {
-			return accessResp
+	}
+
+	// Run the custom access handler if set.
+	if action.AccessHandler != nil {
+		resp := action.AccessHandler(state, r)
+		if resp != response.EmptySyncResponse {
+			return resp
 		}
 	}
 
@@ -201,8 +188,8 @@ func HandleEndpoint(state *state.State, mux *mux.Router, version string, e rest.
 			handleRequest = handleDatabaseRequest
 		}
 
-		trusted, err := access.Authenticate(state, r, state.Remotes().CertificatesNative())
-		if err != nil {
+		trusted, err := access.Authenticate(state, r, state.Address().URL.Host, state.Remotes().CertificatesNative())
+		if err != nil && !errors.As(err, &access.ErrInvalidHost{}) {
 			resp = response.Forbidden(fmt.Errorf("Failed to authenticate request: %w", err))
 		} else {
 			r = internalAccess.SetRequestAuthentication(r, trusted)

@@ -45,6 +45,8 @@ type Args struct {
 	ListenPort string
 	Client     *client.Client
 	Proxy      func(*http.Request) (*url.URL, error)
+
+	ExtensionServers []rest.Server
 }
 
 // App returns an instance of MicroCluster with a newly initialized filesystem if one does not exist.
@@ -89,7 +91,7 @@ func (m *MicroCluster) Start(ctx context.Context, extensionsAPI []rest.Endpoint,
 	ctx, cancel := signal.NotifyContext(ctx, unix.SIGPWR, unix.SIGTERM, unix.SIGINT, unix.SIGQUIT)
 	defer cancel()
 
-	err = d.Run(ctx, m.args.ListenPort, m.FileSystem.StateDir, m.FileSystem.SocketGroup, extensionsAPI, extensionsSchema, apiExtensions, hooks)
+	err = d.Run(ctx, m.args.ListenPort, m.FileSystem.StateDir, m.FileSystem.SocketGroup, extensionsAPI, extensionsSchema, apiExtensions, m.args.ExtensionServers, hooks)
 	if err != nil {
 		return fmt.Errorf("Daemon stopped with error: %w", err)
 	}

@@ -145,7 +145,7 @@ func (db *DB) waitUpgrade(bootstrap bool, ext extensions.Extensions) error {
 	if !bootstrap {
 		checkVersions := func(ctx context.Context, current int, tx *sql.Tx) error {
 			schemaVersionInternal, schemaVersionExternal, _ := newSchema.Version()
-			err := cluster.UpdateClusterMemberSchemaVersion(tx, schemaVersionInternal, schemaVersionExternal, db.listenAddr.URL.Host)
+			err := cluster.UpdateClusterMemberSchemaVersion(ctx, tx, schemaVersionInternal, schemaVersionExternal, db.listenAddr.URL.Host)
 			if err != nil {
 				return fmt.Errorf("Failed to update schema version when joining cluster: %w", err)
 			}
@@ -189,7 +189,7 @@ func (db *DB) waitUpgrade(bootstrap bool, ext extensions.Extensions) error {
 			otherNodesBehindAPI := false
 			// Perform the API extensions check.
 			err = query.Transaction(context.TODO(), db.db, func(ctx context.Context, tx *sql.Tx) error {
-				err := cluster.UpdateClusterMemberAPIExtensions(tx, ext, db.listenAddr.URL.Host)
+				err := cluster.UpdateClusterMemberAPIExtensions(ctx, tx, ext, db.listenAddr.URL.Host)
 				if err != nil {
 					return fmt.Errorf("Failed to update API extensions when joining cluster: %w", err)
 				}

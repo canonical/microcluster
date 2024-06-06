@@ -6,6 +6,8 @@ import (
 	"fmt"
 
 	"github.com/canonical/lxd/lxd/db/schema"
+
+	"github.com/canonical/microcluster/internal/extensions"
 )
 
 // CreateSchema is the default schema applied when bootstrapping the database.
@@ -21,19 +23,23 @@ CREATE TABLE schemas (
 // SchemaUpdateManager contains a map of schema update type to slice of schema.Update.
 type SchemaUpdateManager struct {
 	updates map[updateType][]schema.Update
+
+	apiExtensions extensions.Extensions
 }
 
 // NewSchema returns a new SchemaUpdateManager containing microcluster schema updates.
 func NewSchema() *SchemaUpdateManager {
-	return &SchemaUpdateManager{
-		updates: map[updateType][]schema.Update{
-			updateInternal: {
-				updateFromV0,
-				updateFromV1,
-				updateFromV2,
-			},
+	mgr := &SchemaUpdateManager{}
+	mgr.updates = map[updateType][]schema.Update{
+		updateInternal: {
+			updateFromV0,
+			updateFromV1,
+			updateFromV2,
+			mgr.updateFromV3,
 		},
 	}
+
+	return mgr
 }
 
 // SetInternalUpdates replaces the set of internal schema updates.
@@ -61,11 +67,24 @@ func (s *SchemaUpdateManager) Schema() *SchemaUpdate {
 	return schema
 }
 
-// AppendSchema sets the given schema updates as the list of external extensions on the update manager.
-func (s *SchemaUpdateManager) AppendSchema(extensions []schema.Update) {
-	s.updates[updateExternal] = extensions
+// AppendSchema sets the given schema and API updates as the list of external extensions on the update manager.
+func (s *SchemaUpdateManager) AppendSchema(schemaExtensions []schema.Update, apiExtensions extensions.Extensions) {
+	s.updates[updateExternal] = schemaExtensions
+	s.apiExtensions = apiExtensions
 }
 
+// updateFromV3 auto-applies the initial set of API extensions to the internal_cluster_members table.
+// This is done so that the cluster won't have to be notified twice,
+// once for the schema update that introduces API extensions to be applied,
+// and another time for API extensions to be applied.
+func (s *SchemaUpdateManager) updateFromV3(ctx context.Context, tx *sql.Tx) error {
+	stmt := "UPDATE internal_cluster_members SET api_extensions=?"
+	_, err := tx.ExecContext(ctx, stmt, s.apiExtensions)
+
+	return err
+}
+
+// updateFromV2 introduces API extensions as a column on the internal_cluster_members table.
 func updateFromV2(ctx context.Context, tx *sql.Tx) error {
 	stmt := `
 CREATE TABLE internal_cluster_members_new (

@@ -193,7 +193,7 @@ func (d *Daemon) init(listenPort string, extendedEndpoints []rest.Endpoint, sche
 		}
 	}
 
-	d.db.SetSchema(schemaExtensions)
+	d.db.SetSchema(schemaExtensions, d.Extensions)
 
 	err = d.reloadIfBootstrapped()
 	if err != nil {

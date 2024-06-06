@@ -17,21 +17,21 @@ import (
 //go:generate -command mapper lxd-generate db mapper -t cluster_members.mapper.go
 //go:generate mapper reset
 //
-//go:generate mapper stmt -e internal_cluster_member objects table=internal_cluster_members
-//go:generate mapper stmt -e internal_cluster_member objects-by-Address table=internal_cluster_members
-//go:generate mapper stmt -e internal_cluster_member objects-by-Name table=internal_cluster_members
-//go:generate mapper stmt -e internal_cluster_member id table=internal_cluster_members
-//go:generate mapper stmt -e internal_cluster_member create table=internal_cluster_members
-//go:generate mapper stmt -e internal_cluster_member delete-by-Address table=internal_cluster_members
-//go:generate mapper stmt -e internal_cluster_member update table=internal_cluster_members
+//go:generate mapper stmt -e core_cluster_member objects table=core_cluster_members
+//go:generate mapper stmt -e core_cluster_member objects-by-Address table=core_cluster_members
+//go:generate mapper stmt -e core_cluster_member objects-by-Name table=core_cluster_members
+//go:generate mapper stmt -e core_cluster_member id table=core_cluster_members
+//go:generate mapper stmt -e core_cluster_member create table=core_cluster_members
+//go:generate mapper stmt -e core_cluster_member delete-by-Address table=core_cluster_members
+//go:generate mapper stmt -e core_cluster_member update table=core_cluster_members
 //
-//go:generate mapper method -i -e internal_cluster_member GetMany table=internal_cluster_members
-//go:generate mapper method -i -e internal_cluster_member GetOne table=internal_cluster_members
-//go:generate mapper method -i -e internal_cluster_member ID table=internal_cluster_members
-//go:generate mapper method -i -e internal_cluster_member Exists table=internal_cluster_members
-//go:generate mapper method -i -e internal_cluster_member Create table=internal_cluster_members
-//go:generate mapper method -i -e internal_cluster_member DeleteOne-by-Address table=internal_cluster_members
-//go:generate mapper method -i -e internal_cluster_member Update table=internal_cluster_members
+//go:generate mapper method -i -e core_cluster_member GetMany table=core_cluster_members
+//go:generate mapper method -i -e core_cluster_member GetOne table=core_cluster_members
+//go:generate mapper method -i -e core_cluster_member ID table=core_cluster_members
+//go:generate mapper method -i -e core_cluster_member Exists table=core_cluster_members
+//go:generate mapper method -i -e core_cluster_member Create table=core_cluster_members
+//go:generate mapper method -i -e core_cluster_member DeleteOne-by-Address table=core_cluster_members
+//go:generate mapper method -i -e core_cluster_member Update table=core_cluster_members
 
 // Role is the role of the dqlite cluster member.
 type Role string
@@ -39,8 +39,8 @@ type Role string
 // Pending indicates that a node is about to be added or removed.
 const Pending Role = "PENDING"
 
-// InternalClusterMember represents the global database entry for a dqlite cluster member.
-type InternalClusterMember struct {
+// CoreClusterMember represents the global database entry for a dqlite cluster member.
+type CoreClusterMember struct {
 	ID             int
 	Name           string `db:"primary=yes"`
 	Address        string
@@ -52,15 +52,15 @@ type InternalClusterMember struct {
 	Role           Role
 }
 
-// InternalClusterMemberFilter is used for filtering queries using generated methods.
-type InternalClusterMemberFilter struct {
+// CoreClusterMemberFilter is used for filtering queries using generated methods.
+type CoreClusterMemberFilter struct {
 	Address *string
 	Name    *string
 }
 
 // ToAPI returns the api struct for a ClusterMember database entity.
 // The cluster member's status will be reported as unreachable by default.
-func (c InternalClusterMember) ToAPI() (*internalTypes.ClusterMember, error) {
+func (c CoreClusterMember) ToAPI() (*internalTypes.ClusterMember, error) {
 	address, err := types.ParseAddrPort(c.Address)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to parse address %q of database cluster member: %w", c.Address, err)

@@ -578,9 +578,13 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 func (d *Daemon) addExtensionServers() error {
 	var networks []endpoints.Endpoint
 	for _, extensionServer := range d.extensionServers {
+		cert := extensionServer.Certificate
+		if cert == nil {
+			cert = d.ClusterCert()
+		}
 		server := d.initServer(extensionServer.Resources...)
 		url := api.NewURL().Scheme(extensionServer.Protocol).Host(extensionServer.Address.String())
-		network := endpoints.NewNetwork(d.shutdownCtx, endpoints.EndpointNetwork, server, *url, extensionServer.Certificate)
+		network := endpoints.NewNetwork(d.shutdownCtx, endpoints.EndpointNetwork, server, *url, cert)
 		networks = append(networks, network)
 	}
 

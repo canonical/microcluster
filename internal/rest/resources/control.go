@@ -11,6 +11,7 @@ import (
 	"github.com/canonical/lxd/shared"
 	"github.com/canonical/lxd/shared/api"
 	"github.com/canonical/lxd/shared/logger"
+	"github.com/canonical/lxd/shared/revert"
 	"github.com/canonical/lxd/shared/validate"
 
 	"github.com/canonical/microcluster/internal/rest/client"
@@ -46,7 +47,7 @@ func controlPost(state *state.State, r *http.Request) response.Response {
 	}
 
 	if req.JoinToken != "" {
-		return joinWithToken(state, req)
+		return joinWithToken(state, r, req)
 	}
 
 	daemonConfig := &trust.Location{Address: req.Address, Name: req.Name}
@@ -58,7 +59,7 @@ func controlPost(state *state.State, r *http.Request) response.Response {
 	return response.EmptySyncResponse
 }
 
-func joinWithToken(state *state.State, req *internalTypes.Control) response.Response {
+func joinWithToken(state *state.State, r *http.Request, req *internalTypes.Control) response.Response {
 	token, err := internalTypes.DecodeToken(req.JoinToken)
 	if err != nil {
 		return response.SmartError(err)
@@ -124,6 +125,38 @@ func joinWithToken(state *state.State, req *internalTypes.Control) response.Resp
 		return response.SmartError(fmt.Errorf("%d join attempts were unsuccessful. Last error: %w", len(token.JoinAddresses), lastErr))
 	}
 
+	reverter := revert.New()
+	defer reverter.Fail()
+
+	// If at some point we fail to join the cluster, instruct whoever authorized us to remove us from the cluster.
+	// This should also reset our database and listeners.
+	reverter.Add(func() {
+		url := api.NewURL().Scheme("https").Host(joinInfo.TrustedMember.Address.String())
+		cert, err := shared.GetRemoteCertificate(url.String(), "")
+		if err != nil {
+			return
+		}
+
+		client, err := client.New(*url, state.ServerCert(), cert, false)
+		if err != nil {
+			return
+		}
+
+		reExec, err := resetClusterMember(r.Context(), state, true)
+		if err != nil {
+			return
+		}
+
+		// Re-exec the daemon to clear any remaining state.
+		go reExec()
+
+		// Use `force=1` to ensure the node is fully removed, in case its listener hasn't been set up.
+		err = client.DeleteClusterMember(context.Background(), req.Name, true)
+		if err != nil {
+			logger.Error("Failed to clean up cluster state after join failure", logger.Ctx{"error": err})
+		}
+	})
+
 	err = util.WriteCert(state.OS.StateDir, "cluster", []byte(joinInfo.ClusterCert.String()), []byte(joinInfo.ClusterKey), nil)
 	if err != nil {
 		return response.SmartError(err)
@@ -152,6 +185,8 @@ func joinWithToken(state *state.State, req *internalTypes.Control) response.Resp
 	if err != nil {
 		return response.SmartError(err)
 	}
+
+	reverter.Success()
 
 	return response.EmptySyncResponse
 }

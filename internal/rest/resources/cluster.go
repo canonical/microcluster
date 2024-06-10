@@ -145,10 +145,12 @@ func clusterPost(s *state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
+	localRemote := remotes.RemotesByName()[s.Name()]
 	tokenResponse := internalTypes.TokenResponse{
 		ClusterCert: types.X509Certificate{Certificate: clusterCert},
 		ClusterKey:  string(s.ClusterCert().PrivateKey()),
 
+		TrustedMember:  internalTypes.ClusterMemberLocal{Name: s.Name(), Address: localRemote.Address, Certificate: localRemote.Certificate},
 		ClusterMembers: clusterMembers,
 	}
 
@@ -219,25 +221,52 @@ func clusterGet(s *state.State, r *http.Request) response.Response {
 // from the cluster when not the leader.
 var clusterDisableMu sync.Mutex
 
-// Re-execs the daemon of the cluster member with a fresh s.
 func clusterMemberPut(s *state.State, r *http.Request) response.Response {
-	err := s.Database.Stop()
+	force := r.URL.Query().Get("force") == "1"
+	reExec, err := resetClusterMember(r.Context(), s, force)
 	if err != nil {
-		return response.SmartError(fmt.Errorf("Failed shutting down database: %w", err))
+		return response.SmartError(err)
+	}
+
+	go reExec()
+
+	return response.ManualResponse(func(w http.ResponseWriter) error {
+		err := response.EmptySyncResponse.Render(w)
+		if err != nil {
+			return err
+		}
+
+		// Send the response before replacing the LXD daemon process.
+		f, ok := w.(http.Flusher)
+		if !ok {
+			return fmt.Errorf("ResponseWriter is not type http.Flusher")
+		}
+
+		f.Flush()
+		return nil
+	})
+}
+
+// resetClusterMember clears the daemon state, closing the database and stopping all listeners.
+// Returns a function that can be used to re-exec the daemon, forcibly reloading its state.
+func resetClusterMember(ctx context.Context, s *state.State, force bool) (reExec func(), err error) {
+	err = s.Database.Stop()
+	if err != nil && !force {
+		return nil, fmt.Errorf("Failed shutting down database: %w", err)
 	}
 
 	err = state.StopListeners()
-	if err != nil {
-		return response.SmartError(fmt.Errorf("Failed shutting down listeners: %w", err))
+	if err != nil && !force {
+		return nil, fmt.Errorf("Failed shutting down listeners: %w", err)
 	}
 
 	err = os.RemoveAll(s.OS.StateDir)
-	if err != nil {
-		return response.SmartError(fmt.Errorf("Failed to remove the s directory: %w", err))
+	if err != nil && !force {
+		return nil, fmt.Errorf("Failed to remove the s directory: %w", err)
 	}
 
-	go func() {
-		<-r.Context().Done() // Wait until request has finished.
+	reExec = func() {
+		<-ctx.Done() // Wait until request has finished.
 
 		// Wait until we can acquire the lock. This way if another request is holding the lock we won't
 		// replace/stop the LXD daemon until that request has finished.
@@ -256,23 +285,9 @@ func clusterMemberPut(s *state.State, r *http.Request) response.Response {
 		if err != nil {
 			logger.Error("Failed restarting daemon", logger.Ctx{"err": err})
 		}
-	}()
+	}
 
-	return response.ManualResponse(func(w http.ResponseWriter) error {
-		err := response.EmptySyncResponse.Render(w)
-		if err != nil {
-			return err
-		}
-
-		// Send the response before replacing the LXD daemon process.
-		f, ok := w.(http.Flusher)
-		if !ok {
-			return fmt.Errorf("ResponseWriter is not type http.Flusher")
-		}
-
-		f.Flush()
-		return nil
-	})
+	return reExec, nil
 }
 
 // clusterMemberDelete Removes a cluster member from dqlite and re-execs its daemon.
@@ -360,28 +375,30 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 		}
 	}
 
+	// If we can't find the node in dqlite, that means it failed to fully initialize. It still might have a record in our database so continue along anyway.
 	if index < 0 {
-		return response.SmartError(fmt.Errorf("No dqlite cluster member exists with the given name %q", name))
+		logger.Errorf("No dqlite record exists for %q, deleting from internal record instead", remote.Name)
 	}
 
-	localClient, err := internalClient.New(s.OS.ControlSocket(), nil, nil, false)
-	if err != nil {
-		return response.SmartError(err)
-	}
+	var clusterMembers []cluster.InternalClusterMember
+	err = s.Database.Transaction(r.Context(), func(ctx context.Context, tx *sql.Tx) error {
+		var err error
+		clusterMembers, err = cluster.GetInternalClusterMembers(ctx, tx)
 
-	clusterMembers, err := localClient.GetClusterMembers(s.Context)
+		return err
+	})
 	if err != nil {
 		return response.SmartError(err)
 	}
 
 	numPending := 0
 	for _, clusterMember := range clusterMembers {
-		if clusterMember.Role == string(cluster.Pending) {
+		if clusterMember.Role == cluster.Pending {
 			numPending++
 		}
 	}
 
-	if len(clusterMembers)-numPending < 2 {
+	if len(clusterMembers)-numPending < 1 {
 		return response.SmartError(fmt.Errorf("Cannot remove cluster members, there are no remaining non-pending members"))
 	}
 
@@ -476,35 +493,33 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 
 	// Tell the cluster member to run its PreRemove hook and return.
 	err = internalClient.RunPreRemoveHook(ctx, c.UseTarget(name), internalTypes.HookRemoveMemberOptions{Force: force})
-	if err != nil {
+	if err != nil && !force {
 		return response.SmartError(err)
 	}
 
 	// Remove the cluster member from the database.
 	err = s.Database.Transaction(s.Context, func(ctx context.Context, tx *sql.Tx) error {
-		return cluster.DeleteInternalClusterMember(ctx, tx, info[index].Address)
+		return cluster.DeleteInternalClusterMember(ctx, tx, remote.Address.String())
 	})
 	if err != nil {
 		return response.SmartError(err)
 	}
 
-	// Remove the node from dqlite.
-	err = leader.Remove(s.Context, info[index].ID)
+	// Remove the node from dqlite, if it has a record there.
+	if index >= 0 {
+		err = leader.Remove(s.Context, info[index].ID)
+		if err != nil {
+			return response.SmartError(err)
+		}
+	}
+
+	localClient, err := internalClient.New(s.OS.ControlSocket(), nil, nil, false)
 	if err != nil {
 		return response.SmartError(err)
 	}
 
-	newRemotes := []internalTypes.ClusterMember{}
-	for _, remote := range allRemotes {
-		if remote.Name != name {
-			clusterMember := internalTypes.ClusterMemberLocal{Name: remote.Name, Address: remote.Address, Certificate: remote.Certificate}
-			newRemotes = append(newRemotes, internalTypes.ClusterMember{ClusterMemberLocal: clusterMember})
-		}
-	}
-
-	// Remove the cluster member from the leader's trust store.
-	err = s.Remotes().Replace(s.OS.TrustDir, newRemotes...)
-	if err != nil {
+	err = internalClient.DeleteTrustStoreEntry(ctx, localClient, name)
+	if err != nil && !force {
 		return response.SmartError(err)
 	}
 
@@ -514,19 +529,11 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 	}
 
 	err = c.ResetClusterMember(s.Context, name, force)
-	if err != nil {
+	if err != nil && !force {
 		return response.SmartError(err)
 	}
 
 	cluster, err := s.Cluster(false)
-	if err != nil {
-		return response.SmartError(err)
-	}
-
-	// Remove the node from all other truststores as well.
-	err = cluster.Query(ctx, true, func(ctx context.Context, c *client.Client) error {
-		return internalClient.DeleteTrustStoreEntry(ctx, &c.Client, name)
-	})
 	if err != nil {
 		return response.SmartError(err)
 	}

@@ -23,7 +23,6 @@ import (
 
 	"github.com/canonical/microcluster/client"
 	"github.com/canonical/microcluster/cluster"
-	"github.com/canonical/microcluster/config"
 	internalConfig "github.com/canonical/microcluster/internal/config"
 	"github.com/canonical/microcluster/internal/db"
 	"github.com/canonical/microcluster/internal/endpoints"
@@ -58,7 +57,7 @@ type Daemon struct {
 	fsWatcher  *sys.Watcher
 	trustStore *trust.Store
 
-	hooks config.Hooks // Hooks to be called upon various daemon actions.
+	hooks state.Hooks // Hooks to be called upon various daemon actions.
 
 	ReadyChan      chan struct{}      // Closed when the daemon is fully ready.
 	shutdownCtx    context.Context    // Cancelled when shutdown starts.
@@ -113,7 +112,7 @@ func NewDaemon(project string) *Daemon {
 // - `extensionsSchema` is a list of schema updates in the order that they should be applied.
 // - `extensionServers` is a list of rest.Server that will be initialized and managed by microcluster.
 // - `hooks` are a set of functions that trigger at certain points during cluster communication.
-func (d *Daemon) Run(ctx context.Context, listenAddress string, stateDir string, socketGroup string, extensionsSchema []schema.Update, apiExtensions []string, extensionServers map[string]rest.Server, hooks *config.Hooks) error {
+func (d *Daemon) Run(ctx context.Context, listenAddress string, stateDir string, socketGroup string, extensionsSchema []schema.Update, apiExtensions []string, extensionServers map[string]rest.Server, hooks *state.Hooks) error {
 	d.shutdownCtx, d.shutdownCancel = context.WithCancel(ctx)
 	if stateDir == "" {
 		stateDir = os.Getenv(sys.StateDir)
@@ -188,7 +187,7 @@ func (d *Daemon) Run(ctx context.Context, listenAddress string, stateDir string,
 	}
 }
 
-func (d *Daemon) init(listenAddress string, schemaExtensions []schema.Update, apiExtensions []string, hooks *config.Hooks) error {
+func (d *Daemon) init(listenAddress string, schemaExtensions []schema.Update, apiExtensions []string, hooks *state.Hooks) error {
 	d.applyHooks(hooks)
 
 	var err error
@@ -292,7 +291,7 @@ func (d *Daemon) init(listenAddress string, schemaExtensions []schema.Update, ap
 	return nil
 }
 
-func (d *Daemon) applyHooks(hooks *config.Hooks) {
+func (d *Daemon) applyHooks(hooks *state.Hooks) {
 	// Apply a no-op hooks for any missing hooks.
 	noOpHook := func(s *state.State) error { return nil }
 	noOpRemoveHook := func(s *state.State, force bool) error { return nil }
@@ -300,7 +299,7 @@ func (d *Daemon) applyHooks(hooks *config.Hooks) {
 	noOpConfigHook := func(s *state.State, config types.DaemonConfig) error { return nil }
 
 	if hooks == nil {
-		d.hooks = config.Hooks{}
+		d.hooks = state.Hooks{}
 	} else {
 		d.hooks = *hooks
 	}

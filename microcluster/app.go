@@ -46,7 +46,7 @@ type Args struct {
 	Client     *client.Client
 	Proxy      func(*http.Request) (*url.URL, error)
 
-	ExtensionServers []rest.Server
+	ExtensionServers []*rest.Server
 }
 
 // App returns an instance of MicroCluster with a newly initialized filesystem if one does not exist.

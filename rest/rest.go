@@ -51,6 +51,7 @@ type EndpointType client.EndpointType
 
 // Server contains configuration and handlers for additional listeners to be instantiated after app startup.
 type Server struct {
+	Name        string
 	Protocol    string
 	Address     types.AddrPort
 	Certificate *shared.CertInfo

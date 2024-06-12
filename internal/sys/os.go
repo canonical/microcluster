@@ -1,6 +1,7 @@
 package sys
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -83,9 +84,31 @@ func (s *OS) init(createDir bool) error {
 	return nil
 }
 
+// IsControlSocketPresent determines if the control socket is present and
+// accessible.
+func (s *OS) IsControlSocketPresent() (bool, error) {
+	socketPath := s.ControlSocketPath()
+	_, err := os.Stat(socketPath)
+
+	if err == nil {
+		return true, nil
+	}
+
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+
+	return false, err
+}
+
 // ControlSocket returns the full path to the control.socket file that this daemon is listening on.
 func (s *OS) ControlSocket() api.URL {
-	return *api.NewURL().Scheme("http").Host(filepath.Join(s.StateDir, "control.socket"))
+	return *api.NewURL().Scheme("http").Host(s.ControlSocketPath())
+}
+
+// ControlSocketPath returns the filesystem path to the control socket.
+func (s *OS) ControlSocketPath() string {
+	return filepath.Join(s.StateDir, "control.socket")
 }
 
 // DatabasePath returns the path of the database file managed by dqlite.

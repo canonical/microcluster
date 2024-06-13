@@ -188,7 +188,19 @@ func (d *Daemon) init(listenPort string, extendedEndpoints []rest.Endpoint, sche
 	// Apply extensions to API/Schema.
 	resources.ExtendedEndpoints.Endpoints = append(resources.ExtendedEndpoints.Endpoints, extendedEndpoints...)
 
-	ctlServer := d.initServer(resources.UnixEndpoints, resources.InternalEndpoints, resources.PublicEndpoints, resources.ExtendedEndpoints)
+	// Combine extendedEndpoints with CoreAPI endpoints from extensionServers.
+	mergedEndpoints, err := resources.MergeExtendedEndpoints(d.extensionServers, resources.ExtendedEndpoints)
+	if err != nil {
+		return err
+	}
+
+	serverEndpoints := []rest.Resources{
+		resources.UnixEndpoints,
+		resources.InternalEndpoints,
+		resources.PublicEndpoints,
+	}
+	serverEndpoints = append(serverEndpoints, mergedEndpoints...)
+	ctlServer := d.initServer(serverEndpoints...)
 	ctl := endpoints.NewSocket(d.shutdownCtx, ctlServer, d.os.ControlSocket(), d.os.SocketGroup)
 	d.endpoints = endpoints.NewEndpoints(d.shutdownCtx, ctl)
 	err = d.endpoints.Up()
@@ -197,7 +209,9 @@ func (d *Daemon) init(listenPort string, extendedEndpoints []rest.Endpoint, sche
 	}
 
 	if listenPort != "" {
-		server := d.initServer(resources.PublicEndpoints, resources.ExtendedEndpoints)
+		serverEndpoints = []rest.Resources{resources.PublicEndpoints}
+		serverEndpoints = append(serverEndpoints, mergedEndpoints...)
+		server := d.initServer(serverEndpoints...)
 		url := api.NewURL().Host(fmt.Sprintf(":%s", listenPort))
 		network := endpoints.NewNetwork(d.shutdownCtx, endpoints.EndpointNetwork, server, *url, d.serverCert)
 		err = d.endpoints.Add(network)

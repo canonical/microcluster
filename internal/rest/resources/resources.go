@@ -82,8 +82,13 @@ func MergeExtendedEndpoints(extensionServers []rest.Server, extendedEndpoints re
 			continue
 		}
 
+		err := extensionServer.ValidateServerConfigs()
+		if err != nil {
+			return nil, err
+		}
+
 		for _, endpoints := range extensionServer.Resources {
-			err := checkDuplicateEndpoints(endpoints, extendedEndpoints)
+			err = checkDuplicateEndpoints(endpoints, extendedEndpoints)
 			if err != nil {
 				return nil, err
 			}

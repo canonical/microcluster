@@ -1,6 +1,7 @@
 package rest
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/canonical/lxd/lxd/response"
@@ -52,4 +53,15 @@ type Server struct {
 	Address     types.AddrPort
 	Certificate *shared.CertInfo
 	Resources   []Resources
+}
+
+// ValidateServerConfigs checks that the server configuration is valid.
+func (s Server) ValidateServerConfigs() error {
+	if s.CoreAPI {
+		if s.Address != (types.AddrPort{}) || s.Protocol != "" || s.Certificate != nil {
+			return fmt.Errorf("Core API server cannot have Address, Protocol or Certificate")
+		}
+	}
+
+	return nil
 }

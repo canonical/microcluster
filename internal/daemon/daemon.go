@@ -95,11 +95,10 @@ func NewDaemon(project string) *Daemon {
 }
 
 // Run initializes the Daemon with the given configuration, starts the database, and blocks until the daemon is cancelled.
-// - `extensionsAPI` is a list of endpoints to be served over `/1.0`.
 // - `extensionsSchema` is a list of schema updates in the order that they should be applied.
 // - `extensionServers` is a list of rest.Server that will be initialized and managed by microcluster.
 // - `hooks` are a set of functions that trigger at certain points during cluster communication.
-func (d *Daemon) Run(ctx context.Context, listenPort string, stateDir string, socketGroup string, extensionsAPI []rest.Endpoint, extensionsSchema []schema.Update, apiExtensions []string, extensionServers []rest.Server, hooks *config.Hooks) error {
+func (d *Daemon) Run(ctx context.Context, listenPort string, stateDir string, socketGroup string, extensionsSchema []schema.Update, apiExtensions []string, extensionServers []rest.Server, hooks *config.Hooks) error {
 	d.shutdownCtx, d.shutdownCancel = context.WithCancel(ctx)
 	if stateDir == "" {
 		stateDir = os.Getenv(sys.StateDir)
@@ -130,7 +129,7 @@ func (d *Daemon) Run(ctx context.Context, listenPort string, stateDir string, so
 
 	d.extensionServers = extensionServers
 
-	err = d.init(listenPort, extensionsAPI, extensionsSchema, apiExtensions, hooks)
+	err = d.init(listenPort, extensionsSchema, apiExtensions, hooks)
 	if err != nil {
 		return fmt.Errorf("Daemon failed to start: %w", err)
 	}
@@ -152,7 +151,7 @@ func (d *Daemon) Run(ctx context.Context, listenPort string, stateDir string, so
 	}
 }
 
-func (d *Daemon) init(listenPort string, extendedEndpoints []rest.Endpoint, schemaExtensions []schema.Update, apiExtensions []string, hooks *config.Hooks) error {
+func (d *Daemon) init(listenPort string, schemaExtensions []schema.Update, apiExtensions []string, hooks *config.Hooks) error {
 	d.applyHooks(hooks)
 
 	var err error
@@ -185,11 +184,8 @@ func (d *Daemon) init(listenPort string, extendedEndpoints []rest.Endpoint, sche
 
 	d.db = db.NewDB(d.shutdownCtx, d.serverCert, d.ClusterCert, d.os)
 
-	// Apply extensions to API/Schema.
-	resources.ExtendedEndpoints.Endpoints = append(resources.ExtendedEndpoints.Endpoints, extendedEndpoints...)
-
-	// Combine extendedEndpoints with CoreAPI endpoints from extensionServers.
-	mergedEndpoints, err := resources.MergeExtendedEndpoints(d.extensionServers, resources.ExtendedEndpoints)
+	// Extract user defined endpoints for core listener.
+	coreEndpoints, err := resources.GetCoreEndpoints(d.extensionServers)
 	if err != nil {
 		return err
 	}
@@ -199,7 +195,7 @@ func (d *Daemon) init(listenPort string, extendedEndpoints []rest.Endpoint, sche
 		resources.InternalEndpoints,
 		resources.PublicEndpoints,
 	}
-	serverEndpoints = append(serverEndpoints, mergedEndpoints...)
+	serverEndpoints = append(serverEndpoints, coreEndpoints...)
 	ctlServer := d.initServer(serverEndpoints...)
 	ctl := endpoints.NewSocket(d.shutdownCtx, ctlServer, d.os.ControlSocket(), d.os.SocketGroup)
 	d.endpoints = endpoints.NewEndpoints(d.shutdownCtx, ctl)
@@ -210,7 +206,7 @@ func (d *Daemon) init(listenPort string, extendedEndpoints []rest.Endpoint, sche
 
 	if listenPort != "" {
 		serverEndpoints = []rest.Resources{resources.PublicEndpoints}
-		serverEndpoints = append(serverEndpoints, mergedEndpoints...)
+		serverEndpoints = append(serverEndpoints, coreEndpoints...)
 		server := d.initServer(serverEndpoints...)
 		url := api.NewURL().Host(fmt.Sprintf(":%s", listenPort))
 		network := endpoints.NewNetwork(d.shutdownCtx, endpoints.EndpointNetwork, server, *url, d.serverCert)
@@ -426,14 +422,14 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 		return err
 	}
 
-	// Combine extendedEndpoints with CoreAPI endpoints from extensionServers.
-	mergedEndpoints, err := resources.MergeExtendedEndpoints(d.extensionServers, resources.ExtendedEndpoints)
+	// Extract user defined endpoints for core listener.
+	coreEndpoints, err := resources.GetCoreEndpoints(d.extensionServers)
 	if err != nil {
 		return err
 	}
 
 	serverEndpoints := []rest.Resources{resources.InternalEndpoints, resources.PublicEndpoints}
-	serverEndpoints = append(serverEndpoints, mergedEndpoints...)
+	serverEndpoints = append(serverEndpoints, coreEndpoints...)
 	server := d.initServer(serverEndpoints...)
 	network := endpoints.NewNetwork(d.shutdownCtx, endpoints.EndpointNetwork, server, d.address, d.ClusterCert())
 	err = d.endpoints.Down(endpoints.EndpointNetwork)

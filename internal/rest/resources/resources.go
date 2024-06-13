@@ -45,15 +45,9 @@ var InternalEndpoints = rest.Resources{
 	},
 }
 
-// ExtendedEndpoints holds all the endpoints added by external usage of MicroCluster.
-var ExtendedEndpoints = rest.Resources{
-	Path:      types.ExtendedEndpoint,
-	Endpoints: []rest.Endpoint{},
-}
-
 // checkDuplicateEndpoints checks if any endpoints defined in extensionServers conflict with internal endpoints.
-func checkDuplicateEndpoints(extensionServerEndpoints rest.Resources, extendedEndpoints rest.Resources) error {
-	allExistingEndpoints := []rest.Resources{UnixEndpoints, PublicEndpoints, InternalEndpoints, extendedEndpoints}
+func checkDuplicateEndpoints(extensionServerEndpoints rest.Resources) error {
+	allExistingEndpoints := []rest.Resources{UnixEndpoints, PublicEndpoints, InternalEndpoints}
 	existingEndpointPaths := make(map[string]bool)
 
 	for _, endpoints := range allExistingEndpoints {
@@ -73,10 +67,10 @@ func checkDuplicateEndpoints(extensionServerEndpoints rest.Resources, extendedEn
 	return nil
 }
 
-// MergeExtendedEndpoints merges the endpoints from extensionServers with endpoints defined in extendedEndpoints.
+// GetCoreEndpoints extracts all endpoints from extensionServers that should be allocated to the core listener.
 // It also ensures that there are no conflicts between endpoints from extensionServers and internal endpoints.
-func MergeExtendedEndpoints(extensionServers []rest.Server, extendedEndpoints rest.Resources) ([]rest.Resources, error) {
-	mergedEndpoints := []rest.Resources{extendedEndpoints}
+func GetCoreEndpoints(extensionServers []rest.Server) ([]rest.Resources, error) {
+	var coreEndpoints []rest.Resources
 	for _, extensionServer := range extensionServers {
 		if !extensionServer.CoreAPI {
 			continue
@@ -88,14 +82,14 @@ func MergeExtendedEndpoints(extensionServers []rest.Server, extendedEndpoints re
 		}
 
 		for _, endpoints := range extensionServer.Resources {
-			err = checkDuplicateEndpoints(endpoints, extendedEndpoints)
+			err = checkDuplicateEndpoints(endpoints)
 			if err != nil {
 				return nil, err
 			}
 
-			mergedEndpoints = append(mergedEndpoints, endpoints)
+			coreEndpoints = append(coreEndpoints, endpoints)
 		}
 	}
 
-	return mergedEndpoints, nil
+	return coreEndpoints, nil
 }

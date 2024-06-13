@@ -21,7 +21,7 @@ func IsNotification(r *http.Request) bool {
 	return r.Header.Get("User-Agent") == clusterRequest.UserAgentNotifier
 }
 
-// Query is a helper for initiating a request to the microcluster API. This function should be used for all client
+// Query is a helper for initiating a request on any endpoints defined external to Microcluster. This function should be used for all client
 // methods defined externally from MicroCluster.
 func (c *Client) Query(ctx context.Context, method string, prefix types.EndpointPrefix, path *api.URL, in any, out any) error {
 	queryCtx, cancel := context.WithCancel(ctx)

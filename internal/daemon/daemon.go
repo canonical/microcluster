@@ -412,7 +412,15 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 		return err
 	}
 
-	server := d.initServer(resources.InternalEndpoints, resources.PublicEndpoints, resources.ExtendedEndpoints)
+	// Combine extendedEndpoints with CoreAPI endpoints from extensionServers.
+	mergedEndpoints, err := resources.MergeExtendedEndpoints(d.extensionServers, resources.ExtendedEndpoints)
+	if err != nil {
+		return err
+	}
+
+	serverEndpoints := []rest.Resources{resources.InternalEndpoints, resources.PublicEndpoints}
+	serverEndpoints = append(serverEndpoints, mergedEndpoints...)
+	server := d.initServer(serverEndpoints...)
 	network := endpoints.NewNetwork(d.shutdownCtx, endpoints.EndpointNetwork, server, d.address, d.ClusterCert())
 	err = d.endpoints.Down(endpoints.EndpointNetwork)
 	if err != nil {
@@ -586,6 +594,10 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 func (d *Daemon) addExtensionServers() error {
 	var networks []endpoints.Endpoint
 	for _, extensionServer := range d.extensionServers {
+		if extensionServer.CoreAPI {
+			continue
+		}
+
 		cert := extensionServer.Certificate
 		if cert == nil {
 			cert = d.ClusterCert()

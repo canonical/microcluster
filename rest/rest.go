@@ -47,6 +47,7 @@ type Resources struct {
 
 // Server contains configuration and handlers for additional listeners to be instantiated after app startup.
 type Server struct {
+	CoreAPI     bool
 	Protocol    string
 	Address     types.AddrPort
 	Certificate *shared.CertInfo

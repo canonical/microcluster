@@ -16,10 +16,9 @@ import (
 	"github.com/canonical/microcluster/state"
 )
 
-// This is an example extended endpoint on the /1.0 endpoint, reachable at /1.0/extended.
+// This is an example extended endpoint reachable at /1.0/extended.
 var extendedCmd = rest.Endpoint{
 	Path: "extended",
-
 	Post: rest.EndpointAction{Handler: cmdPost, AllowUntrusted: true},
 }
 

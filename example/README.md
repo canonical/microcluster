@@ -4,7 +4,7 @@ This is an example package containing a MicroCluster daemon command (`microd`) a
 used as a template for creating projects with MicroCluster.
 
 In addition to having examples for the built-in MicroCluster API, this example shows how MicroCluster can be extended
-with additional endpoints and schema versions.
+with additional listeners with user defined endpoints and schema versions.
 
 The daemon can be started with `microd` and is controlled by `microctl`.
 

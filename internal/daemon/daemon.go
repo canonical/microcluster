@@ -27,6 +27,7 @@ import (
 	"github.com/canonical/microcluster/internal/db"
 	"github.com/canonical/microcluster/internal/endpoints"
 	"github.com/canonical/microcluster/internal/extensions"
+	"github.com/canonical/microcluster/internal/recover"
 	internalREST "github.com/canonical/microcluster/internal/rest"
 	internalClient "github.com/canonical/microcluster/internal/rest/client"
 	"github.com/canonical/microcluster/internal/rest/resources"
@@ -125,6 +126,11 @@ func (d *Daemon) Run(ctx context.Context, listenPort string, stateDir string, so
 
 	if isAlreadyRunning {
 		return fmt.Errorf("Control socket already present (%q); is another daemon already running?", d.os.ControlSocketPath())
+	}
+
+	err = recover.MaybeUnpackRecoveryTarball(d.os)
+	if err != nil {
+		return fmt.Errorf("Database recovery failed: %w", err)
 	}
 
 	d.extensionServers = extensionServers

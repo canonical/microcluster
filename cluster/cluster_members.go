@@ -157,6 +157,22 @@ CREATE TABLE internal_cluster_members_new (
 );
 
 INSERT INTO internal_cluster_members_new SELECT id,name,address,certificate,1,(schema-1),heartbeat,role FROM internal_cluster_members;
+
+CREATE TRIGGER internal_cluster_member_added
+	AFTER INSERT ON internal_cluster_members
+FOR EACH ROW
+BEGIN
+	INSERT INTO internal_cluster_members_new (id,name,address,certificate,schema_internal,schema_external,heartbeat,role)
+	VALUES (NEW.id,NEW.name,NEW.address,NEW.certificate,1,(NEW.schema-1),heartbeat,role);
+END;
+
+	CREATE TRIGGER internal_cluster_member_removed
+	AFTER DELETE ON internal_cluster_members
+FOR EACH ROW
+BEGIN
+	DELETE FROM internal_cluster_members_new
+	WHERE id = OLD.id;
+END;
 `
 
 	_, err = tx.Exec(stmt)

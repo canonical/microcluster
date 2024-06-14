@@ -336,6 +336,21 @@ func (d *Daemon) initServer(resources ...rest.Resources) *http.Server {
 	mux.SkipClean(true)
 	mux.UseEncodedPath()
 
+	state := d.State()
+	for _, endpoints := range resources {
+		for _, e := range endpoints.Endpoints {
+			internalREST.HandleEndpoint(state, mux, string(endpoints.Path), e)
+
+			for _, alias := range e.Aliases {
+				ae := e
+				ae.Name = alias.Name
+				ae.Path = alias.Path
+
+				internalREST.HandleEndpoint(state, mux, string(endpoints.Path), ae)
+			}
+		}
+	}
+
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		err := response.SyncResponse(true, []string{"/1.0"}).Render(w)
@@ -352,21 +367,6 @@ func (d *Daemon) initServer(resources ...rest.Resources) *http.Server {
 			logger.Error("Failed to write HTTP response", logger.Ctx{"url": r.URL, "err": err})
 		}
 	})
-
-	state := d.State()
-	for _, endpoints := range resources {
-		for _, e := range endpoints.Endpoints {
-			internalREST.HandleEndpoint(state, mux, string(endpoints.Path), e)
-
-			for _, alias := range e.Aliases {
-				ae := e
-				ae.Name = alias.Name
-				ae.Path = alias.Path
-
-				internalREST.HandleEndpoint(state, mux, string(endpoints.Path), ae)
-			}
-		}
-	}
 
 	return &http.Server{
 		Handler:     mux,

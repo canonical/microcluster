@@ -209,13 +209,58 @@ func (db *DB) Cluster(ctx context.Context, client *dqliteClient.Client) ([]dqlit
 	return members, nil
 }
 
-// IsOpen returns true only if the DB has been opened and the schema loaded.
-func (db *DB) IsOpen() bool {
+// IsOpen returns nil  only if the DB has been opened and the schema loaded.
+// Otherwise, it returns an error describing why the database is offline.
+// The returned error may have the http status 503, indicating that the database is in a valid but unavailable state.
+func (db *DB) IsOpen(ctx context.Context) error {
 	if db == nil {
-		return false
+		return api.StatusErrorf(http.StatusServiceUnavailable, string(StatusNotReady))
 	}
 
-	return db.openCanceller.Err() != nil
+	db.statusLock.RLock()
+	status := db.status
+	db.statusLock.RUnlock()
+
+	switch status {
+	case StatusReady:
+		return nil
+	case StatusNotReady:
+		fallthrough
+	case StatusOffline:
+		fallthrough
+	case StatusStarting:
+		return api.StatusErrorf(http.StatusServiceUnavailable, string(status))
+
+	case StatusWaiting:
+		intVersion, extversion, apiExtensions := db.Schema().Version()
+
+		awaitingSystems := 0
+		err := db.Transaction(ctx, func(ctx context.Context, tx *sql.Tx) error {
+			allMembers, awaitingMembers, err := cluster.GetUpgradingClusterMembers(ctx, tx, intVersion, extversion, apiExtensions)
+			if err != nil {
+				return err
+			}
+
+			for _, member := range allMembers {
+				if member.Address == db.listenAddr.URL.Host {
+					continue
+				}
+
+				if awaitingMembers[member.Name] {
+					awaitingSystems++
+				}
+			}
+
+			return nil
+		})
+		if err != nil {
+			return api.StatusErrorf(http.StatusInternalServerError, "Failed to fetch awaiting cluster members: %w", err)
+		}
+
+		return api.StatusErrorf(http.StatusServiceUnavailable, "%s: %d cluster members have not yet received the update", status, awaitingSystems)
+	default:
+		return api.StatusErrorf(http.StatusInternalServerError, "Database status is invalid")
+	}
 }
 
 // NotifyUpgraded sends a notification that we can stop waiting for a cluster member to be upgraded.

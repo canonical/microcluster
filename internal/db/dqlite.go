@@ -21,7 +21,6 @@ import (
 	"github.com/canonical/lxd/lxd/db/schema"
 	"github.com/canonical/lxd/shared"
 	"github.com/canonical/lxd/shared/api"
-	"github.com/canonical/lxd/shared/cancel"
 	"github.com/canonical/lxd/shared/logger"
 	"github.com/canonical/lxd/shared/revert"
 	"github.com/canonical/lxd/shared/tcp"
@@ -49,15 +48,36 @@ type DB struct {
 	acceptCh  chan net.Conn
 	upgradeCh chan struct{}
 
-	openCanceller *cancel.Canceller
-
 	ctx    context.Context
 	cancel context.CancelFunc
 
 	heartbeatLock sync.Mutex
 
 	schema *update.SchemaUpdate
+
+	statusLock sync.RWMutex
+	status     Status
 }
+
+// Status is the current status of the database.
+type Status string
+
+const (
+	// StatusReady indicates the database is open for use.
+	StatusReady Status = "Database is online"
+
+	// StatusWaiting indicates the database is blocked on a schema or API extension upgrade.
+	StatusWaiting Status = "Database is waiting for an upgrade"
+
+	// StatusStarting indicates the daemon is running, but dqlite is still in the process of starting up.
+	StatusStarting Status = "Database is still starting"
+
+	// StatusNotReady indicates the database is not yet ready for use.
+	StatusNotReady Status = "Database is not yet initialized"
+
+	// StatusOffline indicates that the database is offline.
+	StatusOffline Status = "Database is offline"
+)
 
 // Accept sends the outbound connection through the acceptCh channel to be received by dqlite.
 func (db *DB) Accept(conn net.Conn) {
@@ -69,15 +89,15 @@ func NewDB(ctx context.Context, serverCert *shared.CertInfo, clusterCert func() 
 	shutdownCtx, shutdownCancel := context.WithCancel(ctx)
 
 	return &DB{
-		serverCert:    serverCert,
-		clusterCert:   clusterCert,
-		dbName:        filepath.Base(os.DatabasePath()),
-		os:            os,
-		acceptCh:      make(chan net.Conn),
-		upgradeCh:     make(chan struct{}),
-		ctx:           shutdownCtx,
-		cancel:        shutdownCancel,
-		openCanceller: cancel.New(context.Background()),
+		serverCert:  serverCert,
+		clusterCert: clusterCert,
+		dbName:      filepath.Base(os.DatabasePath()),
+		os:          os,
+		acceptCh:    make(chan net.Conn),
+		upgradeCh:   make(chan struct{}),
+		ctx:         shutdownCtx,
+		cancel:      shutdownCancel,
+		status:      StatusNotReady,
 	}
 }
 
@@ -349,7 +369,10 @@ func dqliteNetworkDial(ctx context.Context, addr string, db *DB) (net.Conn, erro
 
 // Stop closes the database and dqlite connection.
 func (db *DB) Stop() error {
+	db.statusLock.Lock()
 	db.cancel()
+	db.status = StatusOffline
+	db.statusLock.Unlock()
 
 	if db.IsOpen() {
 		// The database might refuse to close if many nodes are stopping at the same time,

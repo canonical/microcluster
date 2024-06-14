@@ -62,7 +62,7 @@ func (s *SchemaUpdateManager) SetExternalUpdates(updates []schema.Update) {
 
 // Schema returns a SchemaUpdate from the SchemaUpdateManager config.
 func (s *SchemaUpdateManager) Schema() *SchemaUpdate {
-	schema := &SchemaUpdate{updates: s.updates}
+	schema := &SchemaUpdate{updates: s.updates, apiExtensions: s.apiExtensions}
 	schema.Fresh("")
 	return schema
 }

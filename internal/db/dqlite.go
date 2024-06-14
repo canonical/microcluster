@@ -292,7 +292,7 @@ func (db *DB) loopHeartbeat() {
 }
 
 func (db *DB) heartbeat(ctx context.Context) {
-	if !db.IsOpen() {
+	if db.IsOpen(ctx) != nil {
 		logger.Debug("Database is not yet open, aborting heartbeat", logger.Ctx{"address": db.listenAddr.String()})
 		return
 	}
@@ -419,7 +419,7 @@ func (db *DB) Stop() error {
 	db.status = StatusOffline
 	db.statusLock.Unlock()
 
-	if db.IsOpen() {
+	if db.IsOpen(context.TODO()) == nil {
 		// The database might refuse to close if many nodes are stopping at the same time,
 		// because the dqlite connection will have been lost.
 		_ = db.db.Close()

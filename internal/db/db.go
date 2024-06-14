@@ -247,8 +247,9 @@ func (db *DB) retry(ctx context.Context, f func(context.Context) error) error {
 
 // Update attempts to update the database with the executable at the path specified by the SCHEMA_UPDATE variable.
 func (db *DB) Update() error {
-	if !db.IsOpen() {
-		return fmt.Errorf("Failed to update, database is not yet open")
+	err := db.IsOpen(context.Background())
+	if err != nil {
+		return fmt.Errorf("Failed to update, database is not yet open: %w", err)
 	}
 
 	updateExec := os.Getenv(sys.SchemaUpdate)
@@ -263,7 +264,7 @@ func (db *DB) Update() error {
 	time.Sleep(wait)
 
 	logger.Info("Triggering cluster auto-update now")
-	_, err := shared.RunCommand(updateExec)
+	_, err = shared.RunCommand(updateExec)
 	if err != nil {
 		logger.Error("Triggering cluster update failed", logger.Ctx{"err": err})
 		return err

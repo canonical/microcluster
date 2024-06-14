@@ -27,6 +27,9 @@ for member in "${members[@]}"; do
   microctl --state-dir "${state_dir}" waitready
 done
 
+# Ensure two daemons cannot start in the same state dir
+! microd --state-dir "${test_dir}/c1" "${cluster_flags[@]}"
+
 # Ensure only valid member names are used
 ! microctl --state-dir "${test_dir}/c1" init "c/1" 127.0.0.1:9001 --bootstrap
 

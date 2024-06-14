@@ -209,6 +209,19 @@ func (db *DB) Cluster(ctx context.Context, client *dqliteClient.Client) ([]dqlit
 	return members, nil
 }
 
+// Status returns the current status of the database.
+func (db *DB) Status() Status {
+	if db == nil {
+		return StatusNotReady
+	}
+
+	db.statusLock.RLock()
+	status := db.status
+	db.statusLock.RUnlock()
+
+	return status
+}
+
 // IsOpen returns nil  only if the DB has been opened and the schema loaded.
 // Otherwise, it returns an error describing why the database is offline.
 // The returned error may have the http status 503, indicating that the database is in a valid but unavailable state.

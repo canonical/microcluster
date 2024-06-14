@@ -182,6 +182,21 @@ func (s *SchemaUpdate) Ensure(db *sql.DB) (int, error) {
 	}
 
 	err = query.Transaction(context.TODO(), db, func(ctx context.Context, tx *sql.Tx) error {
+		if updateSchemaTable {
+			// If we got this far, then all cluster members have settled and it's time to apply the updates.
+			// Apply updateFromV1 to fix the schemas table now that it's safe, and recompute the max schema versions.
+			err = updateFromV1(ctx, tx)
+			if err != nil {
+				return err
+			}
+
+			maxVersionsStmt := "SELECT COALESCE(MAX(version), 0) FROM schemas WHERE type = 0 UNION ALL SELECT COALESCE(MAX(version), 0) FROM schemas WHERE type = 1"
+			versions, err = query.SelectIntegers(ctx, tx, maxVersionsStmt)
+			if err != nil {
+				return err
+			}
+		}
+
 		// When creating the schema from scratch, use the fresh dump if
 		// available. Otherwise just apply all relevant updates.
 		if versions[updateExternal] == 0 && versions[updateInternal] == 0 && s.fresh != "" {

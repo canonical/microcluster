@@ -452,7 +452,7 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 			Role:        cluster.Pending,
 		}
 
-		clusterMember.SchemaInternal, clusterMember.SchemaExternal = d.db.Schema().Version()
+		clusterMember.SchemaInternal, clusterMember.SchemaExternal, _ = d.db.Schema().Version()
 
 		err = d.db.Bootstrap(d.Extensions, d.project, d.address, clusterMember)
 		if err != nil {

@@ -179,6 +179,8 @@ CREATE TABLE IF NOT EXISTS internal_cluster_members_new (
 		stmt = fmt.Sprintf(`%s
 DROP TABLE internal_cluster_members;
 ALTER TABLE internal_cluster_members_new RENAME TO internal_cluster_members;
+DROP TRIGGER IF EXISTS internal_cluster_member_added;
+DROP TRIGGER IF EXISTS internal_cluster_member_removed;
 `, stmt)
 		_, err = tx.ExecContext(ctx, stmt)
 		return err

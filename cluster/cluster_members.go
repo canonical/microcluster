@@ -86,10 +86,96 @@ func (c InternalClusterMember) ToAPI() (*internalTypes.ClusterMember, error) {
 	}, nil
 }
 
+// getClusterSchemaTable returns the name of the table that holds an accurate picture of the current schema version.
+// Prior to updateFromV1, the schema version was not properly stored in the cluster members table, and so we need to store it somewhere else.
+func getClusterSchemaTable(tx *sql.Tx) (tableName string, err error) {
+	stmt := "SELECT name FROM sqlite_master WHERE name = 'internal_cluster_members_new'"
+	err = tx.QueryRow(stmt).Scan(&tableName)
+	if err != nil && err != sql.ErrNoRows {
+		return "", err
+	}
+
+	if tableName != "" {
+		return tableName, nil
+	}
+
+	// TODO: Dynamically rename to "core_"
+	return "internal_cluster_members", nil
+}
+
+// createClusterSchemaTable creates a temporary table to store an accurate representation of the internal and external schema version.
+// This table will get dropped by `updateFromV1`, and should only be created prior to that update, if no other cluster member has done it yet.
+func createClusterSchemaTable(tx *sql.Tx) (tableName string, err error) {
+	// Check if we need a temporary table, if no `type` field exists in the schemas table.
+	stmt := `
+SELECT count(name)
+FROM pragma_table_info('schemas')
+WHERE name IN ('type');
+`
+
+	var count int
+	err = tx.QueryRow(stmt).Scan(&count)
+	if err != nil {
+		return "", err
+	}
+
+	// If we have a `type` field, then the default database is valid, so we can just use that.
+	// TODO: Dynamically rename to "core_"
+	if count == 1 {
+		return "internal_cluster_members", nil
+	}
+
+	// Check if another cluster member has already created the temporary table.
+	stmt = `
+SELECT name
+FROM sqlite_master
+WHERE name = 'internal_cluster_members_new';
+`
+
+	err = tx.QueryRow(stmt).Scan(&tableName)
+	if err != nil && err != sql.ErrNoRows {
+		return "", err
+	}
+
+	if tableName != "" {
+		return tableName, nil
+	}
+
+	// If no cluster member has created the temporary table, create it and return its name.
+	stmt = `
+CREATE TABLE internal_cluster_members_new (
+  id                   INTEGER   PRIMARY  KEY    AUTOINCREMENT  NOT  NULL,
+  name                 TEXT      NOT      NULL,
+  address              TEXT      NOT      NULL,
+  certificate          TEXT      NOT      NULL,
+  schema_internal      INTEGER   NOT      NULL,
+  schema_external      INTEGER   NOT      NULL,
+  heartbeat            DATETIME  NOT      NULL,
+  role                 TEXT      NOT      NULL,
+  UNIQUE(name),
+  UNIQUE(certificate)
+);
+
+INSERT INTO internal_cluster_members_new SELECT id,name,address,certificate,1,(schema-1),heartbeat,role FROM internal_cluster_members;
+`
+
+	_, err = tx.Exec(stmt)
+	if err != nil {
+		return "", err
+	}
+
+	return "internal_cluster_members_new", nil
+}
+
 // UpdateClusterMemberSchemaVersion sets the schema version for the cluster member with the given address.
 // This helper is non-generated to work before generated statements are loaded, as we update the schema.
 func UpdateClusterMemberSchemaVersion(tx *sql.Tx, internalVersion uint64, externalVersion uint64, address string) error {
-	stmt := "UPDATE internal_cluster_members SET schema_internal=?,schema_external=? WHERE address=?"
+	tableName, err := createClusterSchemaTable(tx)
+	if err != nil {
+		return err
+	}
+
+	stmt := fmt.Sprintf("UPDATE %s SET schema_internal=?,schema_external=? WHERE address=?", tableName)
 	result, err := tx.Exec(stmt, internalVersion, externalVersion, address)
 	if err != nil {
 		return err
@@ -109,7 +195,12 @@ func UpdateClusterMemberSchemaVersion(tx *sql.Tx, internalVersion uint64, extern
 // GetClusterMemberSchemaVersions returns the schema versions from all cluster members that are not pending.
 // This helper is non-generated to work before generated statements are loaded, as we update the schema.
 func GetClusterMemberSchemaVersions(ctx context.Context, tx *sql.Tx) (internalSchema []uint64, externalSchema []uint64, err error) {
-	sql := "SELECT schema_internal,schema_external FROM internal_cluster_members WHERE NOT role='pending'"
+	tableName, err := getClusterSchemaTable(tx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	sql := fmt.Sprintf("SELECT schema_internal,schema_external FROM %s WHERE NOT role='pending'", tableName)
 
 	internalSchema = []uint64{}
 	externalSchema = []uint64{}

@@ -623,7 +623,7 @@ func (d *Daemon) sendUpgradeNotification(ctx context.Context, c *client.Client) 
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("Database upgrade notification failed: %s", resp.Status)
+		logger.Errorf("Database upgrade notification failed: %s", resp.Status)
 	}
 
 	return nil

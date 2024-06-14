@@ -111,14 +111,25 @@ func (s *SchemaUpdate) Ensure(db *sql.DB) (int, error) {
 
 	err = query.Transaction(context.TODO(), db, func(ctx context.Context, tx *sql.Tx) error {
 		if exists && updateSchemaTable {
-			// updateFromV1 changes the schema table and needs to be run before we calculate the schema version.
-			err := updateFromV1(ctx, tx)
+			versions, err := query.SelectIntegers(ctx, tx, "SELECT COALESCE(MAX(version), 0) FROM schemas ORDER BY version")
 			if err != nil {
 				return err
 			}
-		}
 
-		if exists {
+			if len(versions) != 1 {
+				return fmt.Errorf("Invalid schema version structure")
+			}
+
+			// Because we don't yet have separate columns for schema versions, we need to manually determine what the set of versions looks like.
+			// The update that split schema version columns was internal update 2, so the maximum internal version can only be 1.
+			// The external version will be the difference between the maximum in-database version and the maximum internal version, which is 1.
+			combinedVersion := versions[updateInternal]
+			versions = append(versions, 0)
+			if combinedVersion > 0 {
+				versions[updateInternal] = 1
+				versions[updateExternal] = combinedVersion - 1
+			}
+		} else if exists {
 			// maxVersionsStmt grabs the highest schema `version` column for each `type` (updateInternal/0) (updateExternal/1).
 			// The result is list of size 2, with index 0 corresponding to the max internal version and index 1 to the max external version, thanks to UNION ALL.
 			// The selected column must default to zero, otherwise query.SelectIntegers will fail to parse a null value as an integer.

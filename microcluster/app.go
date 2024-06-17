@@ -268,9 +268,44 @@ func (m *MicroCluster) RecoverFromQuorumLoss(members []cluster.DqliteMember) err
 	// Check each cluster member's /1.0 to ensure that they are unreachable.
 	// This is a sanity check to ensure that we're not reconfiguring a cluster
 	// that's still partially up.
-	// It may also be possible to check the raft term of each surviving member
-	// and redirect the user to call RecoverFromQuorumLoss on that member instead.
-	// TODO
+	remotes, err := recover.ReadTrustStore(m.FileSystem.TrustDir)
+	if err != nil {
+		return err
+	}
+
+	serverCert, err := m.FileSystem.ServerCert()
+	if err != nil {
+		return err
+	}
+
+	clusterCert, err := m.FileSystem.ClusterCert()
+	if err != nil {
+		return err
+	}
+
+	clusterKey, err := clusterCert.PublicKeyX509()
+	if err != nil {
+		return err
+	}
+
+	cluster, err := remotes.Cluster(false, serverCert, clusterKey)
+	if err != nil {
+		return err
+	}
+
+	cancelCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	err = cluster.Query(cancelCtx, true, func(ctx context.Context, client *client.Client) error {
+		var rslt internalTypes.Server
+		err := client.Query(ctx, "GET", "1.0", api.NewURL(), nil, &rslt)
+		if err == nil {
+			return fmt.Errorf("contacted cluster member at %q; please shut down all cluster members", rslt.Name)
+		}
+		return nil
+	})
+	cancel()
+	if err != nil {
+		return err
+	}
 
 	// FIXME: Take a DB backup
 

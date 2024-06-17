@@ -255,12 +255,45 @@ func (m *MicroCluster) RecoverFromQuorumLoss(members []cluster.LocalMember) erro
 		nodeInfo = append(nodeInfo, *info)
 	}
 
-	// Check each cluster member's /1.0 endpoint to ensure that they are unreachable
+	// Check each cluster member's /1.0 to ensure that they are unreachable.
 	// This is a sanity check to ensure that we're not reconfiguring a cluster
 	// that's still partially up.
-	// It may also be possible to check the raft term of each surviving member
-	// and redirect the user to call RecoverFromQuorumLoss on that member instead.
-	// TODO
+	remotes, err := recover.ReadTrustStore(m.FileSystem.TrustDir)
+	if err != nil {
+		return err
+	}
+
+	serverCert, err := m.FileSystem.ServerCert()
+	if err != nil {
+		return err
+	}
+
+	clusterCert, err := m.FileSystem.ClusterCert()
+	if err != nil {
+		return err
+	}
+
+	clusterKey, err := clusterCert.PublicKeyX509()
+	if err != nil {
+		return err
+	}
+
+	cluster, err := remotes.Cluster(false, serverCert, clusterKey)
+	if err != nil {
+		return err
+	}
+
+	err = cluster.Query(context.Background(), true, func(ctx context.Context, client *client.Client) error {
+		var rslt internalTypes.Server
+		err := client.Query(ctx, "GET", "1.0", api.NewURL(), nil, &rslt)
+		if err == nil {
+			return fmt.Errorf("contacted cluster member at %q; please shut down all cluster members", rslt.Name)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
 
 	// Ensure that the daemon is not running
 	isSocketPresent, err := m.FileSystem.IsControlSocketPresent()

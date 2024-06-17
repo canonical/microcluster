@@ -22,23 +22,7 @@ import (
 	"github.com/canonical/lxd/shared/api"
 	"github.com/canonical/lxd/shared/logger"
 	"github.com/canonical/lxd/shared/tcp"
-)
-
-// EndpointType is a type specifying the endpoint on with the resource exists.
-type EndpointType string
-
-const (
-	// ExtendedEndpoint - All endpoints added managed by external usage of MicroCluster.
-	ExtendedEndpoint EndpointType = "1.0"
-
-	// PublicEndpoint - Internally managed APIs available without authentication.
-	PublicEndpoint EndpointType = "cluster/1.0"
-
-	// InternalEndpoint - all endpoints restricted to trusted servers.
-	InternalEndpoint EndpointType = "cluster/internal"
-
-	// ControlEndpoint - all endpoints available on the local unix socket.
-	ControlEndpoint EndpointType = "cluster/control"
+	"github.com/canonical/microcluster/rest/types"
 )
 
 // Client is a rest client for the daemon.

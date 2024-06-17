@@ -226,6 +226,7 @@ func (d *Daemon) applyHooks(hooks *config.Hooks) {
 	noOpHook := func(s *state.State) error { return nil }
 	noOpRemoveHook := func(s *state.State, force bool) error { return nil }
 	noOpInitHook := func(s *state.State, initConfig map[string]string) error { return nil }
+	noOpNewMemberHook := func(s *state.State, newMember types.ClusterMemberLocal) error { return nil }
 
 	if hooks == nil {
 		d.hooks = config.Hooks{}
@@ -258,7 +259,7 @@ func (d *Daemon) applyHooks(hooks *config.Hooks) {
 	}
 
 	if d.hooks.OnNewMember == nil {
-		d.hooks.OnNewMember = noOpHook
+		d.hooks.OnNewMember = noOpNewMemberHook
 	}
 
 	if d.hooks.PreRemove == nil {
@@ -426,7 +427,7 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 
 	// If bootstrapping the first node, just open the database and create an entry for ourselves.
 	if bootstrap {
-		clusterMember := cluster.InternalClusterMember{
+		clusterMember := cluster.CoreClusterMember{
 			Name:        localNode.Name,
 			Address:     localNode.Address.String(),
 			Certificate: localNode.Certificate.String(),
@@ -489,7 +490,7 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 		return err
 	}
 
-	localMemberInfo := internalTypes.ClusterMemberLocal{Name: localNode.Name, Address: localNode.Address, Certificate: localNode.Certificate}
+	localMemberInfo := types.ClusterMemberLocal{Name: localNode.Name, Address: localNode.Address, Certificate: localNode.Certificate}
 	if len(joinAddresses) > 0 {
 		err = d.hooks.PreJoin(d.State(), initConfig)
 		if err != nil {
@@ -557,7 +558,7 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 			}
 
 			// Run the OnNewMember hook, and skip errors on any nodes that are still in the process of joining.
-			err = internalClient.RunNewMemberHook(ctx, c.Client.UseTarget(remote.Name), internalTypes.HookNewMemberOptions{Name: localMemberInfo.Name})
+			err = internalClient.RunNewMemberHook(ctx, c.Client.UseTarget(remote.Name), internalTypes.HookNewMemberOptions{NewMember: localMemberInfo})
 			if err != nil && err.Error() != "Daemon not yet initialized" {
 				return err
 			}

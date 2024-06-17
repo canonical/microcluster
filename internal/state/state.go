@@ -14,6 +14,7 @@ import (
 	internalClient "github.com/canonical/microcluster/internal/rest/client"
 	"github.com/canonical/microcluster/internal/sys"
 	"github.com/canonical/microcluster/internal/trust"
+	"github.com/canonical/microcluster/rest/types"
 )
 
 // State is a gateway to the stateful components of the microcluster daemon.
@@ -74,7 +75,7 @@ var PreRemoveHook func(state *State, force bool) error
 var OnHeartbeatHook func(state *State) error
 
 // OnNewMemberHook is a post-action hook that is run on all cluster members when a new cluster member joins the cluster.
-var OnNewMemberHook func(state *State) error
+var OnNewMemberHook func(state *State, newMember types.ClusterMemberLocal) error
 
 // ReloadClusterCert reloads the cluster keypair from the state directory.
 var ReloadClusterCert func() error

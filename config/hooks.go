@@ -2,6 +2,7 @@ package config
 
 import (
 	"github.com/canonical/microcluster/internal/state"
+	"github.com/canonical/microcluster/rest/types"
 )
 
 // Hooks holds customizable functions that can be called at varying points by the daemon to.
@@ -34,5 +35,5 @@ type Hooks struct {
 	OnHeartbeat func(s *state.State) error
 
 	// OnNewMember is run on each peer after a new cluster member has joined and executed their 'PreJoin' hook.
-	OnNewMember func(s *state.State) error
+	OnNewMember func(s *state.State, newMember types.ClusterMemberLocal) error
 }

@@ -6,16 +6,16 @@ import (
 
 	"github.com/canonical/lxd/shared/api"
 
-	"github.com/canonical/microcluster/internal/rest/types"
-	apiTypes "github.com/canonical/microcluster/rest/types"
+	internalTypes "github.com/canonical/microcluster/internal/rest/types"
+	"github.com/canonical/microcluster/rest/types"
 )
 
 // AddClusterMember records a new cluster member in the trust store of each current cluster member.
-func (c *Client) AddClusterMember(ctx context.Context, args types.ClusterMember) (*types.TokenResponse, error) {
+func (c *Client) AddClusterMember(ctx context.Context, args types.ClusterMember) (*internalTypes.TokenResponse, error) {
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	tokenResponse := types.TokenResponse{}
+	tokenResponse := internalTypes.TokenResponse{}
 	err := c.QueryStruct(queryCtx, "POST", PublicEndpoint, api.NewURL().Path("cluster"), args, &tokenResponse)
 	if err != nil {
 		return nil, err
@@ -62,7 +62,7 @@ func (c *Client) ResetClusterMember(ctx context.Context, name string, force bool
 }
 
 // UpdateClusterCertificate sets a new cluster keypair and CA.
-func (c *Client) UpdateClusterCertificate(ctx context.Context, args apiTypes.ClusterCertificatePut) error {
+func (c *Client) UpdateClusterCertificate(ctx context.Context, args types.ClusterCertificatePut) error {
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 

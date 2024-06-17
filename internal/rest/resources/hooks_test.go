@@ -15,8 +15,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/canonical/microcluster/internal/rest/types"
+	internalTypes "github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/internal/state"
+	"github.com/canonical/microcluster/rest/types"
 )
 
 type hooksSuite struct {
@@ -33,77 +34,77 @@ func (t *hooksSuite) Test_hooks() {
 		Name:    func() string { return "n0" },
 	}
 
-	var ranHook types.HookType
+	var ranHook internalTypes.HookType
 	var isForce bool
 	state.PostRemoveHook = func(state *state.State, force bool) error {
-		ranHook = types.PostRemove
+		ranHook = internalTypes.PostRemove
 		isForce = force
 		return nil
 	}
 
 	state.PreRemoveHook = func(state *state.State, force bool) error {
-		ranHook = types.PreRemove
+		ranHook = internalTypes.PreRemove
 		isForce = force
 		return nil
 	}
 
-	state.OnNewMemberHook = func(state *state.State) error {
-		ranHook = types.OnNewMember
+	state.OnNewMemberHook = func(state *state.State, newMember types.ClusterMemberLocal) error {
+		ranHook = internalTypes.OnNewMember
 		return nil
 	}
 
 	tests := []struct {
 		name      string
 		req       any
-		hookType  types.HookType
+		hookType  internalTypes.HookType
 		expectErr bool
 	}{
 		{
 			name:      "Run OnNewMember hook",
-			req:       types.HookNewMemberOptions{Name: "n1"},
-			hookType:  types.OnNewMember,
+			req:       internalTypes.HookNewMemberOptions{NewMember: types.ClusterMemberLocal{Name: "n1"}},
+			hookType:  internalTypes.OnNewMember,
 			expectErr: false,
 		},
 		{
 			name:      "Run PostRemove hook with force",
-			req:       types.HookRemoveMemberOptions{Force: true},
-			hookType:  types.PostRemove,
+			req:       internalTypes.HookRemoveMemberOptions{Force: true},
+			hookType:  internalTypes.PostRemove,
 			expectErr: false,
 		},
 		{
 			name:      "Run PostRemove hook without force",
-			req:       types.HookRemoveMemberOptions{},
-			hookType:  types.PostRemove,
+			req:       internalTypes.HookRemoveMemberOptions{},
+			hookType:  internalTypes.PostRemove,
 			expectErr: false,
 		},
 		{
 			name:      "Run PreRemove hook with force",
-			req:       types.HookRemoveMemberOptions{Force: true},
-			hookType:  types.PreRemove,
+			req:       internalTypes.HookRemoveMemberOptions{Force: true},
+			hookType:  internalTypes.PreRemove,
 			expectErr: false,
 		},
 		{
 			name:      "Run PreRemove hook without force",
-			req:       types.HookRemoveMemberOptions{},
-			hookType:  types.PreRemove,
+			req:       internalTypes.HookRemoveMemberOptions{},
+			hookType:  internalTypes.PreRemove,
 			expectErr: false,
 		},
 		{
 			name:      "Fail to run any other hook",
-			req:       types.HookNewMemberOptions{Name: "n1"},
-			hookType:  types.PostBootstrap,
+			req:       internalTypes.HookNewMemberOptions{NewMember: types.ClusterMemberLocal{Name: "n1"}},
+			hookType:  internalTypes.PostBootstrap,
 			expectErr: true,
 		},
 		{
 			name:      "Fail to run a nonexistent hook",
-			req:       types.HookNewMemberOptions{Name: "n1"},
+			req:       internalTypes.HookNewMemberOptions{NewMember: types.ClusterMemberLocal{Name: "n1"}},
 			hookType:  "this is not a hook type",
 			expectErr: true,
 		},
 		{
 			name:      "Fail to run a hook with the wrong payload type",
-			req:       types.HookRemoveMemberOptions{Force: true},
-			hookType:  types.OnNewMember,
+			req:       internalTypes.HookRemoveMemberOptions{Force: true},
+			hookType:  internalTypes.OnNewMember,
 			expectErr: true,
 		},
 	}
@@ -115,11 +116,11 @@ func (t *hooksSuite) Test_hooks() {
 		isForce = false
 		expectForce := false
 		req := &http.Request{}
-		payload, ok := c.req.(types.HookRemoveMemberOptions)
+		payload, ok := c.req.(internalTypes.HookRemoveMemberOptions)
 		if !ok {
-			payload, ok := c.req.(types.HookNewMemberOptions)
+			payload, ok := c.req.(internalTypes.HookNewMemberOptions)
 			t.True(ok)
-			req.Body = io.NopCloser(strings.NewReader(fmt.Sprintf(`{"name": %q}`, payload.Name)))
+			req.Body = io.NopCloser(strings.NewReader(fmt.Sprintf(`{"new_member": {"name": %q}}`, payload.NewMember.Name)))
 		} else {
 			expectForce = payload.Force
 			req.Body = io.NopCloser(strings.NewReader(fmt.Sprintf(`{"force": %v}`, expectForce)))
@@ -146,7 +147,7 @@ func (t *hooksSuite) Test_hooks() {
 			t.Equal(api.ErrorResponse, resp.Type)
 			t.NotEqual(api.Success.String(), resp.Status)
 			t.NotEqual(http.StatusOK, resp.StatusCode)
-			t.Equal(types.HookType(""), ranHook)
+			t.Equal(internalTypes.HookType(""), ranHook)
 			t.Equal(false, isForce)
 		}
 	}

@@ -2,10 +2,12 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/canonical/lxd/shared"
@@ -70,6 +72,9 @@ func (c *cmdClusterMembers) run(cmd *cobra.Command, args []string) error {
 
 type cmdClusterMembersList struct {
 	common *CmdControl
+
+	flagLocal  bool
+	flagFormat string
 }
 
 func (c *cmdClusterMembersList) command() *cobra.Command {
@@ -78,6 +83,9 @@ func (c *cmdClusterMembersList) command() *cobra.Command {
 		Short: "List cluster members locally, or remotely if an address is specified.",
 		RunE:  c.run,
 	}
+
+	cmd.Flags().BoolVarP(&c.flagLocal, "local", "l", false, "display the locally available cluster info (no database query)")
+	cmd.Flags().StringVarP(&c.flagFormat, "format", "f", cli.TableFormatTable, "Format (csv|json|table|yaml|compact)")
 
 	return cmd
 }
@@ -91,6 +99,10 @@ func (c *cmdClusterMembersList) run(cmd *cobra.Command, args []string) error {
 	m, err := microcluster.App(microcluster.Args{StateDir: c.common.FlagStateDir, Verbose: c.common.FlagLogVerbose, Debug: c.common.FlagLogDebug})
 	if err != nil {
 		return err
+	}
+
+	if c.flagLocal {
+		return c.listLocalClusterMembers(m)
 	}
 
 	var client *client.Client
@@ -108,7 +120,11 @@ func (c *cmdClusterMembersList) run(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	clusterMembers, err := client.GetClusterMembers(cmd.Context())
+	return c.listClusterMembers(cmd.Context(), client)
+}
+
+func (c *cmdClusterMembersList) listClusterMembers(ctx context.Context, client *client.Client) error {
+	clusterMembers, err := client.GetClusterMembers(ctx)
 	if err != nil {
 		return err
 	}
@@ -121,7 +137,24 @@ func (c *cmdClusterMembersList) run(cmd *cobra.Command, args []string) error {
 	header := []string{"NAME", "ADDRESS", "ROLE", "CERTIFICATE", "STATUS"}
 	sort.Sort(cli.SortColumnsNaturally(data))
 
-	return cli.RenderTable(cli.TableFormatTable, header, data, clusterMembers)
+	return cli.RenderTable(c.flagFormat, header, data, clusterMembers)
+}
+
+func (c *cmdClusterMembersList) listLocalClusterMembers(m *microcluster.MicroCluster) error {
+	members, err := m.GetDqliteClusterMembers()
+	if err != nil {
+		return err
+	}
+
+	data := make([][]string, len(members))
+	for i, member := range members {
+		data[i] = []string{strconv.FormatUint(member.DqliteID, 10), member.Name, member.Address, member.Role}
+	}
+
+	header := []string{"ID", "NAME", "ADDRESS", "ROLE"}
+	sort.Sort(cli.SortColumnsNaturally(data))
+
+	return cli.RenderTable(c.flagFormat, header, data, members)
 }
 
 type cmdClusterMemberRemove struct {

@@ -14,7 +14,7 @@ func AddTrustStoreEntry(ctx context.Context, c *Client, args types.ClusterMember
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	return c.QueryStruct(queryCtx, "POST", InternalEndpoint, api.NewURL().Path("truststore"), args, nil)
+	return c.QueryStruct(queryCtx, "POST", types.InternalEndpoint, api.NewURL().Path("truststore"), args, nil)
 }
 
 // DeleteTrustStoreEntry deletes the record corresponding to the given cluster member from the trust store.
@@ -22,5 +22,5 @@ func DeleteTrustStoreEntry(ctx context.Context, c *Client, name string) error {
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	return c.QueryStruct(queryCtx, "DELETE", InternalEndpoint, api.NewURL().Path("truststore", name), nil, nil)
+	return c.QueryStruct(queryCtx, "DELETE", types.InternalEndpoint, api.NewURL().Path("truststore", name), nil, nil)
 }

@@ -16,7 +16,7 @@ func (c *Client) AddClusterMember(ctx context.Context, args types.ClusterMember)
 	defer cancel()
 
 	tokenResponse := types.TokenResponse{}
-	err := c.QueryStruct(queryCtx, "POST", PublicEndpoint, api.NewURL().Path("cluster"), args, &tokenResponse)
+	err := c.QueryStruct(queryCtx, "POST", types.PublicEndpoint, api.NewURL().Path("cluster"), args, &tokenResponse)
 	if err != nil {
 		return nil, err
 	}
@@ -30,7 +30,7 @@ func (c *Client) GetClusterMembers(ctx context.Context) ([]types.ClusterMember, 
 	defer cancel()
 
 	clusterMembers := []types.ClusterMember{}
-	err := c.QueryStruct(queryCtx, "GET", PublicEndpoint, api.NewURL().Path("cluster"), nil, &clusterMembers)
+	err := c.QueryStruct(queryCtx, "GET", types.PublicEndpoint, api.NewURL().Path("cluster"), nil, &clusterMembers)
 
 	return clusterMembers, err
 }
@@ -45,7 +45,7 @@ func (c *Client) DeleteClusterMember(ctx context.Context, name string, force boo
 		endpoint = endpoint.WithQuery("force", "1")
 	}
 
-	return c.QueryStruct(queryCtx, "DELETE", PublicEndpoint, endpoint, nil, nil)
+	return c.QueryStruct(queryCtx, "DELETE", types.PublicEndpoint, endpoint, nil, nil)
 }
 
 // ResetClusterMember clears the state directory of the cluster member, and re-execs its daemon.
@@ -58,7 +58,7 @@ func (c *Client) ResetClusterMember(ctx context.Context, name string, force bool
 		endpoint = endpoint.WithQuery("force", "1")
 	}
 
-	return c.QueryStruct(queryCtx, "PUT", PublicEndpoint, endpoint, nil, nil)
+	return c.QueryStruct(queryCtx, "PUT", types.PublicEndpoint, endpoint, nil, nil)
 }
 
 // UpdateClusterCertificate sets a new cluster keypair and CA.
@@ -67,5 +67,5 @@ func (c *Client) UpdateClusterCertificate(ctx context.Context, args apiTypes.Clu
 	defer cancel()
 
 	endpoint := api.NewURL().Path("cluster", "certificates")
-	return c.QueryStruct(queryCtx, "PUT", InternalEndpoint, endpoint, args, nil)
+	return c.QueryStruct(queryCtx, "PUT", types.InternalEndpoint, endpoint, args, nil)
 }

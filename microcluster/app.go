@@ -107,7 +107,7 @@ func (m *MicroCluster) Status(ctx context.Context) (*internalTypes.Server, error
 	}
 
 	server := internalTypes.Server{}
-	err = c.QueryStruct(ctx, "GET", internalClient.PublicEndpoint, nil, nil, &server)
+	err = c.QueryStruct(ctx, "GET", internalTypes.PublicEndpoint, nil, nil, &server)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get cluster status: %w", err)
 	}

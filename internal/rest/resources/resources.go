@@ -71,9 +71,16 @@ func checkDuplicateEndpoints(extensionServerEndpoints rest.Resources) error {
 // It also ensures that there are no conflicts between endpoints from extensionServers and internal endpoints.
 func GetCoreEndpoints(extensionServers []rest.Server) ([]rest.Resources, error) {
 	var coreEndpoints []rest.Resources
+	var numCoreAPIs int
+
 	for _, extensionServer := range extensionServers {
 		if !extensionServer.CoreAPI {
 			continue
+		}
+
+		numCoreAPIs++
+		if numCoreAPIs > 1 {
+			return nil, fmt.Errorf("Only one core API server is allowed")
 		}
 
 		err := extensionServer.ValidateServerConfigs()

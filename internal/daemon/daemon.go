@@ -185,7 +185,7 @@ func (d *Daemon) init(listenPort string, schemaExtensions []schema.Update, apiEx
 	d.db = db.NewDB(d.shutdownCtx, d.serverCert, d.ClusterCert, d.os)
 
 	// Extract user defined endpoints for core listener.
-	coreEndpoints, err := resources.GetCoreEndpoints(d.extensionServers)
+	coreEndpoints, err := resources.GetAndValidateCoreEndpoints(d.extensionServers)
 	if err != nil {
 		return err
 	}
@@ -423,7 +423,7 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 	}
 
 	// Extract user defined endpoints for core listener.
-	coreEndpoints, err := resources.GetCoreEndpoints(d.extensionServers)
+	coreEndpoints, err := resources.GetAndValidateCoreEndpoints(d.extensionServers)
 	if err != nil {
 		return err
 	}

@@ -12,9 +12,6 @@ type Server struct {
 }
 
 const (
-	// ExtendedEndpoint - All endpoints added managed by external usage of MicroCluster.
-	ExtendedEndpoint types.EndpointPrefix = "1.0"
-
 	// PublicEndpoint - Internally managed APIs available without authentication.
 	PublicEndpoint types.EndpointPrefix = "cluster/1.0"
 

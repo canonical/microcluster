@@ -1,6 +1,7 @@
 package rest
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/canonical/lxd/lxd/response"
@@ -41,14 +42,26 @@ type Endpoint struct {
 
 // Resources represents all the resources served over the same path.
 type Resources struct {
-	Path      types.EndpointPrefix
-	Endpoints []Endpoint
+	PathPrefix types.EndpointPrefix
+	Endpoints  []Endpoint
 }
 
 // Server contains configuration and handlers for additional listeners to be instantiated after app startup.
 type Server struct {
+	CoreAPI     bool
 	Protocol    string
 	Address     types.AddrPort
 	Certificate *shared.CertInfo
 	Resources   []Resources
+}
+
+// ValidateServerConfigs checks that the server configuration is valid.
+func (s Server) ValidateServerConfigs() error {
+	if s.CoreAPI {
+		if s.Address != (types.AddrPort{}) || s.Protocol != "" || s.Certificate != nil {
+			return fmt.Errorf("Core API server cannot have Address, Protocol or Certificate")
+		}
+	}
+
+	return nil
 }

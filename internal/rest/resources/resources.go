@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 
 	"github.com/canonical/microcluster/internal/rest/types"
-
 	"github.com/canonical/microcluster/rest"
 )
 

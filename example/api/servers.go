@@ -2,6 +2,7 @@
 package api
 
 import (
+	"github.com/canonical/microcluster/example/api/types"
 	"github.com/canonical/microcluster/rest"
 )
 
@@ -13,7 +14,7 @@ var Servers = []rest.Server{
 		CoreAPI: true,
 		Resources: []rest.Resources{
 			{
-				Path: "1.0",
+				PathPrefix: types.ExtendedPathPrefix,
 				Endpoints: []rest.Endpoint{
 					extendedCmd,
 				},

@@ -607,7 +607,7 @@ func (d *Daemon) addExtensionServers() error {
 
 func (d *Daemon) sendUpgradeNotification(ctx context.Context, c *client.Client) error {
 	path := c.URL()
-	parts := strings.Split(string(internalClient.InternalEndpoint), "/")
+	parts := strings.Split(string(internalTypes.InternalEndpoint), "/")
 	parts = append(parts, "database")
 	path = *path.Path(parts...)
 	upgradeRequest, err := http.NewRequest("PATCH", path.String(), nil)

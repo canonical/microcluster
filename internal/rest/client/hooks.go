@@ -14,7 +14,7 @@ func RunPreRemoveHook(ctx context.Context, c *Client, config types.HookRemoveMem
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	return c.QueryStruct(queryCtx, "POST", InternalEndpoint, api.NewURL().Path("hooks", string(types.PreRemove)), config, nil)
+	return c.QueryStruct(queryCtx, "POST", types.InternalEndpoint, api.NewURL().Path("hooks", string(types.PreRemove)), config, nil)
 }
 
 // RunPostRemoveHook executes the PostRemove hook with the given configuration on the cluster member targeted by this client.
@@ -22,7 +22,7 @@ func RunPostRemoveHook(ctx context.Context, c *Client, config types.HookRemoveMe
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	return c.QueryStruct(queryCtx, "POST", InternalEndpoint, api.NewURL().Path("hooks", string(types.PostRemove)), config, nil)
+	return c.QueryStruct(queryCtx, "POST", types.InternalEndpoint, api.NewURL().Path("hooks", string(types.PostRemove)), config, nil)
 }
 
 // RunNewMemberHook executes the OnNewMember hook with the given configuration on the cluster member targeted by this client.
@@ -30,5 +30,5 @@ func RunNewMemberHook(ctx context.Context, c *Client, config types.HookNewMember
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	return c.QueryStruct(queryCtx, "POST", InternalEndpoint, api.NewURL().Path("hooks", string(types.OnNewMember)), config, nil)
+	return c.QueryStruct(queryCtx, "POST", types.InternalEndpoint, api.NewURL().Path("hooks", string(types.OnNewMember)), config, nil)
 }

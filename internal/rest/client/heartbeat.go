@@ -17,5 +17,5 @@ func (c *Client) Heartbeat(ctx context.Context, hbInfo types.HeartbeatInfo) erro
 	queryCtx, cancel := context.WithTimeout(ctx, HeartbeatTimeout*time.Second)
 	defer cancel()
 
-	return c.QueryStruct(queryCtx, "POST", InternalEndpoint, api.NewURL().Path("heartbeat"), hbInfo, nil)
+	return c.QueryStruct(queryCtx, "POST", types.InternalEndpoint, api.NewURL().Path("heartbeat"), hbInfo, nil)
 }

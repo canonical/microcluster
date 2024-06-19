@@ -8,6 +8,7 @@ import (
 	"github.com/canonical/lxd/shared/api"
 
 	"github.com/canonical/microcluster/internal/rest/client"
+	"github.com/canonical/microcluster/rest/types"
 )
 
 // Client is a rest client for the MicroCluster daemon.
@@ -20,13 +21,13 @@ func IsNotification(r *http.Request) bool {
 	return r.Header.Get("User-Agent") == clusterRequest.UserAgentNotifier
 }
 
-// Query is a helper for initiating a request on the /1.0 endpoint. This function should be used for all client
+// Query is a helper for initiating a request to the microcluster API. This function should be used for all client
 // methods defined externally from MicroCluster.
-func (c *Client) Query(ctx context.Context, method string, path *api.URL, in any, out any) error {
+func (c *Client) Query(ctx context.Context, method string, prefix types.EndpointPrefix, path *api.URL, in any, out any) error {
 	queryCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	return c.QueryStruct(queryCtx, method, client.ExtendedEndpoint, path, in, &out)
+	return c.QueryStruct(queryCtx, method, prefix, path, in, &out)
 }
 
 // UseTarget returns a new client with the query "?target=name" set.

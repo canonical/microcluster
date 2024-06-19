@@ -22,23 +22,8 @@ import (
 	"github.com/canonical/lxd/shared/api"
 	"github.com/canonical/lxd/shared/logger"
 	"github.com/canonical/lxd/shared/tcp"
-)
 
-// EndpointType is a type specifying the endpoint on with the resource exists.
-type EndpointType string
-
-const (
-	// ExtendedEndpoint - All endpoints added managed by external usage of MicroCluster.
-	ExtendedEndpoint EndpointType = "1.0"
-
-	// PublicEndpoint - Internally managed APIs available without authentication.
-	PublicEndpoint EndpointType = "cluster/1.0"
-
-	// InternalEndpoint - all endpoints restricted to trusted servers.
-	InternalEndpoint EndpointType = "cluster/internal"
-
-	// ControlEndpoint - all endpoints available on the local unix socket.
-	ControlEndpoint EndpointType = "cluster/control"
+	"github.com/canonical/microcluster/rest/types"
 )
 
 // Client is a rest client for the daemon.
@@ -287,7 +272,7 @@ func (c *Client) MakeRequest(r *http.Request) (*api.Response, error) {
 // The response gets unpacked into the target struct. POST requests can optionally provide raw data to be sent through.
 //
 // The final URL is that provided as the endpoint combined with the applicable prefix for the endpointType and the scheme and host from the client.
-func (c *Client) QueryStruct(ctx context.Context, method string, endpointType EndpointType, endpoint *api.URL, data any, target any) error {
+func (c *Client) QueryStruct(ctx context.Context, method string, endpointType types.EndpointPrefix, endpoint *api.URL, data any, target any) error {
 	// Merge the provided URL with the one we have for the client.
 	localURL := api.NewURL()
 	if endpoint != nil {

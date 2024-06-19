@@ -20,7 +20,7 @@ func ExtendedPostCmd(ctx context.Context, c *client.Client, data *types.Extended
 	defer cancel()
 
 	var outStr string
-	err := c.Query(queryCtx, "POST", api.NewURL().Path("extended"), data, &outStr)
+	err := c.Query(queryCtx, "POST", "1.0", api.NewURL().Path("extended"), data, &outStr)
 	if err != nil {
 		clientURL := c.URL()
 		return "", fmt.Errorf("Failed performing action on %q: %w", clientURL.String(), err)

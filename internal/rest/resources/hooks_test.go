@@ -28,26 +28,27 @@ func TestHooksSuite(t *testing.T) {
 }
 
 func (t *hooksSuite) Test_hooks() {
-	s := &state.State{
-		Context: context.TODO(),
-		Name:    func() string { return "n0" },
+	s := &state.InternalState{
+		Context:      context.TODO(),
+		InternalName: func() string { return "n0" },
+		Hooks:        &state.Hooks{},
 	}
 
 	var ranHook types.HookType
 	var isForce bool
-	state.PostRemoveHook = func(state *state.State, force bool) error {
+	s.Hooks.PostRemove = func(state state.State, force bool) error {
 		ranHook = types.PostRemove
 		isForce = force
 		return nil
 	}
 
-	state.PreRemoveHook = func(state *state.State, force bool) error {
+	s.Hooks.PreRemove = func(state state.State, force bool) error {
 		ranHook = types.PreRemove
 		isForce = force
 		return nil
 	}
 
-	state.OnNewMemberHook = func(state *state.State) error {
+	s.Hooks.OnNewMember = func(state state.State) error {
 		ranHook = types.OnNewMember
 		return nil
 	}

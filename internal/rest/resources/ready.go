@@ -6,9 +6,10 @@ import (
 
 	"github.com/canonical/lxd/lxd/response"
 
-	"github.com/canonical/microcluster/internal/state"
+	internalState "github.com/canonical/microcluster/internal/state"
 	"github.com/canonical/microcluster/rest"
 	"github.com/canonical/microcluster/rest/access"
+	"github.com/canonical/microcluster/state"
 )
 
 var readyCmd = rest.Endpoint{
@@ -18,13 +19,18 @@ var readyCmd = rest.Endpoint{
 	Get: rest.EndpointAction{Handler: getWaitReady, AccessHandler: access.AllowAuthenticated},
 }
 
-func getWaitReady(state *state.State, r *http.Request) response.Response {
-	if state.Context.Err() != nil {
+func getWaitReady(state state.State, r *http.Request) response.Response {
+	intState, err := internalState.ToInternal(state)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	if intState.Context.Err() != nil {
 		return response.Unavailable(fmt.Errorf("Daemon is shutting down"))
 	}
 
 	select {
-	case <-state.ReadyCh:
+	case <-intState.ReadyCh:
 	default:
 		return response.Unavailable(fmt.Errorf("Daemon is not ready yet"))
 	}

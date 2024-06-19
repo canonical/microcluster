@@ -19,8 +19,8 @@ type EndpointAlias struct {
 
 // EndpointAction represents an action on an API endpoint.
 type EndpointAction struct {
-	Handler        func(state *state.State, r *http.Request) response.Response
-	AccessHandler  func(state *state.State, r *http.Request) response.Response
+	Handler        func(state state.State, r *http.Request) response.Response
+	AccessHandler  func(state state.State, r *http.Request) response.Response
 	AllowUntrusted bool
 	ProxyTarget    bool // Allow forwarding of the request to a target if ?target=name is specified.
 }

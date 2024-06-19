@@ -18,12 +18,13 @@ import (
 	"github.com/canonical/microcluster/cluster"
 	internalAccess "github.com/canonical/microcluster/internal/rest/access"
 	"github.com/canonical/microcluster/internal/rest/client"
-	"github.com/canonical/microcluster/internal/state"
+	internalState "github.com/canonical/microcluster/internal/state"
 	"github.com/canonical/microcluster/rest"
 	"github.com/canonical/microcluster/rest/access"
+	"github.com/canonical/microcluster/state"
 )
 
-func handleAPIRequest(action rest.EndpointAction, state *state.State, w http.ResponseWriter, r *http.Request) response.Response {
+func handleAPIRequest(action rest.EndpointAction, state state.State, w http.ResponseWriter, r *http.Request) response.Response {
 	if action.Handler == nil {
 		return response.NotImplemented(nil)
 	}
@@ -51,7 +52,7 @@ func handleAPIRequest(action rest.EndpointAction, state *state.State, w http.Res
 	return action.Handler(state, r)
 }
 
-func proxyTarget(action rest.EndpointAction, s *state.State, r *http.Request) response.Response {
+func proxyTarget(action rest.EndpointAction, s state.State, r *http.Request) response.Response {
 	if r.URL == nil {
 		return action.Handler(s, r)
 	}
@@ -71,7 +72,7 @@ func proxyTarget(action rest.EndpointAction, s *state.State, r *http.Request) re
 	}
 
 	var targetURL *api.URL
-	err = s.Database.Transaction(s.Context, func(ctx context.Context, tx *sql.Tx) error {
+	err = s.Database().Transaction(r.Context(), func(ctx context.Context, tx *sql.Tx) error {
 		clusterMember, err := cluster.GetInternalClusterMember(ctx, tx, target)
 		if err != nil {
 			return fmt.Errorf("Failed to get cluster member for request target name %q: %w", target, err)
@@ -110,7 +111,7 @@ func proxyTarget(action rest.EndpointAction, s *state.State, r *http.Request) re
 	return response.SyncResponse(true, resp.Metadata)
 }
 
-func handleDatabaseRequest(action rest.EndpointAction, state *state.State, w http.ResponseWriter, r *http.Request) response.Response {
+func handleDatabaseRequest(action rest.EndpointAction, state state.State, w http.ResponseWriter, r *http.Request) response.Response {
 	trusted := r.Context().Value(request.CtxAccess)
 	if trusted == nil {
 		return response.Forbidden(nil)
@@ -141,7 +142,7 @@ func handleDatabaseRequest(action rest.EndpointAction, state *state.State, w htt
 			return response.InternalError(fmt.Errorf("Failed to hijack connection: %w", err))
 		}
 
-		state.Database.Accept(conn)
+		state.Database().Accept(conn)
 	}
 
 	return action.Handler(state, r)
@@ -149,7 +150,7 @@ func handleDatabaseRequest(action rest.EndpointAction, state *state.State, w htt
 
 // HandleEndpoint adds the endpoint to the mux router. A function variable is used to implement common logic
 // before calling the endpoint action handler associated with the request method, if it exists.
-func HandleEndpoint(state *state.State, mux *mux.Router, version string, e rest.Endpoint) {
+func HandleEndpoint(state state.State, mux *mux.Router, version string, e rest.Endpoint) {
 	url := "/" + version
 	if e.Path != "" {
 		url = filepath.Join(url, e.Path)
@@ -161,8 +162,18 @@ func HandleEndpoint(state *state.State, mux *mux.Router, version string, e rest.
 		// Actually process the request.
 		var resp response.Response
 
+		intState, err := internalState.ToInternal(state)
+		if err != nil {
+			err := response.BadRequest(err).Render(w)
+			if err != nil {
+				logger.Error("Failed to write HTTP response", logger.Ctx{"url": r.URL, "err": err})
+			}
+
+			return
+		}
+
 		// Return Unavailable Error (503) if daemon is shutting down, except for endpoints with AllowedDuringShutdown.
-		if state.Context.Err() == context.Canceled && !e.AllowedDuringShutdown {
+		if intState.Context.Err() == context.Canceled && !e.AllowedDuringShutdown {
 			err := response.Unavailable(fmt.Errorf("Daemon is shutting down")).Render(w)
 			if err != nil {
 				logger.Error("Failed to write HTTP response", logger.Ctx{"url": r.URL, "err": err})
@@ -172,7 +183,7 @@ func HandleEndpoint(state *state.State, mux *mux.Router, version string, e rest.
 		}
 
 		if !e.AllowedBeforeInit {
-			if !state.Database.IsOpen() {
+			if !state.Database().IsOpen() {
 				err := response.Unavailable(fmt.Errorf("Daemon not yet initialized")).Render(w)
 				if err != nil {
 					logger.Error("Failed to write HTTP response", logger.Ctx{"url": r.URL, "err": err})

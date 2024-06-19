@@ -15,9 +15,9 @@ import (
 	"github.com/canonical/lxd/shared/logger"
 
 	"github.com/canonical/microcluster/internal/rest/types"
-	"github.com/canonical/microcluster/internal/state"
 	"github.com/canonical/microcluster/rest"
 	"github.com/canonical/microcluster/rest/access"
+	"github.com/canonical/microcluster/state"
 )
 
 var sqlCmd = rest.Endpoint{
@@ -28,7 +28,7 @@ var sqlCmd = rest.Endpoint{
 }
 
 // Perform a database dump.
-func sqlGet(state *state.State, r *http.Request) response.Response {
+func sqlGet(state state.State, r *http.Request) response.Response {
 	parentCtx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
@@ -38,7 +38,7 @@ func sqlGet(state *state.State, r *http.Request) response.Response {
 	}
 
 	var dump string
-	err = state.Database.Transaction(parentCtx, func(ctx context.Context, tx *sql.Tx) error {
+	err = state.Database().Transaction(parentCtx, func(ctx context.Context, tx *sql.Tx) error {
 		dump, err = query.Dump(ctx, tx, schemaOnly == 1)
 		if err != nil {
 			return fmt.Errorf("Failed dump database: %w", err)
@@ -54,7 +54,7 @@ func sqlGet(state *state.State, r *http.Request) response.Response {
 }
 
 // Execute queries.
-func sqlPost(state *state.State, r *http.Request) response.Response {
+func sqlPost(state state.State, r *http.Request) response.Response {
 	parentCtx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 	req := &types.SQLQuery{}
@@ -78,7 +78,7 @@ func sqlPost(state *state.State, r *http.Request) response.Response {
 		}
 
 		result := types.SQLResult{}
-		err = state.Database.Transaction(parentCtx, func(ctx context.Context, tx *sql.Tx) error {
+		err = state.Database().Transaction(parentCtx, func(ctx context.Context, tx *sql.Tx) error {
 			if strings.HasPrefix(strings.ToUpper(query), "SELECT") {
 				err = sqlSelect(ctx, tx, query, &result)
 			} else {

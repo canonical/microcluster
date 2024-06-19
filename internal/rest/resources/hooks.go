@@ -10,9 +10,10 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/canonical/microcluster/internal/rest/types"
-	"github.com/canonical/microcluster/internal/state"
+	internalState "github.com/canonical/microcluster/internal/state"
 	"github.com/canonical/microcluster/rest"
 	"github.com/canonical/microcluster/rest/access"
+	"github.com/canonical/microcluster/state"
 )
 
 var hooksCmd = rest.Endpoint{
@@ -21,8 +22,13 @@ var hooksCmd = rest.Endpoint{
 	Post: rest.EndpointAction{Handler: hooksPost, AccessHandler: access.AllowAuthenticated, ProxyTarget: true},
 }
 
-func hooksPost(s *state.State, r *http.Request) response.Response {
+func hooksPost(s state.State, r *http.Request) response.Response {
 	hookTypeStr, err := url.PathUnescape(mux.Vars(r)["hookType"])
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	intState, err := internalState.ToInternal(s)
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -35,7 +41,7 @@ func hooksPost(s *state.State, r *http.Request) response.Response {
 			return response.BadRequest(err)
 		}
 
-		err = state.PreRemoveHook(s, req.Force)
+		err = intState.Hooks.PreRemove(s, req.Force)
 		if err != nil {
 			return response.SmartError(fmt.Errorf("Failed to execute pre-remove hook on cluster member %q: %w", s.Name(), err))
 		}
@@ -46,7 +52,7 @@ func hooksPost(s *state.State, r *http.Request) response.Response {
 			return response.BadRequest(err)
 		}
 
-		err = state.PostRemoveHook(s, req.Force)
+		err = intState.Hooks.PostRemove(s, req.Force)
 		if err != nil {
 			return response.SmartError(fmt.Errorf("Failed to execute post-remove hook on cluster member %q: %w", s.Name(), err))
 		}
@@ -62,7 +68,7 @@ func hooksPost(s *state.State, r *http.Request) response.Response {
 			return response.SmartError(fmt.Errorf("No new member name given for NewMember hook execution"))
 		}
 
-		err = state.OnNewMemberHook(s)
+		err = intState.Hooks.OnNewMember(s)
 		if err != nil {
 			return response.SmartError(fmt.Errorf("Failed to run hook after system %q has joined the cluster: %w", req.Name, err))
 		}

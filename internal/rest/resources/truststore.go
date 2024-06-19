@@ -14,10 +14,11 @@ import (
 	"github.com/canonical/microcluster/client"
 	internalClient "github.com/canonical/microcluster/internal/rest/client"
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
-	"github.com/canonical/microcluster/internal/state"
+	internalState "github.com/canonical/microcluster/internal/state"
 	"github.com/canonical/microcluster/internal/trust"
 	"github.com/canonical/microcluster/rest"
 	"github.com/canonical/microcluster/rest/access"
+	"github.com/canonical/microcluster/state"
 )
 
 var trustCmd = rest.Endpoint{
@@ -34,7 +35,7 @@ var trustEntryCmd = rest.Endpoint{
 	Delete: rest.EndpointAction{Handler: trustDelete, AccessHandler: access.AllowAuthenticated},
 }
 
-func trustPost(s *state.State, r *http.Request) response.Response {
+func trustPost(s state.State, r *http.Request) response.Response {
 	req := internalTypes.ClusterMemberLocal{}
 
 	// Parse the request.
@@ -43,12 +44,17 @@ func trustPost(s *state.State, r *http.Request) response.Response {
 		return response.BadRequest(err)
 	}
 
+	intState, err := internalState.ToInternal(s)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
 	newRemote := trust.Remote{
 		Location:    trust.Location{Name: req.Name, Address: req.Address},
 		Certificate: req.Certificate,
 	}
 
-	ctx, cancel := context.WithTimeout(s.Context, 30*time.Second)
+	ctx, cancel := context.WithTimeout(intState.Context, 30*time.Second)
 	defer cancel()
 
 	if !client.IsNotification(r) {
@@ -74,7 +80,7 @@ func trustPost(s *state.State, r *http.Request) response.Response {
 	remotes := s.Remotes()
 	_, ok := remotes.RemotesByName()[newRemote.Name]
 	if !ok {
-		err = remotes.Add(s.OS.TrustDir, newRemote)
+		err = remotes.Add(s.FileSystem().TrustDir, newRemote)
 		if err != nil {
 			return response.SmartError(fmt.Errorf("Failed adding local record of newly joined node %q: %w", req.Name, err))
 		}
@@ -83,13 +89,18 @@ func trustPost(s *state.State, r *http.Request) response.Response {
 	return response.EmptySyncResponse
 }
 
-func trustDelete(s *state.State, r *http.Request) response.Response {
+func trustDelete(s state.State, r *http.Request) response.Response {
+	intState, err := internalState.ToInternal(s)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
 	name, err := url.PathUnescape(mux.Vars(r)["name"])
 	if err != nil {
 		return response.SmartError(err)
 	}
 
-	ctx, cancel := context.WithTimeout(s.Context, 30*time.Second)
+	ctx, cancel := context.WithTimeout(intState.Context, 30*time.Second)
 	defer cancel()
 
 	remotesMap := s.Remotes().RemotesByName()
@@ -134,7 +145,7 @@ func trustDelete(s *state.State, r *http.Request) response.Response {
 		newRemotes = append(newRemotes, newRemote)
 	}
 
-	err = remotes.Replace(s.OS.TrustDir, newRemotes...)
+	err = remotes.Replace(s.FileSystem().TrustDir, newRemotes...)
 	if err != nil {
 		return response.SmartError(fmt.Errorf("Failed to remove truststore entry for node with name %q: %w", name, err))
 	}

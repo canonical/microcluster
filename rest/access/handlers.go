@@ -11,8 +11,8 @@ import (
 	"github.com/canonical/lxd/shared/logger"
 
 	"github.com/canonical/microcluster/internal/rest/access"
-	"github.com/canonical/microcluster/internal/state"
 	"github.com/canonical/microcluster/rest/types"
+	"github.com/canonical/microcluster/state"
 )
 
 // ErrInvalidHost is used to indicate that a request host is invalid.
@@ -27,7 +27,7 @@ func (e ErrInvalidHost) Unwrap() error {
 
 // AllowAuthenticated checks if the request is trusted by extracting access.TrustedRequest from the request context.
 // This handler is used as an access handler by default if AllowUntrusted is false on a rest.EndpointAction.
-func AllowAuthenticated(state *state.State, r *http.Request) response.Response {
+func AllowAuthenticated(state state.State, r *http.Request) response.Response {
 	trusted := r.Context().Value(request.CtxAccess)
 	if trusted == nil {
 		return response.Forbidden(nil)
@@ -48,7 +48,7 @@ func AllowAuthenticated(state *state.State, r *http.Request) response.Response {
 // Authenticate ensures the request certificates are trusted against the given set of trusted certificates.
 // - Requests over the unix socket are always allowed.
 // - HTTP requests require the TLS Peer certificate to match an entry in the supplied map of certificates.
-func Authenticate(state *state.State, r *http.Request, hostAddress string, trustedCerts map[string]x509.Certificate) (bool, error) {
+func Authenticate(state state.State, r *http.Request, hostAddress string, trustedCerts map[string]x509.Certificate) (bool, error) {
 	if r.RemoteAddr == "@" {
 		return true, nil
 	}

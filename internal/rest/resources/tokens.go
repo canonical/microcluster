@@ -14,10 +14,11 @@ import (
 
 	"github.com/canonical/microcluster/cluster"
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
-	"github.com/canonical/microcluster/internal/state"
+	internalState "github.com/canonical/microcluster/internal/state"
 	"github.com/canonical/microcluster/rest"
 	"github.com/canonical/microcluster/rest/access"
 	"github.com/canonical/microcluster/rest/types"
+	"github.com/canonical/microcluster/state"
 )
 
 var tokensCmd = rest.Endpoint{
@@ -33,13 +34,18 @@ var tokenCmd = rest.Endpoint{
 	Delete: rest.EndpointAction{Handler: tokenDelete, AccessHandler: access.AllowAuthenticated},
 }
 
-func tokensPost(state *state.State, r *http.Request) response.Response {
+func tokensPost(state state.State, r *http.Request) response.Response {
 	req := internalTypes.TokenRecord{}
 
 	// Parse the request.
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
 		return response.BadRequest(err)
+	}
+
+	intState, err := internalState.ToInternal(state)
+	if err != nil {
+		return response.SmartError(err)
 	}
 
 	// Generate join token for new member. This will be stored alongside the join
@@ -78,7 +84,7 @@ func tokensPost(state *state.State, r *http.Request) response.Response {
 		return response.InternalError(err)
 	}
 
-	err = state.Database.Transaction(state.Context, func(ctx context.Context, tx *sql.Tx) error {
+	err = state.Database().Transaction(intState.Context, func(ctx context.Context, tx *sql.Tx) error {
 		_, err = cluster.CreateInternalTokenRecord(ctx, tx, cluster.InternalTokenRecord{Name: req.Name, Secret: tokenKey})
 		return err
 	})
@@ -89,7 +95,12 @@ func tokensPost(state *state.State, r *http.Request) response.Response {
 	return response.SyncResponse(true, tokenString)
 }
 
-func tokensGet(state *state.State, r *http.Request) response.Response {
+func tokensGet(state state.State, r *http.Request) response.Response {
+	intState, err := internalState.ToInternal(state)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
 	clusterCert, err := state.ClusterCert().PublicKeyX509()
 	if err != nil {
 		return response.InternalError(err)
@@ -101,7 +112,7 @@ func tokensGet(state *state.State, r *http.Request) response.Response {
 	}
 
 	var records []internalTypes.TokenRecord
-	err = state.Database.Transaction(state.Context, func(ctx context.Context, tx *sql.Tx) error {
+	err = state.Database().Transaction(intState.Context, func(ctx context.Context, tx *sql.Tx) error {
 		var err error
 		tokens, err := cluster.GetInternalTokenRecords(ctx, tx)
 		if err != nil {
@@ -127,13 +138,18 @@ func tokensGet(state *state.State, r *http.Request) response.Response {
 	return response.SyncResponse(true, records)
 }
 
-func tokenDelete(state *state.State, r *http.Request) response.Response {
+func tokenDelete(state state.State, r *http.Request) response.Response {
+	intState, err := internalState.ToInternal(state)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
 	name, err := url.PathUnescape(mux.Vars(r)["name"])
 	if err != nil {
 		return response.SmartError(err)
 	}
 
-	err = state.Database.Transaction(state.Context, func(ctx context.Context, tx *sql.Tx) error {
+	err = state.Database().Transaction(intState.Context, func(ctx context.Context, tx *sql.Tx) error {
 		return cluster.DeleteInternalTokenRecord(ctx, tx, name)
 	})
 	if err != nil {

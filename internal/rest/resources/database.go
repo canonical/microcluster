@@ -7,8 +7,8 @@ import (
 
 	"github.com/canonical/lxd/lxd/response"
 
-	"github.com/canonical/microcluster/internal/state"
 	"github.com/canonical/microcluster/rest"
+	"github.com/canonical/microcluster/state"
 )
 
 var databaseCmd = rest.Endpoint{
@@ -19,7 +19,7 @@ var databaseCmd = rest.Endpoint{
 	Patch: rest.EndpointAction{Handler: databasePatch},
 }
 
-func databasePost(state *state.State, r *http.Request) response.Response {
+func databasePost(state state.State, r *http.Request) response.Response {
 	// Compare the dqlite version of the connecting client with our own.
 	versionHeader := r.Header.Get("X-Dqlite-Version")
 	if versionHeader == "" {
@@ -40,7 +40,7 @@ func databasePost(state *state.State, r *http.Request) response.Response {
 	return response.EmptySyncResponse
 }
 
-func databasePatch(state *state.State, r *http.Request) response.Response {
+func databasePatch(state state.State, r *http.Request) response.Response {
 	// Compare the dqlite version of the connecting client with our own.
 	versionHeader := r.Header.Get("X-Dqlite-Version")
 	if versionHeader == "" {
@@ -54,7 +54,7 @@ func databasePatch(state *state.State, r *http.Request) response.Response {
 	}
 
 	// Notify this node that a schema upgrade has occurred, in case we are waiting on one.
-	state.Database.NotifyUpgraded()
+	state.Database().NotifyUpgraded()
 
 	return response.EmptySyncResponse
 }

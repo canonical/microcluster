@@ -12,10 +12,11 @@ import (
 	"github.com/canonical/lxd/lxd/response"
 
 	"github.com/canonical/microcluster/client"
-	"github.com/canonical/microcluster/internal/state"
+	internalState "github.com/canonical/microcluster/internal/state"
 	"github.com/canonical/microcluster/rest"
 	"github.com/canonical/microcluster/rest/access"
 	"github.com/canonical/microcluster/rest/types"
+	"github.com/canonical/microcluster/state"
 )
 
 var clusterCertificatesCmd = rest.Endpoint{
@@ -25,7 +26,7 @@ var clusterCertificatesCmd = rest.Endpoint{
 	Put: rest.EndpointAction{Handler: clusterCertificatesPut, AccessHandler: access.AllowAuthenticated},
 }
 
-func clusterCertificatesPut(s *state.State, r *http.Request) response.Response {
+func clusterCertificatesPut(s state.State, r *http.Request) response.Response {
 	req := types.ClusterCertificatePut{}
 
 	// Parse the request.
@@ -34,14 +35,19 @@ func clusterCertificatesPut(s *state.State, r *http.Request) response.Response {
 		return response.BadRequest(err)
 	}
 
+	intState, err := internalState.ToInternal(s)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
 	// Forward the request to all other nodes if we are the first.
-	if !client.IsNotification(r) && s.Database.IsOpen() {
+	if !client.IsNotification(r) && s.Database().IsOpen() {
 		cluster, err := s.Cluster(true)
 		if err != nil {
 			return response.SmartError(err)
 		}
 
-		err = cluster.Query(s.Context, true, func(ctx context.Context, c *client.Client) error {
+		err = cluster.Query(intState.Context, true, func(ctx context.Context, c *client.Client) error {
 			return c.UpdateClusterCertificate(ctx, req)
 		})
 		if err != nil {
@@ -66,25 +72,25 @@ func clusterCertificatesPut(s *state.State, r *http.Request) response.Response {
 			return response.BadRequest(fmt.Errorf("CA must be base64 encoded PEM key"))
 		}
 
-		err = os.WriteFile(filepath.Join(s.OS.StateDir, "cluster.ca"), []byte(req.CA), 0650)
+		err = os.WriteFile(filepath.Join(s.FileSystem().StateDir, "cluster.ca"), []byte(req.CA), 0650)
 		if err != nil {
 			return response.SmartError(err)
 		}
 	}
 
 	// Write the keypair to the state directory.
-	err = os.WriteFile(filepath.Join(s.OS.StateDir, "cluster.crt"), []byte(req.PublicKey), 0650)
+	err = os.WriteFile(filepath.Join(s.FileSystem().StateDir, "cluster.crt"), []byte(req.PublicKey), 0650)
 	if err != nil {
 		return response.SmartError(err)
 	}
 
-	err = os.WriteFile(filepath.Join(s.OS.StateDir, "cluster.key"), []byte(req.PrivateKey), 0650)
+	err = os.WriteFile(filepath.Join(s.FileSystem().StateDir, "cluster.key"), []byte(req.PrivateKey), 0650)
 	if err != nil {
 		return response.SmartError(err)
 	}
 
 	// Load the new cluster cert from the state directory on this node.
-	err = state.ReloadClusterCert()
+	err = internalState.ReloadClusterCert()
 	if err != nil {
 		return response.SmartError(err)
 	}

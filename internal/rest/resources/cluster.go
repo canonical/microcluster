@@ -25,11 +25,12 @@ import (
 	"github.com/canonical/microcluster/cluster"
 	internalClient "github.com/canonical/microcluster/internal/rest/client"
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
-	"github.com/canonical/microcluster/internal/state"
+	internalState "github.com/canonical/microcluster/internal/state"
 	"github.com/canonical/microcluster/internal/trust"
 	"github.com/canonical/microcluster/rest"
 	"github.com/canonical/microcluster/rest/access"
 	"github.com/canonical/microcluster/rest/types"
+	"github.com/canonical/microcluster/state"
 )
 
 var clusterCmd = rest.Endpoint{
@@ -46,19 +47,24 @@ var clusterMemberCmd = rest.Endpoint{
 	Delete: rest.EndpointAction{Handler: clusterMemberDelete, AccessHandler: access.AllowAuthenticated},
 }
 
-func clusterPost(s *state.State, r *http.Request) response.Response {
+func clusterPost(s state.State, r *http.Request) response.Response {
+	intState, err := internalState.ToInternal(s)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
 	req := internalTypes.ClusterMember{}
 
 	// Parse the request.
-	err := json.NewDecoder(r.Body).Decode(&req)
+	err = json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
 		return response.BadRequest(err)
 	}
 
-	ctx, cancel := context.WithTimeout(s.Context, time.Second*30)
+	ctx, cancel := context.WithTimeout(intState.Context, time.Second*30)
 	defer cancel()
 
-	leaderClient, err := s.Database.Leader(ctx)
+	leaderClient, err := s.Database().Leader(ctx)
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -86,7 +92,7 @@ func clusterPost(s *state.State, r *http.Request) response.Response {
 			return response.SmartError(err)
 		}
 
-		tokenResponse, err := client.AddClusterMember(s.Context, req)
+		tokenResponse, err := client.AddClusterMember(intState.Context, req)
 		if err != nil {
 			return response.SmartError(err)
 		}
@@ -95,12 +101,12 @@ func clusterPost(s *state.State, r *http.Request) response.Response {
 	}
 
 	// Check if the joining node's extensions are compatible with the leader's.
-	err = s.Extensions.IsSameVersion(req.Extensions)
+	err = intState.Extensions.IsSameVersion(req.Extensions)
 	if err != nil {
 		return response.SmartError(err)
 	}
 
-	err = s.Database.Transaction(s.Context, func(ctx context.Context, tx *sql.Tx) error {
+	err = s.Database().Transaction(intState.Context, func(ctx context.Context, tx *sql.Tx) error {
 		dbClusterMember := cluster.InternalClusterMember{
 			Name:           req.Name,
 			Address:        req.Address.String(),
@@ -160,7 +166,7 @@ func clusterPost(s *state.State, r *http.Request) response.Response {
 	}
 
 	// Add the cluster member to our local store for authentication.
-	err = s.Remotes().Add(s.OS.TrustDir, newRemote)
+	err = s.Remotes().Add(s.FileSystem().TrustDir, newRemote)
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -168,9 +174,14 @@ func clusterPost(s *state.State, r *http.Request) response.Response {
 	return response.SyncResponse(true, tokenResponse)
 }
 
-func clusterGet(s *state.State, r *http.Request) response.Response {
+func clusterGet(s state.State, r *http.Request) response.Response {
+	intState, err := internalState.ToInternal(s)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
 	var apiClusterMembers []internalTypes.ClusterMember
-	err := s.Database.Transaction(s.Context, func(ctx context.Context, tx *sql.Tx) error {
+	err = s.Database().Transaction(intState.Context, func(ctx context.Context, tx *sql.Tx) error {
 		clusterMembers, err := cluster.GetInternalClusterMembers(ctx, tx)
 		if err != nil {
 			return err
@@ -205,7 +216,7 @@ func clusterGet(s *state.State, r *http.Request) response.Response {
 			return response.SmartError(fmt.Errorf("Failed to create HTTPS client for cluster member with address %q: %w", addr.String(), err))
 		}
 
-		err = d.CheckReady(s.Context)
+		err = d.CheckReady(intState.Context)
 		if err == nil {
 			apiClusterMembers[i].Status = internalTypes.MemberOnline
 		} else {
@@ -221,7 +232,7 @@ func clusterGet(s *state.State, r *http.Request) response.Response {
 // from the cluster when not the leader.
 var clusterDisableMu sync.Mutex
 
-func clusterMemberPut(s *state.State, r *http.Request) response.Response {
+func clusterMemberPut(s state.State, r *http.Request) response.Response {
 	force := r.URL.Query().Get("force") == "1"
 	reExec, err := resetClusterMember(r.Context(), s, force)
 	if err != nil {
@@ -249,18 +260,18 @@ func clusterMemberPut(s *state.State, r *http.Request) response.Response {
 
 // resetClusterMember clears the daemon state, closing the database and stopping all listeners.
 // Returns a function that can be used to re-exec the daemon, forcibly reloading its state.
-func resetClusterMember(ctx context.Context, s *state.State, force bool) (reExec func(), err error) {
-	err = s.Database.Stop()
+func resetClusterMember(ctx context.Context, s state.State, force bool) (reExec func(), err error) {
+	err = s.Database().Stop()
 	if err != nil && !force {
 		return nil, fmt.Errorf("Failed shutting down database: %w", err)
 	}
 
-	err = state.StopListeners()
+	err = internalState.StopListeners()
 	if err != nil && !force {
 		return nil, fmt.Errorf("Failed shutting down listeners: %w", err)
 	}
 
-	err = os.RemoveAll(s.OS.StateDir)
+	err = os.RemoveAll(s.FileSystem().StateDir)
 	if err != nil && !force {
 		return nil, fmt.Errorf("Failed to remove the s directory: %w", err)
 	}
@@ -291,9 +302,14 @@ func resetClusterMember(ctx context.Context, s *state.State, force bool) (reExec
 }
 
 // clusterMemberDelete Removes a cluster member from dqlite and re-execs its daemon.
-func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
+func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 	force := r.URL.Query().Get("force") == "1"
 	name, err := url.PathUnescape(mux.Vars(r)["name"])
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	intState, err := internalState.ToInternal(s)
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -304,10 +320,10 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 		return response.SmartError(fmt.Errorf("No remote exists with the given name %q", name))
 	}
 
-	ctx, cancel := context.WithTimeout(s.Context, time.Second*30)
+	ctx, cancel := context.WithTimeout(intState.Context, time.Second*30)
 	defer cancel()
 
-	leader, err := s.Database.Leader(ctx)
+	leader, err := s.Database().Leader(ctx)
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -340,7 +356,7 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 			return response.SmartError(err)
 		}
 
-		err = client.DeleteClusterMember(s.Context, name, force)
+		err = client.DeleteClusterMember(intState.Context, name, force)
 		if err != nil {
 			return response.SmartError(err)
 		}
@@ -362,7 +378,7 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 		})
 	}
 
-	info, err := leader.Cluster(s.Context)
+	info, err := leader.Cluster(intState.Context)
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -381,7 +397,7 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 	}
 
 	var clusterMembers []cluster.InternalClusterMember
-	err = s.Database.Transaction(r.Context(), func(ctx context.Context, tx *sql.Tx) error {
+	err = s.Database().Transaction(r.Context(), func(ctx context.Context, tx *sql.Tx) error {
 		var err error
 		clusterMembers, err = cluster.GetInternalClusterMembers(ctx, tx)
 
@@ -419,7 +435,7 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 	}
 
 	// Refresh members information since we may have changed roles.
-	info, err = leader.Cluster(s.Context)
+	info, err = leader.Cluster(intState.Context)
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -458,7 +474,7 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 			clusterDisableMu.Unlock()
 		}()
 
-		err = client.DeleteClusterMember(s.Context, name, force)
+		err = client.DeleteClusterMember(intState.Context, name, force)
 		if err != nil {
 			return response.SmartError(err)
 		}
@@ -498,7 +514,7 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 	}
 
 	// Remove the cluster member from the database.
-	err = s.Database.Transaction(s.Context, func(ctx context.Context, tx *sql.Tx) error {
+	err = s.Database().Transaction(intState.Context, func(ctx context.Context, tx *sql.Tx) error {
 		return cluster.DeleteInternalClusterMember(ctx, tx, remote.Address.String())
 	})
 	if err != nil {
@@ -507,13 +523,13 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 
 	// Remove the node from dqlite, if it has a record there.
 	if index >= 0 {
-		err = leader.Remove(s.Context, info[index].ID)
+		err = leader.Remove(intState.Context, info[index].ID)
 		if err != nil {
 			return response.SmartError(err)
 		}
 	}
 
-	localClient, err := internalClient.New(s.OS.ControlSocket(), nil, nil, false)
+	localClient, err := internalClient.New(s.FileSystem().ControlSocket(), nil, nil, false)
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -528,7 +544,7 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	err = c.ResetClusterMember(s.Context, name, force)
+	err = c.ResetClusterMember(intState.Context, name, force)
 	if err != nil && !force {
 		return response.SmartError(err)
 	}
@@ -539,14 +555,14 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 	}
 
 	// Run the PostRemove hook locally.
-	err = state.PostRemoveHook(s, force)
+	err = intState.Hooks.PostRemove(s, force)
 	if err != nil {
 		return response.SmartError(err)
 	}
 
 	// Run the PostRemove hook on all other members.
 	remotes := s.Remotes()
-	err = cluster.Query(s.Context, true, func(ctx context.Context, c *client.Client) error {
+	err = cluster.Query(intState.Context, true, func(ctx context.Context, c *client.Client) error {
 		c.SetClusterNotification()
 		addrPort, err := types.ParseAddrPort(c.URL().URL.Host)
 		if err != nil {

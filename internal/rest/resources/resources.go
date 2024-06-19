@@ -11,7 +11,7 @@ import (
 
 // UnixEndpoints are the endpoints available over the unix socket.
 var UnixEndpoints = rest.Resources{
-	Path: types.ControlEndpoint,
+	PathPrefix: types.ControlEndpoint,
 	Endpoints: []rest.Endpoint{
 		controlCmd,
 		shutdownCmd,
@@ -20,7 +20,7 @@ var UnixEndpoints = rest.Resources{
 
 // PublicEndpoints are the /cluster/1.0 API endpoints available without authentication.
 var PublicEndpoints = rest.Resources{
-	Path: types.PublicEndpoint,
+	PathPrefix: types.PublicEndpoint,
 	Endpoints: []rest.Endpoint{
 		api10Cmd,
 		clusterCmd,
@@ -32,7 +32,7 @@ var PublicEndpoints = rest.Resources{
 
 // InternalEndpoints are the /cluster/internal API endpoints available at the listen address.
 var InternalEndpoints = rest.Resources{
-	Path: types.InternalEndpoint,
+	PathPrefix: types.InternalEndpoint,
 	Endpoints: []rest.Endpoint{
 		databaseCmd,
 		clusterCertificatesCmd,
@@ -52,13 +52,13 @@ func checkInternalEndpointsConflict(extensionServerEndpoints rest.Resources) err
 
 	for _, endpoints := range allExistingEndpoints {
 		for _, e := range endpoints.Endpoints {
-			url := filepath.Join(string(endpoints.Path), e.Path)
+			url := filepath.Join(string(endpoints.PathPrefix), e.Path)
 			existingEndpointPaths[url] = true
 		}
 	}
 
 	for _, e := range extensionServerEndpoints.Endpoints {
-		url := filepath.Join(string(extensionServerEndpoints.Path), e.Path)
+		url := filepath.Join(string(extensionServerEndpoints.PathPrefix), e.Path)
 		if existingEndpointPaths[url] {
 			return fmt.Errorf("Endpoint %q conflicts with internal endpoint", url)
 		}
@@ -94,8 +94,8 @@ func GetAndValidateCoreEndpoints(extensionServers []rest.Server) ([]rest.Resourc
 
 		seen := make(map[string]bool)
 		for _, endpoints := range extensionServer.Resources {
-			if seen[string(endpoints.Path)] {
-				return nil, fmt.Errorf("Path prefix %q is duplicated in server configuration", endpoints.Path)
+			if seen[string(endpoints.PathPrefix)] {
+				return nil, fmt.Errorf("Path prefix %q is duplicated in server configuration", endpoints.PathPrefix)
 			}
 
 			err = checkInternalEndpointsConflict(endpoints)
@@ -104,7 +104,7 @@ func GetAndValidateCoreEndpoints(extensionServers []rest.Server) ([]rest.Resourc
 			}
 
 			coreEndpoints = append(coreEndpoints, endpoints)
-			seen[string(endpoints.Path)] = true
+			seen[string(endpoints.PathPrefix)] = true
 		}
 	}
 

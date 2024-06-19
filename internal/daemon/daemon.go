@@ -339,14 +339,14 @@ func (d *Daemon) initServer(resources ...rest.Resources) *http.Server {
 	state := d.State()
 	for _, endpoints := range resources {
 		for _, e := range endpoints.Endpoints {
-			internalREST.HandleEndpoint(state, mux, string(endpoints.Path), e)
+			internalREST.HandleEndpoint(state, mux, string(endpoints.PathPrefix), e)
 
 			for _, alias := range e.Aliases {
 				ae := e
 				ae.Name = alias.Name
 				ae.Path = alias.Path
 
-				internalREST.HandleEndpoint(state, mux, string(endpoints.Path), ae)
+				internalREST.HandleEndpoint(state, mux, string(endpoints.PathPrefix), ae)
 			}
 		}
 	}

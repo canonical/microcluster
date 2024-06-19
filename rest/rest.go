@@ -42,8 +42,8 @@ type Endpoint struct {
 
 // Resources represents all the resources served over the same path.
 type Resources struct {
-	Path      types.EndpointPrefix
-	Endpoints []Endpoint
+	PathPrefix types.EndpointPrefix
+	Endpoints  []Endpoint
 }
 
 // Server contains configuration and handlers for additional listeners to be instantiated after app startup.

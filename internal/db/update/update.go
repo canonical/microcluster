@@ -146,7 +146,7 @@ INSERT INTO schemas_new SELECT id,(version-1),1,updated_at FROM schemas WHERE ve
 DROP TABLE schemas;
 ALTER TABLE schemas_new RENAME TO schemas;
 
-CREATE TABLE internal_cluster_members_new (
+CREATE TABLE IF NOT EXISTS internal_cluster_members_new (
   id                   INTEGER   PRIMARY  KEY    AUTOINCREMENT  NOT  NULL,
   name                 TEXT      NOT      NULL,
   address              TEXT      NOT      NULL,
@@ -158,12 +158,31 @@ CREATE TABLE internal_cluster_members_new (
   UNIQUE(name),
   UNIQUE(certificate)
 );
+`
+		_, err = tx.ExecContext(ctx, stmt)
+		if err != nil {
+			return err
+		}
 
-INSERT INTO internal_cluster_members_new SELECT id,name,address,certificate,1,(schema-1),heartbeat,role FROM internal_cluster_members;
+		// Check if we have pre-emptively created this table when checking for schema updates. If so, we won't need to insert any rows.
+		stmt = `SELECT count(id) from internal_cluster_members_new`
+		err := tx.QueryRow(stmt).Scan(&count)
+		if err != nil {
+			return err
+		}
+
+		stmt = ""
+		if count == 0 {
+			stmt = "INSERT INTO internal_cluster_members_new SELECT id,name,address,certificate,1,(schema-1),heartbeat,role FROM internal_cluster_members;"
+		}
+
+		stmt = fmt.Sprintf(`%s
 DROP TABLE internal_cluster_members;
 ALTER TABLE internal_cluster_members_new RENAME TO internal_cluster_members;
-`
-		_, err := tx.ExecContext(ctx, stmt)
+DROP TRIGGER IF EXISTS internal_cluster_member_added;
+DROP TRIGGER IF EXISTS internal_cluster_member_removed;
+`, stmt)
+		_, err = tx.ExecContext(ctx, stmt)
 		return err
 	}
 

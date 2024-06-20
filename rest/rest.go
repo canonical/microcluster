@@ -1,7 +1,6 @@
 package rest
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/canonical/lxd/lxd/response"
@@ -48,20 +47,24 @@ type Resources struct {
 
 // Server contains configuration and handlers for additional listeners to be instantiated after app startup.
 type Server struct {
-	CoreAPI     bool
-	Protocol    string
-	Address     types.AddrPort
+	// CoreAPI determines whether the the resources of the server should be served over the default cluster API.
+	CoreAPI bool
+
+	// PreInit determines whether the Server should be available prior to initializing the daemon.
+	PreInit bool
+
+	// Protocol is the server protocol.
+	// Example: https
+	Protocol string
+
+	// Address is the server listen address.
+	// Example: 127.0.0.1:9000
+	Address types.AddrPort
+
+	// Certificate is used for setting up TLS on the server.
+	// x509 PEM Certificate
 	Certificate *shared.CertInfo
-	Resources   []Resources
-}
 
-// ValidateServerConfigs checks that the server configuration is valid.
-func (s Server) ValidateServerConfigs() error {
-	if s.CoreAPI {
-		if s.Address != (types.AddrPort{}) || s.Protocol != "" || s.Certificate != nil {
-			return fmt.Errorf("Core API server cannot have Address, Protocol or Certificate")
-		}
-	}
-
-	return nil
+	// Resources is the list of resources offered by this server.
+	Resources []Resources
 }

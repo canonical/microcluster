@@ -17,7 +17,6 @@ import (
 	"github.com/canonical/lxd/lxd/response"
 	"github.com/canonical/lxd/shared/api"
 	"github.com/canonical/lxd/shared/logger"
-	"github.com/canonical/lxd/shared/validate"
 	"github.com/gorilla/mux"
 	"golang.org/x/sys/unix"
 
@@ -68,7 +67,7 @@ func clusterPost(s *state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	err = validate.IsHostname(req.Name)
+	err = validateFQDN(req.Name)
 	if err != nil {
 		return response.SmartError(fmt.Errorf("Invalid cluster member name %q: %w", req.Name, err))
 	}

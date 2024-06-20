@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/canonical/microcluster/internal/rest/types"
+	internalTypes "github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/rest"
+	"github.com/canonical/microcluster/rest/types"
 )
 
 // UnixEndpoints are the endpoints available over the unix socket.
 var UnixEndpoints = rest.Resources{
-	PathPrefix: types.ControlEndpoint,
+	PathPrefix: internalTypes.ControlEndpoint,
 	Endpoints: []rest.Endpoint{
 		controlCmd,
 		shutdownCmd,
@@ -19,7 +20,7 @@ var UnixEndpoints = rest.Resources{
 
 // PublicEndpoints are the /cluster/1.0 API endpoints available without authentication.
 var PublicEndpoints = rest.Resources{
-	PathPrefix: types.PublicEndpoint,
+	PathPrefix: internalTypes.PublicEndpoint,
 	Endpoints: []rest.Endpoint{
 		api10Cmd,
 		clusterCmd,
@@ -31,7 +32,7 @@ var PublicEndpoints = rest.Resources{
 
 // InternalEndpoints are the /cluster/internal API endpoints available at the listen address.
 var InternalEndpoints = rest.Resources{
-	PathPrefix: types.InternalEndpoint,
+	PathPrefix: internalTypes.InternalEndpoint,
 	Endpoints: []rest.Endpoint{
 		databaseCmd,
 		clusterCertificatesCmd,
@@ -44,11 +45,18 @@ var InternalEndpoints = rest.Resources{
 	},
 }
 
-// checkInternalEndpointsConflict checks if any endpoints defined in extensionServers conflict with internal endpoints.
-func checkInternalEndpointsConflict(extensionServerEndpoints rest.Resources) error {
+// ValidateEndpoints checks if any endpoints defined in extensionServers conflict with other endpoints.
+// An invalid server is defined as one of the following:
+// - The PathPrefix+Path of an endpoint conflicts with another endpoint in the same server.
+// - The address of the server clashes with another server.
+// - The server does not have defined resources.
+// If the Server is a core API server, its resources must not conflict with any other server, and it must not have a defined address or certificate.
+func ValidateEndpoints(extensionServers []rest.Server, coreAddress string) error {
 	allExistingEndpoints := []rest.Resources{UnixEndpoints, PublicEndpoints, InternalEndpoints}
 	existingEndpointPaths := make(map[string]bool)
+	serverAddresses := map[string]bool{coreAddress: true}
 
+	// Record the paths for all internal endpoints.
 	for _, endpoints := range allExistingEndpoints {
 		for _, e := range endpoints.Endpoints {
 			url := filepath.Join(string(endpoints.PathPrefix), e.Path)
@@ -56,56 +64,74 @@ func checkInternalEndpointsConflict(extensionServerEndpoints rest.Resources) err
 		}
 	}
 
-	for _, e := range extensionServerEndpoints.Endpoints {
-		url := filepath.Join(string(extensionServerEndpoints.PathPrefix), e.Path)
-		if existingEndpointPaths[url] {
-			return fmt.Errorf("Endpoint %q conflicts with internal endpoint", url)
+	for _, server := range extensionServers {
+		// Ensure all servers have resources.
+		if len(server.Resources) == 0 {
+			return fmt.Errorf("Server must have defined resources")
+		}
+
+		if server.CoreAPI && server.Certificate != nil {
+			return fmt.Errorf("Core API server cannot have a pre-defined certificate")
+		}
+
+		if server.CoreAPI && server.Address != (types.AddrPort{}) {
+			return fmt.Errorf("Core API server cannot have a pre-defined address")
+		}
+
+		// Ensure all servers with a defined address are unique.
+		if server.Address != (types.AddrPort{}) {
+			if serverAddresses[server.Address.String()] {
+				return fmt.Errorf("Server address %q conflicts with another Server", server.Address.String())
+			}
+
+			serverAddresses[server.Address.String()] = true
+		} else if server.Protocol != "" {
+			return fmt.Errorf("Server protocol defined without address")
+		}
+
+		// Ensure no endpoint path conflicts with another endpoint on the same server.
+		// If a server lacks an address, we need to compare it to every other server
+		// that also lacks an address, as well as the internal endpoints.
+		serverPaths, err := resourcesConflict(server, existingEndpointPaths)
+		if err != nil {
+			return err
+		}
+
+		// Update the existing paths now that we have checked a new Server.
+		for k, v := range serverPaths {
+			if !existingEndpointPaths[k] {
+				existingEndpointPaths[k] = v
+			}
 		}
 	}
 
 	return nil
 }
 
-// GetAndValidateCoreEndpoints extracts all endpoints from extensionServers that should be allocated to the core listener.
-// It also performs the following validations:
-// 1. Only one core API server is allowed.
-// 2. Server configurations are properly set.
-// 3. Path prefixes for endpoints belonging to a single server are not duplicated
-// 4. Enpoints defined in extensionServers do not conflict with internal endpoints.
-func GetAndValidateCoreEndpoints(extensionServers []rest.Server) ([]rest.Resources, error) {
-	var coreEndpoints []rest.Resources
-	var numCoreAPIs int
+// resourcesConflict returns an error if the endpoint paths of the given server conflict with any paths in the given map of existing paths.
+func resourcesConflict(server rest.Server, existingPaths map[string]bool) (map[string]bool, error) {
+	perServerPaths := map[string]bool{}
+	for _, resource := range server.Resources {
+		for _, endpoint := range resource.Endpoints {
+			url := filepath.Join(string(resource.PathPrefix), endpoint.Path)
 
-	for _, extensionServer := range extensionServers {
-		if !extensionServer.CoreAPI {
-			continue
-		}
+			// If the server uses the core API, its resources must not conflict with any existing listener.
+			if server.CoreAPI {
+				if existingPaths[url] || perServerPaths[url] {
+					return nil, fmt.Errorf("Core endpoint %q conflicts with another endpoint", url)
+				}
 
-		numCoreAPIs++
-		if numCoreAPIs > 1 {
-			return nil, fmt.Errorf("Only one core API server is allowed")
-		}
+				perServerPaths[url] = true
+			} else {
+				// The server has a unique address, so only compare it to other resources in the server.
+				if perServerPaths[url] {
+					return nil, fmt.Errorf("Endpoint %q conflicts with another endpoint on the same server", url)
+				}
 
-		err := extensionServer.ValidateServerConfigs()
-		if err != nil {
-			return nil, err
-		}
-
-		seen := make(map[string]bool)
-		for _, endpoints := range extensionServer.Resources {
-			if seen[string(endpoints.PathPrefix)] {
-				return nil, fmt.Errorf("Path prefix %q is duplicated in server configuration", endpoints.PathPrefix)
+				perServerPaths[url] = true
 			}
-
-			err = checkInternalEndpointsConflict(endpoints)
-			if err != nil {
-				return nil, err
-			}
-
-			coreEndpoints = append(coreEndpoints, endpoints)
-			seen[string(endpoints.PathPrefix)] = true
 		}
 	}
 
-	return coreEndpoints, nil
+	return perServerPaths, nil
 }

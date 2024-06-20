@@ -258,12 +258,14 @@ func (c *cmdClusterEdit) run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	err = m.RecoverFromQuorumLoss(newMembers)
+	tarballPath, err := m.RecoverFromQuorumLoss(newMembers)
 	if err != nil {
 		return fmt.Errorf("cluster edit: %w", err)
 	}
 
-	fmt.Println("Cluster reconfigured successfully")
+	fmt.Printf("Cluster changes applied; new database state saved to %s\n\n", tarballPath)
+	fmt.Printf("*Before* starting any cluster member, copy %s to %s on all remaining cluster members.\n\n", tarballPath, tarballPath)
+	fmt.Printf("microd will load this file during startup.\n")
 
 	return nil
 }

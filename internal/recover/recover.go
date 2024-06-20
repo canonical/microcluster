@@ -109,11 +109,12 @@ func ValidateMemberChanges(oldMembers []cluster.DqliteMember, newMembers []clust
 // CreateRecoveryTarball writes a tarball of filesystem.DatabaseDir to
 // filesystem.StateDir.
 // go-dqlite's info.yaml is excluded from the tarball.
-func CreateRecoveryTarball(filesystem *sys.OS) error {
+// This function returns the path to the tarball.
+func CreateRecoveryTarball(filesystem *sys.OS) (string, error) {
 	dbFS := os.DirFS(filesystem.DatabaseDir)
 	dbFiles, err := fs.Glob(dbFS, "*")
 	if err != nil {
-		return fmt.Errorf("%w", err)
+		return "", fmt.Errorf("%w", err)
 	}
 
 	tarballPath := path.Join(filesystem.StateDir, "recovery_db.tar.gz")
@@ -130,7 +131,7 @@ func CreateRecoveryTarball(filesystem *sys.OS) error {
 		}
 	}
 
-	return createTarball(tarballPath, filesystem.DatabaseDir, dbFiles)
+	return tarballPath, createTarball(tarballPath, filesystem.DatabaseDir, dbFiles)
 }
 
 // MaybeUnpackRecoveryTarball checks for the presence of a recovery tarball in

@@ -53,6 +53,9 @@ type Server struct {
 	// PreInit determines whether the Server should be available prior to initializing the daemon.
 	PreInit bool
 
+	// ServeUnix sets whether the resources of this endpoint should also be served over the unix socket.
+	ServeUnix bool
+
 	// Protocol is the server protocol.
 	// Example: https
 	Protocol string

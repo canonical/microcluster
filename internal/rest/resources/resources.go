@@ -70,6 +70,10 @@ func ValidateEndpoints(extensionServers []rest.Server, coreAddress string) error
 			return fmt.Errorf("Server must have defined resources")
 		}
 
+		if server.ServeUnix && !server.CoreAPI {
+			return fmt.Errorf("Cannot serve non-core API resources over the core unix socket")
+		}
+
 		if server.CoreAPI && server.Certificate != nil {
 			return fmt.Errorf("Core API server cannot have a pre-defined certificate")
 		}

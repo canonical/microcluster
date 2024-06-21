@@ -201,7 +201,9 @@ func (d *Daemon) init(listenPort string, schemaExtensions []schema.Update, apiEx
 	}
 
 	for _, server := range d.extensionServers {
-		serverEndpoints = append(serverEndpoints, server.Resources...)
+		if server.ServeUnix {
+			serverEndpoints = append(serverEndpoints, server.Resources...)
+		}
 	}
 
 	ctlServer := d.initServer(serverEndpoints...)

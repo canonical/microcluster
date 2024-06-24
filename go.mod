@@ -6,7 +6,7 @@ require (
 	github.com/canonical/go-dqlite v1.21.0
 	github.com/canonical/lxd v0.0.0-20240416183821-50ee226c5522
 	github.com/fsnotify/fsnotify v1.7.0
-	github.com/google/renameio v1.0.1
+	github.com/google/renameio/v2 v2.0.0
 	github.com/google/renameio/v2 v2.0.0
 	github.com/gorilla/mux v1.8.1
 	github.com/mattn/go-sqlite3 v1.14.22

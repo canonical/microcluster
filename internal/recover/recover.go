@@ -11,6 +11,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"time"
 
 	dqlite "github.com/canonical/go-dqlite/client"
 	"github.com/canonical/lxd/shared/logger"
@@ -195,7 +196,10 @@ func MaybeUnpackRecoveryTarball(filesystem *sys.OS) error {
 		return err
 	}
 
-	// FIXME: Take a DB backup
+	err = CreateDatabaseBackup(filesystem)
+	if err != nil {
+		return err
+	}
 
 	// Now that we're as sure as we can be that the recovery DB is valid, we can
 	// replace the existing DB
@@ -213,6 +217,33 @@ func MaybeUnpackRecoveryTarball(filesystem *sys.OS) error {
 	err = os.Remove(tarballPath)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+// CreateDatabaseBackup writes a tarball of filesystem.DatabaseDir to
+// filesystem.StateDir as db_backup.TIMESTAMP.tar.gz. It does not check to
+// to ensure that the database is stopped.
+func CreateDatabaseBackup(filesystem *sys.OS) error {
+	// tar interprets `:` as a remote drive; ISO8601 allows a 'basic format'
+	// with the colons omitted (as opposed to time.RFC3339)
+	// https://en.wikipedia.org/wiki/ISO_8601
+	backupFileName := fmt.Sprintf("db_backup.%s.tar.gz", time.Now().Format("2006-01-02T150405Z0700"))
+
+	backupFilePath := path.Join(filesystem.StateDir, backupFileName)
+
+	logger.Info("Creating database backup", logger.Ctx{"archive": backupFilePath})
+
+	dbFS := os.DirFS(filesystem.StateDir)
+	dbFiles, err := fs.Glob(dbFS, "database/*")
+	if err != nil {
+		return fmt.Errorf("database backup: %w", err)
+	}
+
+	err = createTarball(backupFilePath, filesystem.StateDir, dbFiles)
+	if err != nil {
+		return fmt.Errorf("database backup: %w", err)
 	}
 
 	return nil
@@ -242,12 +273,13 @@ func createTarball(tarballPath string, dir string, files []string) error {
 			return err
 		}
 
-		// Note: header.Name is set to the basename of stat. If dqlite starts
-		// using subdirs in the DB dir, this will need modification
 		header, err := tar.FileInfoHeader(stat, filename)
 		if err != nil {
 			return fmt.Errorf("create tar header for %q: %w", filepath, err)
 		}
+
+		// header.Name is the basename of `stat` by default
+		header.Name = filename
 
 		err = tarWriter.WriteHeader(header)
 		if err != nil {

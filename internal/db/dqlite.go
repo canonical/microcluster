@@ -21,7 +21,6 @@ import (
 	"github.com/canonical/lxd/lxd/db/schema"
 	"github.com/canonical/lxd/shared"
 	"github.com/canonical/lxd/shared/api"
-	"github.com/canonical/lxd/shared/cancel"
 	"github.com/canonical/lxd/shared/logger"
 	"github.com/canonical/lxd/shared/revert"
 	"github.com/canonical/lxd/shared/tcp"
@@ -49,15 +48,36 @@ type DB struct {
 	acceptCh  chan net.Conn
 	upgradeCh chan struct{}
 
-	openCanceller *cancel.Canceller
-
 	ctx    context.Context
 	cancel context.CancelFunc
 
 	heartbeatLock sync.Mutex
 
 	schema *update.SchemaUpdate
+
+	statusLock sync.RWMutex
+	status     Status
 }
+
+// Status is the current status of the database.
+type Status string
+
+const (
+	// StatusReady indicates the database is open for use.
+	StatusReady Status = "Database is online"
+
+	// StatusWaiting indicates the database is blocked on a schema or API extension upgrade.
+	StatusWaiting Status = "Database is waiting for an upgrade"
+
+	// StatusStarting indicates the daemon is running, but dqlite is still in the process of starting up.
+	StatusStarting Status = "Database is still starting"
+
+	// StatusNotReady indicates the database is not yet ready for use.
+	StatusNotReady Status = "Database is not yet initialized"
+
+	// StatusOffline indicates that the database is offline.
+	StatusOffline Status = "Database is offline"
+)
 
 // Accept sends the outbound connection through the acceptCh channel to be received by dqlite.
 func (db *DB) Accept(conn net.Conn) {
@@ -69,15 +89,15 @@ func NewDB(ctx context.Context, serverCert *shared.CertInfo, clusterCert func() 
 	shutdownCtx, shutdownCancel := context.WithCancel(ctx)
 
 	return &DB{
-		serverCert:    serverCert,
-		clusterCert:   clusterCert,
-		dbName:        filepath.Base(os.DatabasePath()),
-		os:            os,
-		acceptCh:      make(chan net.Conn),
-		upgradeCh:     make(chan struct{}),
-		ctx:           shutdownCtx,
-		cancel:        shutdownCancel,
-		openCanceller: cancel.New(context.Background()),
+		serverCert:  serverCert,
+		clusterCert: clusterCert,
+		dbName:      filepath.Base(os.DatabasePath()),
+		os:          os,
+		acceptCh:    make(chan net.Conn),
+		upgradeCh:   make(chan struct{}),
+		ctx:         shutdownCtx,
+		cancel:      shutdownCancel,
+		status:      StatusNotReady,
 	}
 }
 
@@ -189,13 +209,71 @@ func (db *DB) Cluster(ctx context.Context, client *dqliteClient.Client) ([]dqlit
 	return members, nil
 }
 
-// IsOpen returns true only if the DB has been opened and the schema loaded.
-func (db *DB) IsOpen() bool {
+// Status returns the current status of the database.
+func (db *DB) Status() Status {
 	if db == nil {
-		return false
+		return StatusNotReady
 	}
 
-	return db.openCanceller.Err() != nil
+	db.statusLock.RLock()
+	status := db.status
+	db.statusLock.RUnlock()
+
+	return status
+}
+
+// IsOpen returns nil  only if the DB has been opened and the schema loaded.
+// Otherwise, it returns an error describing why the database is offline.
+// The returned error may have the http status 503, indicating that the database is in a valid but unavailable state.
+func (db *DB) IsOpen(ctx context.Context) error {
+	if db == nil {
+		return api.StatusErrorf(http.StatusServiceUnavailable, string(StatusNotReady))
+	}
+
+	db.statusLock.RLock()
+	status := db.status
+	db.statusLock.RUnlock()
+
+	switch status {
+	case StatusReady:
+		return nil
+	case StatusNotReady:
+		fallthrough
+	case StatusOffline:
+		fallthrough
+	case StatusStarting:
+		return api.StatusErrorf(http.StatusServiceUnavailable, string(status))
+
+	case StatusWaiting:
+		intVersion, extversion, apiExtensions := db.Schema().Version()
+
+		awaitingSystems := 0
+		err := db.Transaction(ctx, func(ctx context.Context, tx *sql.Tx) error {
+			allMembers, awaitingMembers, err := cluster.GetUpgradingClusterMembers(ctx, tx, intVersion, extversion, apiExtensions)
+			if err != nil {
+				return err
+			}
+
+			for _, member := range allMembers {
+				if member.Address == db.listenAddr.URL.Host {
+					continue
+				}
+
+				if awaitingMembers[member.Name] {
+					awaitingSystems++
+				}
+			}
+
+			return nil
+		})
+		if err != nil {
+			return api.StatusErrorf(http.StatusInternalServerError, "Failed to fetch awaiting cluster members: %w", err)
+		}
+
+		return api.StatusErrorf(http.StatusServiceUnavailable, "%s: %d cluster members have not yet received the update", status, awaitingSystems)
+	default:
+		return api.StatusErrorf(http.StatusInternalServerError, "Database status is invalid")
+	}
 }
 
 // NotifyUpgraded sends a notification that we can stop waiting for a cluster member to be upgraded.
@@ -227,7 +305,7 @@ func (db *DB) loopHeartbeat() {
 }
 
 func (db *DB) heartbeat(ctx context.Context) {
-	if !db.IsOpen() {
+	if db.IsOpen(ctx) != nil {
 		logger.Debug("Database is not yet open, aborting heartbeat", logger.Ctx{"address": db.listenAddr.String()})
 		return
 	}
@@ -349,9 +427,12 @@ func dqliteNetworkDial(ctx context.Context, addr string, db *DB) (net.Conn, erro
 
 // Stop closes the database and dqlite connection.
 func (db *DB) Stop() error {
+	db.statusLock.Lock()
 	db.cancel()
+	db.status = StatusOffline
+	db.statusLock.Unlock()
 
-	if db.IsOpen() {
+	if db.IsOpen(context.TODO()) == nil {
 		// The database might refuse to close if many nodes are stopping at the same time,
 		// because the dqlite connection will have been lost.
 		_ = db.db.Close()

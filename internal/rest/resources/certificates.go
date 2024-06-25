@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 
 	"github.com/canonical/lxd/lxd/response"
+	"github.com/canonical/lxd/shared/logger"
 
 	"github.com/canonical/microcluster/client"
 	"github.com/canonical/microcluster/internal/state"
@@ -34,8 +35,13 @@ func clusterCertificatesPut(s *state.State, r *http.Request) response.Response {
 		return response.BadRequest(err)
 	}
 
+	err = s.Database.IsOpen(r.Context())
+	if err != nil {
+		logger.Warn("Database is offline, only updating local cluster certificate", logger.Ctx{"error": err})
+	}
+
 	// Forward the request to all other nodes if we are the first.
-	if !client.IsNotification(r) && s.Database.IsOpen() {
+	if !client.IsNotification(r) && err == nil {
 		cluster, err := s.Cluster(true)
 		if err != nil {
 			return response.SmartError(err)

@@ -9,6 +9,8 @@ import (
 	"github.com/canonical/lxd/lxd/db/query"
 	"github.com/canonical/lxd/lxd/db/schema"
 	"github.com/canonical/lxd/shared"
+
+	"github.com/canonical/microcluster/internal/extensions"
 )
 
 // updateType represents whether the update is an internal or external schema update.
@@ -24,11 +26,12 @@ const (
 
 // SchemaUpdate holds the configuration for executing schema updates.
 type SchemaUpdate struct {
-	updates map[updateType][]schema.Update // Ordered series of internal and external updates making up the schema
-	hook    schema.Hook                    // Optional hook to execute whenever a update gets applied
-	fresh   string                         // Optional SQL statement used to create schema from scratch
-	check   schema.Check                   // Optional callback invoked before doing any update
-	path    string                         // Optional path to a file containing extra queries to run
+	updates       map[updateType][]schema.Update // Ordered series of internal and external updates making up the schema
+	apiExtensions extensions.Extensions
+	hook          schema.Hook  // Optional hook to execute whenever a update gets applied
+	fresh         string       // Optional SQL statement used to create schema from scratch
+	check         schema.Check // Optional callback invoked before doing any update
+	path          string       // Optional path to a file containing extra queries to run
 }
 
 // Fresh sets a statement that will be used to create the schema from scratch
@@ -47,8 +50,8 @@ func (s *SchemaUpdate) Check(check schema.Check) {
 }
 
 // Version returns the internal and external schema update versions, corresponding to the number of updates that have occurred.
-func (s *SchemaUpdate) Version() (internalVersion uint64, externalVersion uint64) {
-	return uint64(len(s.updates[updateInternal])), uint64(len(s.updates[updateExternal]))
+func (s *SchemaUpdate) Version() (internalVersion uint64, externalVersion uint64, apiExtensions extensions.Extensions) {
+	return uint64(len(s.updates[updateInternal])), uint64(len(s.updates[updateExternal])), s.apiExtensions
 }
 
 // Ensure makes sure that the actual schema in the given database matches the

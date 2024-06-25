@@ -270,3 +270,57 @@ func GetClusterMemberAPIExtensions(ctx context.Context, tx *sql.Tx) ([]extension
 
 	return results, nil
 }
+
+// GetUpgradingClusterMembers returns the list of all cluster members during an upgrade, as well as a map of members who we consider to be in a waiting state.
+// This function can be used immediately after dqlite is ready, before we have loaded any prepared statements.
+// A cluster member will be in a waiting state if a different cluster member still exists with a smaller API extension count or schema version.
+func GetUpgradingClusterMembers(ctx context.Context, tx *sql.Tx, schemaInternal uint64, schemaExternal uint64, apiExtensions extensions.Extensions) (allMembers []InternalClusterMember, awaitingMembers map[string]bool, err error) {
+	tableName, err := prepareUpdateV1(tx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Check for the `api_extensions` column, which may not exist if we haven't actually run the update yet.
+	stmt := fmt.Sprintf(`
+SELECT count(name)
+FROM pragma_table_info('%s')
+WHERE name IN ('api_extensions');
+`, tableName)
+
+	var count int
+	err = tx.QueryRow(stmt).Scan(&count)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Fetch all cluster members with a smaller schema version than we expect.
+	stmt = `SELECT id, name, address, certificate, schema_internal, schema_external, %s, heartbeat, role
+  FROM %s
+  ORDER BY name
+	`
+
+	// If API extensions are supported, ensure the list for each cluster member also matches what we expect,
+	// and only return cluster members for whom it does not.
+	apiField := "'[]' as api_extensions"
+	if count == 1 {
+		apiField = "api_extensions"
+	}
+
+	stmt = fmt.Sprintf(stmt, apiField, tableName)
+	allMembers, err = getInternalClusterMembersRaw(ctx, tx, stmt)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	awaitingMembers = make(map[string]bool, len(allMembers))
+	for _, member := range allMembers {
+		awaitingMembers[member.Name] = member.SchemaInternal < schemaInternal || member.SchemaExternal < schemaExternal
+
+		// If we have API extension support, also compare against the database API extensions.
+		if count == 1 {
+			awaitingMembers[member.Name] = member.APIExtensions.IsSameVersion(apiExtensions) != nil || awaitingMembers[member.Name]
+		}
+	}
+
+	return allMembers, awaitingMembers, nil
+}

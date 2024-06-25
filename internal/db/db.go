@@ -13,6 +13,7 @@ import (
 	"github.com/canonical/lxd/lxd/db/schema"
 	"github.com/canonical/lxd/shared"
 	"github.com/canonical/lxd/shared/logger"
+	"github.com/canonical/lxd/shared/revert"
 
 	"github.com/canonical/microcluster/cluster"
 	"github.com/canonical/microcluster/internal/extensions"
@@ -24,6 +25,19 @@ import (
 func (db *DB) Open(ext extensions.Extensions, bootstrap bool, project string) error {
 	ctx, cancel := context.WithTimeout(db.ctx, 30*time.Second)
 	defer cancel()
+
+	db.statusLock.Lock()
+	db.status = StatusStarting
+	db.statusLock.Unlock()
+
+	reverter := revert.New()
+	defer reverter.Fail()
+
+	reverter.Add(func() {
+		db.statusLock.Lock()
+		db.status = StatusOffline
+		db.statusLock.Unlock()
+	})
 
 	err := db.dqlite.Ready(ctx)
 	if err != nil {
@@ -45,7 +59,11 @@ func (db *DB) Open(ext extensions.Extensions, bootstrap bool, project string) er
 		return err
 	}
 
-	db.openCanceller.Cancel()
+	db.statusLock.Lock()
+	db.status = StatusReady
+	db.statusLock.Unlock()
+
+	reverter.Success()
 
 	return nil
 }
@@ -112,7 +130,7 @@ func (db *DB) waitUpgrade(bootstrap bool, ext extensions.Extensions) error {
 	newSchema := db.Schema()
 	if !bootstrap {
 		checkVersions := func(ctx context.Context, current int, tx *sql.Tx) error {
-			schemaVersionInternal, schemaVersionExternal := newSchema.Version()
+			schemaVersionInternal, schemaVersionExternal, _ := newSchema.Version()
 			err := cluster.UpdateClusterMemberSchemaVersion(tx, schemaVersionInternal, schemaVersionExternal, db.listenAddr.URL.Host)
 			if err != nil {
 				return fmt.Errorf("Failed to update schema version when joining cluster: %w", err)
@@ -189,6 +207,10 @@ func (db *DB) waitUpgrade(bootstrap bool, ext extensions.Extensions) error {
 
 	// If we are not bootstrapping, wait for an upgrade notification, or wait a minute before checking again.
 	if otherNodesBehind && !bootstrap {
+		db.statusLock.Lock()
+		db.status = StatusWaiting
+		db.statusLock.Unlock()
+
 		logger.Warn("Waiting for other cluster members to upgrade their versions", logger.Ctx{"address": db.listenAddr.String()})
 		select {
 		case <-db.upgradeCh:
@@ -225,8 +247,9 @@ func (db *DB) retry(ctx context.Context, f func(context.Context) error) error {
 
 // Update attempts to update the database with the executable at the path specified by the SCHEMA_UPDATE variable.
 func (db *DB) Update() error {
-	if !db.IsOpen() {
-		return fmt.Errorf("Failed to update, database is not yet open")
+	err := db.IsOpen(context.Background())
+	if err != nil {
+		return fmt.Errorf("Failed to update, database is not yet open: %w", err)
 	}
 
 	updateExec := os.Getenv(sys.SchemaUpdate)
@@ -241,7 +264,7 @@ func (db *DB) Update() error {
 	time.Sleep(wait)
 
 	logger.Info("Triggering cluster auto-update now")
-	_, err := shared.RunCommand(updateExec)
+	_, err = shared.RunCommand(updateExec)
 	if err != nil {
 		logger.Error("Triggering cluster update failed", logger.Ctx{"err": err})
 		return err

@@ -309,7 +309,10 @@ func (m *MicroCluster) RecoverFromQuorumLoss(members []cluster.DqliteMember) (st
 		return "", err
 	}
 
-	// FIXME: Take a DB backup
+	err = recover.CreateDatabaseBackup(m.FileSystem)
+	if err != nil {
+		return "", err
+	}
 
 	err = dqlite.ReconfigureMembershipExt(m.FileSystem.DatabaseDir, nodeInfo)
 	if err != nil {

@@ -307,7 +307,10 @@ func (m *MicroCluster) RecoverFromQuorumLoss(members []cluster.LocalMember) (str
 		return "", fmt.Errorf("daemon is running (socket path exists: %q)", m.FileSystem.ControlSocketPath())
 	}
 
-	// FIXME: Take a DB backup
+	err = recover.CreateDatabaseBackup(m.FileSystem)
+	if err != nil {
+		return "", err
+	}
 
 	err = dqlite.ReconfigureMembershipExt(m.FileSystem.DatabaseDir, nodeInfo)
 	if err != nil {

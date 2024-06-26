@@ -148,19 +148,19 @@ func (db *DB) Bootstrap(extensions extensions.Extensions, project string, addr a
 
 // Join a dqlite cluster with the address of a member.
 func (db *DB) Join(extensions extensions.Extensions, project string, addr api.URL, joinAddresses ...string) error {
-	for {
-		var err error
-		db.listenAddr = addr
-		db.dqlite, err = dqlite.New(db.os.DatabaseDir,
-			dqlite.WithCluster(joinAddresses),
-			dqlite.WithAddress(db.listenAddr.URL.Host),
-			dqlite.WithExternalConn(db.dialFunc(), db.acceptCh),
-			dqlite.WithUnixSocket(os.Getenv(sys.DqliteSocket)))
-		if err != nil {
-			return fmt.Errorf("Failed to join dqlite cluster %w", err)
-		}
+	var err error
+	db.listenAddr = addr
+	db.dqlite, err = dqlite.New(db.os.DatabaseDir,
+		dqlite.WithCluster(joinAddresses),
+		dqlite.WithAddress(db.listenAddr.URL.Host),
+		dqlite.WithExternalConn(db.dialFunc(), db.acceptCh),
+		dqlite.WithUnixSocket(os.Getenv(sys.DqliteSocket)))
+	if err != nil {
+		return fmt.Errorf("Failed to join dqlite cluster %w", err)
+	}
 
-		err = db.Open(extensions, false, project)
+	for {
+		err := db.Open(extensions, false, project)
 		if err == nil {
 			break
 		}

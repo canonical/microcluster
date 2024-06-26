@@ -237,6 +237,11 @@ func (db *DB) waitUpgrade(bootstrap bool, ext extensions.Extensions) error {
 
 // Transaction handles performing a transaction on the dqlite database.
 func (db *DB) Transaction(outerCtx context.Context, f func(context.Context, *sql.Tx) error) error {
+	status := db.Status()
+	if status != StatusWaiting && status != StatusReady {
+		return api.StatusErrorf(http.StatusServiceUnavailable, "Database is not ready yet: %v", status)
+	}
+
 	return db.retry(outerCtx, func(ctx context.Context) error {
 		err := query.Transaction(ctx, db.db, f)
 		if errors.Is(err, context.DeadlineExceeded) {

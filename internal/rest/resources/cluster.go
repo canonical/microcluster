@@ -33,7 +33,8 @@ import (
 )
 
 var clusterCmd = rest.Endpoint{
-	Path: "cluster",
+	Path:              "cluster",
+	AllowedBeforeInit: true,
 
 	Post: rest.EndpointAction{Handler: clusterPost, AllowUntrusted: true},
 	Get:  rest.EndpointAction{Handler: clusterGet, AccessHandler: access.AllowAuthenticated},
@@ -47,10 +48,15 @@ var clusterMemberCmd = rest.Endpoint{
 }
 
 func clusterPost(s *state.State, r *http.Request) response.Response {
+	err := s.Database.IsOpen(r.Context())
+	if err != nil {
+		return response.SmartError(err)
+	}
+
 	req := internalTypes.ClusterMember{}
 
 	// Parse the request.
-	err := json.NewDecoder(r.Body).Decode(&req)
+	err = json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
 		return response.BadRequest(err)
 	}
@@ -169,9 +175,25 @@ func clusterPost(s *state.State, r *http.Request) response.Response {
 }
 
 func clusterGet(s *state.State, r *http.Request) response.Response {
+	status := s.Database.Status()
+
+	// If the database is not in a ready or waiting state, we can't be sure it's available for use.
+	if status != db.StatusReady && status != db.StatusWaiting {
+		return response.SmartError(api.StatusErrorf(http.StatusServiceUnavailable, string(status)))
+	}
+
 	var apiClusterMembers []internalTypes.ClusterMember
 	err := s.Database.Transaction(s.Context, func(ctx context.Context, tx *sql.Tx) error {
-		clusterMembers, err := cluster.GetInternalClusterMembers(ctx, tx)
+		var err error
+		var clusterMembers []cluster.InternalClusterMember
+		var awaitingUpgrade map[string]bool
+		if status == db.StatusReady {
+			clusterMembers, err = cluster.GetInternalClusterMembers(ctx, tx)
+		} else {
+			schemaInternal, schemaExternal, apiExtensions := s.Database.Schema().Version()
+			clusterMembers, awaitingUpgrade, err = cluster.GetUpgradingClusterMembers(ctx, tx, schemaInternal, schemaExternal, apiExtensions)
+		}
+
 		if err != nil {
 			return err
 		}
@@ -183,6 +205,15 @@ func clusterGet(s *state.State, r *http.Request) response.Response {
 				return err
 			}
 
+			// Assign an upgrade status if the cluster member is awaiting an upgrade.
+			if awaitingUpgrade != nil {
+				if awaitingUpgrade[apiClusterMember.Name] {
+					apiClusterMember.Status = internalTypes.MemberNeedsUpgrade
+				} else {
+					apiClusterMember.Status = internalTypes.MemberUpgrading
+				}
+			}
+
 			apiClusterMembers = append(apiClusterMembers, *apiClusterMember)
 		}
 
@@ -192,24 +223,26 @@ func clusterGet(s *state.State, r *http.Request) response.Response {
 		return response.SmartError(fmt.Errorf("Failed to get cluster members: %w", err))
 	}
 
-	clusterCert, err := s.ClusterCert().PublicKeyX509()
-	if err != nil {
-		return response.SmartError(err)
-	}
-
-	// Send a small request to each node to ensure they are reachable.
-	for i, clusterMember := range apiClusterMembers {
-		addr := api.NewURL().Scheme("https").Host(clusterMember.Address.String())
-		d, err := internalClient.New(*addr, s.ServerCert(), clusterCert, false)
+	// Send a small request to each node to ensure they are reachable if the database is fully online.
+	if status == db.StatusReady {
+		clusterCert, err := s.ClusterCert().PublicKeyX509()
 		if err != nil {
-			return response.SmartError(fmt.Errorf("Failed to create HTTPS client for cluster member with address %q: %w", addr.String(), err))
+			return response.SmartError(err)
 		}
 
-		err = d.CheckReady(s.Context)
-		if err == nil {
-			apiClusterMembers[i].Status = internalTypes.MemberOnline
-		} else {
-			logger.Warnf("Failed to get status of cluster member with address %q: %v", addr.String(), err)
+		for i, clusterMember := range apiClusterMembers {
+			addr := api.NewURL().Scheme("https").Host(clusterMember.Address.String())
+			d, err := internalClient.New(*addr, s.ServerCert(), clusterCert, false)
+			if err != nil {
+				return response.SmartError(fmt.Errorf("Failed to create HTTPS client for cluster member with address %q: %w", addr.String(), err))
+			}
+
+			err = d.CheckReady(s.Context)
+			if err == nil {
+				apiClusterMembers[i].Status = internalTypes.MemberOnline
+			} else {
+				logger.Warnf("Failed to get status of cluster member with address %q: %v", addr.String(), err)
+			}
 		}
 	}
 

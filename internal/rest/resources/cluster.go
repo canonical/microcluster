@@ -22,6 +22,7 @@ import (
 
 	"github.com/canonical/microcluster/client"
 	"github.com/canonical/microcluster/cluster"
+	"github.com/canonical/microcluster/internal/db"
 	internalClient "github.com/canonical/microcluster/internal/rest/client"
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/internal/state"

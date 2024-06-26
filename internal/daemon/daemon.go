@@ -118,15 +118,6 @@ func (d *Daemon) Run(ctx context.Context, listenPort string, stateDir string, so
 		return fmt.Errorf("Failed to initialize directory structure: %w", err)
 	}
 
-	isAlreadyRunning, err := d.os.IsControlSocketPresent()
-	if err != nil {
-		return err
-	}
-
-	if isAlreadyRunning {
-		return fmt.Errorf("Control socket already present (%q); is another daemon already running?", d.os.ControlSocketPath())
-	}
-
 	d.extensionServers = extensionServers
 
 	err = d.init(listenPort, extensionsSchema, apiExtensions, hooks)

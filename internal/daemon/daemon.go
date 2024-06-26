@@ -206,10 +206,7 @@ func (d *Daemon) init(listenPort string, schemaExtensions []schema.Update, apiEx
 		}
 	}
 
-	ctlServer := d.initServer(serverEndpoints...)
-	ctl := endpoints.NewSocket(d.shutdownCtx, ctlServer, d.os.ControlSocket(), d.os.SocketGroup)
-	d.endpoints = endpoints.NewEndpoints(d.shutdownCtx, ctl)
-	err = d.endpoints.Up()
+	err = d.startUnixServer(serverEndpoints)
 	if err != nil {
 		return err
 	}
@@ -601,6 +598,15 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 	}
 
 	return nil
+}
+
+// startUnixServer starts up the core unix listener with the given resources.
+func (d *Daemon) startUnixServer(serverEndpoints []rest.Resources) error {
+	ctlServer := d.initServer(serverEndpoints...)
+	ctl := endpoints.NewSocket(d.shutdownCtx, ctlServer, d.os.ControlSocket(), d.os.SocketGroup)
+	d.endpoints = endpoints.NewEndpoints(d.shutdownCtx, ctl)
+
+	return d.endpoints.Up()
 }
 
 // addCoreServers initializes the default resources with the default address and certificate.

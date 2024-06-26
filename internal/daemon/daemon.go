@@ -81,14 +81,26 @@ func NewDaemon(project string) *Daemon {
 	}
 
 	d.stop = sync.OnceValue(func() error {
-		d.shutdownCancel()
-
-		err := d.db.Stop()
-		if err != nil {
-			return fmt.Errorf("Failed shutting down database: %w", err)
+		if d.shutdownCancel != nil {
+			d.shutdownCancel()
 		}
 
-		return d.endpoints.Down()
+		var dqliteErr error
+		if d.db != nil {
+			dqliteErr = d.db.Stop()
+			if dqliteErr != nil {
+				logger.Error("Failed shutting down database", logger.Ctx{"error": dqliteErr})
+			}
+		}
+
+		if d.endpoints != nil {
+			err := d.endpoints.Down()
+			if err != nil {
+				return err
+			}
+		}
+
+		return dqliteErr
 	})
 
 	return d

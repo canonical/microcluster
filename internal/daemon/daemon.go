@@ -18,6 +18,7 @@ import (
 	"github.com/canonical/lxd/shared"
 	"github.com/canonical/lxd/shared/api"
 	"github.com/canonical/lxd/shared/logger"
+	"github.com/canonical/lxd/shared/revert"
 	"github.com/gorilla/mux"
 	"gopkg.in/yaml.v2"
 
@@ -130,6 +131,16 @@ func (d *Daemon) Run(ctx context.Context, listenPort string, stateDir string, so
 		return fmt.Errorf("Failed to initialize directory structure: %w", err)
 	}
 
+	// Clean up the daemon state on an error during init.
+	reverter := revert.New()
+	defer reverter.Fail()
+	reverter.Add(func() {
+		err := d.stop()
+		if err != nil {
+			logger.Error("Failed to cleanly stop the daemon", logger.Ctx{"error": err})
+		}
+	})
+
 	d.extensionServers = extensionServers
 
 	err = d.init(listenPort, extensionsSchema, apiExtensions, hooks)
@@ -143,6 +154,8 @@ func (d *Daemon) Run(ctx context.Context, listenPort string, stateDir string, so
 	}
 
 	close(d.ReadyChan)
+
+	reverter.Success()
 
 	for {
 		select {

@@ -3,6 +3,7 @@ package main
 import (
 	"sort"
 
+	"github.com/canonical/lxd/shared"
 	cli "github.com/canonical/lxd/shared/cmd"
 	"github.com/spf13/cobra"
 
@@ -81,10 +82,10 @@ func (c *cmdClusterMembersList) run(cmd *cobra.Command, args []string) error {
 
 	data := make([][]string, len(clusterMembers))
 	for i, clusterMember := range clusterMembers {
-		data[i] = []string{clusterMember.Name, clusterMember.Address.String(), clusterMember.Role, clusterMember.Certificate.String(), string(clusterMember.Status)}
+		data[i] = []string{clusterMember.Name, clusterMember.Address.String(), clusterMember.Role, shared.CertFingerprint(clusterMember.Certificate.Certificate), string(clusterMember.Status)}
 	}
 
-	header := []string{"NAME", "ADDRESS", "ROLE", "CERTIFICATE", "STATUS"}
+	header := []string{"NAME", "ADDRESS", "ROLE", "FINGERPRINT", "STATUS"}
 	sort.Sort(cli.SortColumnsNaturally(data))
 
 	return cli.RenderTable(cli.TableFormatTable, header, data, clusterMembers)

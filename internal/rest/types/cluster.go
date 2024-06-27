@@ -41,4 +41,10 @@ const (
 
 	// MemberNotFound should be the MemberStatus when the node was not found in dqlite.
 	MemberNotFound MemberStatus = "NOT FOUND"
+
+	// MemberUpgrading should be the MemberStatus if the system is awaiting or performing a schema upgrade.
+	MemberUpgrading MemberStatus = "UPGRADING"
+
+	// MemberNeedsUpgrade should be the MemberStatus if the system needs to receive a schema upgrade to be compatible with other cluster members.
+	MemberNeedsUpgrade MemberStatus = "NEEDS UPGRADE"
 )

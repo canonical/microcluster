@@ -200,8 +200,12 @@ func (d *Daemon) init(listenPort string, schemaExtensions []schema.Update, apiEx
 
 	d.db = db.NewDB(d.shutdownCtx, d.serverCert, d.ClusterCert, d.os)
 
-	// Extract user defined endpoints for core listener.
-	coreEndpoints, err := resources.GetAndValidateCoreEndpoints(d.extensionServers)
+	listenAddr := api.NewURL()
+	if listenPort != "" {
+		listenAddr = listenAddr.Host(fmt.Sprintf(":%s", listenPort))
+	}
+
+	err = resources.ValidateEndpoints(d.extensionServers, listenAddr.URL.Host)
 	if err != nil {
 		return err
 	}
@@ -211,25 +215,30 @@ func (d *Daemon) init(listenPort string, schemaExtensions []schema.Update, apiEx
 		resources.InternalEndpoints,
 		resources.PublicEndpoints,
 	}
-	serverEndpoints = append(serverEndpoints, coreEndpoints...)
-	ctlServer := d.initServer(serverEndpoints...)
-	ctl := endpoints.NewSocket(d.shutdownCtx, ctlServer, d.os.ControlSocket(), d.os.SocketGroup)
-	d.endpoints = endpoints.NewEndpoints(d.shutdownCtx, ctl)
-	err = d.endpoints.Up()
+
+	for _, server := range d.extensionServers {
+		if server.ServeUnix {
+			serverEndpoints = append(serverEndpoints, server.Resources...)
+		}
+	}
+
+	err = d.startUnixServer(serverEndpoints)
 	if err != nil {
 		return err
 	}
 
 	if listenPort != "" {
 		serverEndpoints = []rest.Resources{resources.PublicEndpoints}
-		serverEndpoints = append(serverEndpoints, coreEndpoints...)
-		server := d.initServer(serverEndpoints...)
-		url := api.NewURL().Host(fmt.Sprintf(":%s", listenPort))
-		network := endpoints.NewNetwork(d.shutdownCtx, endpoints.EndpointNetwork, server, *url, d.serverCert)
-		err = d.endpoints.Add(network)
+		err = d.addCoreServers(true, *listenAddr, d.ServerCert(), serverEndpoints)
 		if err != nil {
 			return err
 		}
+	}
+
+	// Add extension servers before post-join hook.
+	err = d.addExtensionServers(true, d.ServerCert(), listenAddr.URL.Host)
+	if err != nil {
+		return err
 	}
 
 	d.db.SetSchema(schemaExtensions, d.Extensions)
@@ -438,22 +447,25 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 		return err
 	}
 
-	// Extract user defined endpoints for core listener.
-	coreEndpoints, err := resources.GetAndValidateCoreEndpoints(d.extensionServers)
+	// Validate the extension servers again now that we have applied addresses.
+	err = resources.ValidateEndpoints(d.extensionServers, d.address.URL.Host)
 	if err != nil {
 		return err
 	}
 
-	serverEndpoints := []rest.Resources{resources.InternalEndpoints, resources.PublicEndpoints}
-	serverEndpoints = append(serverEndpoints, coreEndpoints...)
-	server := d.initServer(serverEndpoints...)
-	network := endpoints.NewNetwork(d.shutdownCtx, endpoints.EndpointNetwork, server, d.address, d.ClusterCert())
 	err = d.endpoints.Down(endpoints.EndpointNetwork)
 	if err != nil {
 		return err
 	}
 
-	err = d.endpoints.Add(network)
+	serverEndpoints := []rest.Resources{resources.InternalEndpoints, resources.PublicEndpoints}
+	err = d.addCoreServers(false, d.address, d.ClusterCert(), serverEndpoints)
+	if err != nil {
+		return err
+	}
+
+	// Add extension servers before post-join hook.
+	err = d.addExtensionServers(false, d.ClusterCert(), d.address.URL.Host)
 	if err != nil {
 		return err
 	}
@@ -476,12 +488,6 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 		}
 
 		err = d.trustStore.Refresh()
-		if err != nil {
-			return err
-		}
-
-		// Add extension servers before post-bootstrap hook.
-		err = d.addExtensionServers()
 		if err != nil {
 			return err
 		}
@@ -603,12 +609,6 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 		return err
 	}
 
-	// Add extension servers before post-join hook.
-	err = d.addExtensionServers()
-	if err != nil {
-		return err
-	}
-
 	if len(joinAddresses) > 0 {
 		return d.hooks.PostJoin(d.State(), initConfig)
 	}
@@ -616,17 +616,72 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 	return nil
 }
 
+// startUnixServer starts up the core unix listener with the given resources.
+func (d *Daemon) startUnixServer(serverEndpoints []rest.Resources) error {
+	ctlServer := d.initServer(serverEndpoints...)
+	ctl := endpoints.NewSocket(d.shutdownCtx, ctlServer, d.os.ControlSocket(), d.os.SocketGroup)
+	d.endpoints = endpoints.NewEndpoints(d.shutdownCtx, ctl)
+
+	return d.endpoints.Up()
+}
+
+// addCoreServers initializes the default resources with the default address and certificate.
+// If the default address and certificate may be applied to any extension servers, those will be started as well.
+func (d *Daemon) addCoreServers(preInit bool, defaultURL api.URL, defaultCert *shared.CertInfo, defaultResources []rest.Resources) error {
+	serverEndpoints := []rest.Resources{}
+	serverEndpoints = append(serverEndpoints, defaultResources...)
+
+	// Append all extension servers whose address is empty or matches the default URL.
+	for _, s := range d.extensionServers {
+		// If the server is not available prior to initialization, then skip it if we are before initialization.
+		if !s.PreInit && preInit {
+			continue
+		}
+
+		// If the Server resources are not part of the core API, then skip it.
+		if !s.CoreAPI {
+			continue
+		}
+
+		serverEndpoints = append(serverEndpoints, s.Resources...)
+	}
+
+	server := d.initServer(serverEndpoints...)
+	network := endpoints.NewNetwork(d.shutdownCtx, endpoints.EndpointNetwork, server, defaultURL, defaultCert)
+
+	return d.endpoints.Add(network)
+}
+
 // addExtensionServers initialises a new *endpoints.Network for each extension server and adds it to the Daemon endpoints.
-func (d *Daemon) addExtensionServers() error {
+// Only servers with a defined address will be started.
+// If a server lacks a certificate, the fallbackCert will be used instead.
+func (d *Daemon) addExtensionServers(preInit bool, fallbackCert *shared.CertInfo, coreAddress string) error {
 	var networks []endpoints.Endpoint
 	for _, extensionServer := range d.extensionServers {
+		// Skip any core API servers.
 		if extensionServer.CoreAPI {
 			continue
 		}
 
+		// If we are before initialization, only start the servers who have `PreInit` set.
+		if !extensionServer.PreInit && preInit {
+			continue
+		}
+
+		// If the server has no defined address, then do not start it as it should have already started with the core servers.
+		if extensionServer.Address == (types.AddrPort{}) {
+			continue
+		}
+
+		// If the server address matches the core address, then it should have already started.
+		if extensionServer.Address.String() == coreAddress {
+			continue
+		}
+
+		// If there is no certificate defined, apply the default certificate for the core server.
 		cert := extensionServer.Certificate
 		if cert == nil {
-			cert = d.ClusterCert()
+			cert = fallbackCert
 		}
 
 		server := d.initServer(extensionServer.Resources...)
@@ -635,9 +690,11 @@ func (d *Daemon) addExtensionServers() error {
 		networks = append(networks, network)
 	}
 
-	err := d.endpoints.Add(networks...)
-	if err != nil {
-		return err
+	if len(networks) > 0 {
+		err := d.endpoints.Add(networks...)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

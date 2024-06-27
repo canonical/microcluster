@@ -11,7 +11,8 @@ import (
 // If the Server is marked as CoreAPI, its endpoints will be added to the core listener of Microcluster.
 var Servers = []rest.Server{
 	{
-		CoreAPI: true,
+		CoreAPI:   true,
+		ServeUnix: true,
 		Resources: []rest.Resources{
 			{
 				PathPrefix: types.ExtendedPathPrefix,

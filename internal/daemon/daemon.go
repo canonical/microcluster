@@ -18,6 +18,7 @@ import (
 	"github.com/canonical/lxd/shared"
 	"github.com/canonical/lxd/shared/api"
 	"github.com/canonical/lxd/shared/logger"
+	"github.com/canonical/lxd/shared/revert"
 	"github.com/gorilla/mux"
 	"gopkg.in/yaml.v2"
 
@@ -81,14 +82,26 @@ func NewDaemon(project string) *Daemon {
 	}
 
 	d.stop = sync.OnceValue(func() error {
-		d.shutdownCancel()
-
-		err := d.db.Stop()
-		if err != nil {
-			return fmt.Errorf("Failed shutting down database: %w", err)
+		if d.shutdownCancel != nil {
+			d.shutdownCancel()
 		}
 
-		return d.endpoints.Down()
+		var dqliteErr error
+		if d.db != nil {
+			dqliteErr = d.db.Stop()
+			if dqliteErr != nil {
+				logger.Error("Failed shutting down database", logger.Ctx{"error": dqliteErr})
+			}
+		}
+
+		if d.endpoints != nil {
+			err := d.endpoints.Down()
+			if err != nil {
+				return err
+			}
+		}
+
+		return dqliteErr
 	})
 
 	return d
@@ -118,14 +131,15 @@ func (d *Daemon) Run(ctx context.Context, listenPort string, stateDir string, so
 		return fmt.Errorf("Failed to initialize directory structure: %w", err)
 	}
 
-	isAlreadyRunning, err := d.os.IsControlSocketPresent()
-	if err != nil {
-		return err
-	}
-
-	if isAlreadyRunning {
-		return fmt.Errorf("Control socket already present (%q); is another daemon already running?", d.os.ControlSocketPath())
-	}
+	// Clean up the daemon state on an error during init.
+	reverter := revert.New()
+	defer reverter.Fail()
+	reverter.Add(func() {
+		err := d.stop()
+		if err != nil {
+			logger.Error("Failed to cleanly stop the daemon", logger.Ctx{"error": err})
+		}
+	})
 
 	d.extensionServers = extensionServers
 
@@ -140,6 +154,8 @@ func (d *Daemon) Run(ctx context.Context, listenPort string, stateDir string, so
 	}
 
 	close(d.ReadyChan)
+
+	reverter.Success()
 
 	for {
 		select {

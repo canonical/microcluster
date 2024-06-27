@@ -6,12 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"net/http"
 	"os"
 	"time"
 
 	"github.com/canonical/lxd/lxd/db/query"
 	"github.com/canonical/lxd/lxd/db/schema"
 	"github.com/canonical/lxd/shared"
+	"github.com/canonical/lxd/shared/api"
 	"github.com/canonical/lxd/shared/logger"
 	"github.com/canonical/lxd/shared/revert"
 
@@ -44,15 +46,27 @@ func (db *DB) Open(ext extensions.Extensions, bootstrap bool, project string) er
 		return err
 	}
 
-	db.db, err = db.dqlite.Open(db.ctx, db.dbName)
-	if err != nil {
-		return err
+	if db.db == nil {
+		db.db, err = db.dqlite.Open(db.ctx, db.dbName)
+		if err != nil {
+			return err
+		}
 	}
 
 	err = db.waitUpgrade(bootstrap, ext)
 	if err != nil {
 		return err
 	}
+
+	// If we receive an error after this point, close the database.
+	reverter.Add(func() {
+		closeErr := db.db.Close()
+		if closeErr != nil {
+			logger.Error("Failed to close database", logger.Ctx{"address": db.listenAddr.String(), "error": closeErr})
+		}
+
+		db.db = nil
+	})
 
 	err = cluster.PrepareStmts(db.db, project, false)
 	if err != nil {
@@ -223,6 +237,11 @@ func (db *DB) waitUpgrade(bootstrap bool, ext extensions.Extensions) error {
 
 // Transaction handles performing a transaction on the dqlite database.
 func (db *DB) Transaction(outerCtx context.Context, f func(context.Context, *sql.Tx) error) error {
+	status := db.Status()
+	if status != StatusWaiting && status != StatusReady {
+		return api.StatusErrorf(http.StatusServiceUnavailable, "Database is not ready yet: %v", status)
+	}
+
 	return db.retry(outerCtx, func(ctx context.Context) error {
 		err := query.Transaction(ctx, db.db, f)
 		if errors.Is(err, context.DeadlineExceeded) {

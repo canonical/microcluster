@@ -44,6 +44,10 @@ type Args struct {
 	StateDir    string
 	SocketGroup string
 
+	// Consumers of MicroCluster should provide a version to serve at /cluster/1.0
+	// This is required at daemon start.
+	Version string
+
 	PreInitListenAddress string
 	Client               *client.Client
 	Proxy                func(*http.Request) (*url.URL, error)
@@ -82,9 +86,13 @@ func (m *MicroCluster) Start(ctx context.Context, extensionsSchema []schema.Upda
 		return err
 	}
 
+	if m.args.Version == "" {
+		return fmt.Errorf("Version was missing at MicroCluster daemon start")
+	}
+
 	// Start up a daemon with a basic control socket.
 	defer logger.Info("Daemon stopped")
-	d := daemon.NewDaemon(cluster.GetCallerProject())
+	d := daemon.NewDaemon(cluster.GetCallerProject(), m.args.Version)
 
 	chIgnore := make(chan os.Signal, 1)
 	signal.Notify(chIgnore, unix.SIGHUP)

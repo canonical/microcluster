@@ -1,11 +1,18 @@
+VERSION=$(shell git describe --always --dirty --abbrev=10)
+LDFLAGS="-X github.com/canonical/microcluster/example/version.version=$(VERSION)"
+
 .PHONY: default
 default: build
 
 # Build targets.
 .PHONY: build
 build:
-	go install -v ./cmd/microctl
-	go install -v ./cmd/microd
+	go install -v \
+		-ldflags $(LDFLAGS) \
+		./cmd/microctl
+	go install -v \
+		-ldflags $(LDFLAGS) \
+		./cmd/microd
 
 # Testing targets.
 .PHONY: check

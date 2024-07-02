@@ -27,22 +27,22 @@ func (e ErrInvalidHost) Unwrap() error {
 
 // AllowAuthenticated checks if the request is trusted by extracting access.TrustedRequest from the request context.
 // This handler is used as an access handler by default if AllowUntrusted is false on a rest.EndpointAction.
-func AllowAuthenticated(state *state.State, r *http.Request) response.Response {
+func AllowAuthenticated(state *state.State, r *http.Request) (bool, response.Response) {
 	trusted := r.Context().Value(request.CtxAccess)
 	if trusted == nil {
-		return response.Forbidden(nil)
+		return false, response.Forbidden(nil)
 	}
 
 	trustedReq, ok := trusted.(access.TrustedRequest)
 	if !ok {
-		return response.Forbidden(nil)
+		return false, response.Forbidden(nil)
 	}
 
 	if !trustedReq.Trusted {
-		return response.Forbidden(nil)
+		return false, response.Forbidden(nil)
 	}
 
-	return response.EmptySyncResponse
+	return true, nil
 }
 
 // Authenticate ensures the request certificates are trusted against the given set of trusted certificates.

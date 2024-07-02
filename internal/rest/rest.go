@@ -30,17 +30,32 @@ func handleAPIRequest(action rest.EndpointAction, state *state.State, w http.Res
 
 	// If allow untrusted is not set, the request must be authenticated via core authentication (e.g. certificate in truststore).
 	if !action.AllowUntrusted {
-		resp := access.AllowAuthenticated(state, r)
-		if resp != response.EmptySyncResponse {
+		trusted, resp := access.AllowAuthenticated(state, r)
+		if !trusted {
+			if resp == nil {
+				return response.Forbidden(nil)
+			}
+
 			return resp
 		}
 	}
 
 	// Run the custom access handler if set.
 	if action.AccessHandler != nil {
-		resp := action.AccessHandler(state, r)
-		if resp != response.EmptySyncResponse {
+		trusted, resp := action.AccessHandler(state, r)
+		if !trusted {
+			if resp == nil {
+				return response.Forbidden(nil)
+			}
+
 			return resp
+		}
+
+		if resp != nil {
+			err := resp.Render(w)
+			if err != nil {
+				return response.InternalError(err)
+			}
 		}
 	}
 

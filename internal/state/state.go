@@ -30,6 +30,9 @@ type State interface {
 	// Name of the cluster member.
 	Name() string
 
+	// Version is provided by the MicroCluster consumer.
+	Version() string
+
 	// Server certificate is used for server-to-server connection.
 	ServerCert() *shared.CertInfo
 
@@ -96,6 +99,7 @@ type InternalState struct {
 	InternalFileSystem       func() *sys.OS
 	InternalAddress          func() *api.URL
 	InternalName             func() string
+	InternalVersion          func() string
 	InternalServerCert       func() *shared.CertInfo
 	InternalClusterCert      func() *shared.CertInfo
 	InternalDatabase         *db.DB
@@ -116,6 +120,12 @@ func (s *InternalState) Address() *api.URL {
 // Name returns the cluster name for the local system.
 func (s *InternalState) Name() string {
 	return s.InternalName()
+}
+
+// Version is provided by the MicroCluster consumer. The daemon includes it in
+// its /cluster/1.0 response.
+func (s *InternalState) Version() string {
+	return s.InternalVersion()
 }
 
 // ServerCert returns the keypair identifying the local system.

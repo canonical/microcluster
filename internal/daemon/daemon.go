@@ -45,6 +45,7 @@ type Daemon struct {
 
 	address api.URL // Listen Address.
 	name    string  // Name of the cluster member.
+	version string  // Version string provided by MicroCluster consumer
 
 	os         *sys.OS
 	serverCert *shared.CertInfo
@@ -74,11 +75,12 @@ type Daemon struct {
 }
 
 // NewDaemon initializes the Daemon context and channels.
-func NewDaemon(project string) *Daemon {
+func NewDaemon(project string, version string) *Daemon {
 	d := &Daemon{
 		shutdownDoneCh: make(chan error),
 		ReadyChan:      make(chan struct{}),
 		project:        project,
+		version:        version,
 	}
 
 	d.stop = sync.OnceValue(func() error {
@@ -772,6 +774,11 @@ func (d *Daemon) Name() string {
 	return d.name
 }
 
+// Version ensures both the daemon and state have the same version.
+func (d *Daemon) Version() string {
+	return d.version
+}
+
 // State creates a State instance with the daemon's stateful components.
 func (d *Daemon) State() *state.State {
 	state.PreRemoveHook = d.hooks.PreRemove
@@ -794,6 +801,7 @@ func (d *Daemon) State() *state.State {
 		OS:          d.os,
 		Address:     d.Address,
 		Name:        d.Name,
+		Version:     d.Version,
 		Endpoints:   d.endpoints,
 		ServerCert:  d.ServerCert,
 		ClusterCert: d.ClusterCert,

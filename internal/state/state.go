@@ -36,6 +36,9 @@ type State struct {
 	// Name of the cluster member.
 	Name func() string
 
+	// Version provided by the consumer of MicroCluster
+	Version func() string
+
 	// Server.
 	Endpoints *endpoints.Endpoints
 

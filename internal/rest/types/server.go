@@ -8,6 +8,7 @@ import (
 type Server struct {
 	Name    string         `json:"name"    yaml:"name"`
 	Address types.AddrPort `json:"address" yaml:"address"`
+	Version string         `json:"version" yaml:"version"`
 	Ready   bool           `json:"ready"   yaml:"ready"`
 }
 

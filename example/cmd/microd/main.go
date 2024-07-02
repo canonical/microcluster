@@ -64,6 +64,7 @@ func (c *cmdDaemon) run(cmd *cobra.Command, args []string) error {
 		SocketGroup: c.flagSocketGroup,
 		Verbose:     c.global.flagLogVerbose,
 		Debug:       c.global.flagLogDebug,
+		Version:     version.Version,
 	})
 
 	if err != nil {

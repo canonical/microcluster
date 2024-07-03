@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/canonical/go-dqlite"
 	"github.com/canonical/lxd/lxd/db/schema"
 	"github.com/canonical/lxd/shared/api"
 	"github.com/canonical/lxd/shared/logger"
@@ -21,6 +22,7 @@ import (
 	"github.com/canonical/microcluster/cluster"
 	"github.com/canonical/microcluster/config"
 	"github.com/canonical/microcluster/internal/daemon"
+	"github.com/canonical/microcluster/internal/recover"
 	internalClient "github.com/canonical/microcluster/internal/rest/client"
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/internal/sys"
@@ -208,6 +210,127 @@ func (m *MicroCluster) JoinCluster(ctx context.Context, name string, address str
 	}
 
 	return c.ControlDaemon(ctx, internalTypes.Control{JoinToken: token, Address: addr, Name: name, InitConfig: initConfig})
+}
+
+// GetDqliteClusterMembers retrieves the current local cluster configuration
+// (derived from the trust store & dqlite metadata); it does not query the
+// database.
+// This is primarily intended for modifying the cluster configuration via
+// MicroCluster.RecoverFromQuorumLoss.
+func (m *MicroCluster) GetDqliteClusterMembers() ([]cluster.DqliteMember, error) {
+	return recover.GetDqliteClusterMembers(m.FileSystem)
+}
+
+// RecoverFromQuorumLoss can be used to recover database access when a quorum of
+// members is lost and cannot be recovered (e.g. hardware failure).
+// This function requires that:
+//   - All cluster members' databases are not running
+//   - The current member has the most up-to-date raft log (usually the member
+//     which was most recently the leader)
+//
+// RecoverFromQuorumLoss will take a database backup before attempting the
+// recovery operation.
+//
+// RecoverFromQuorumLoss should be invoked _exactly once_ for the entire cluster.
+// This function creates a gz-compressed tarball
+// path.Join(m.FileSystem.StateDir, "recovery_db.tar.gz"). This tarball should
+// be manually copied by the user to the state dir of all other cluster members.
+//
+// On start, Microcluster will automatically check for & load the recovery
+// tarball. A database backup will be taken before the load.
+//
+// RecoverFromQuorumLoss returns the path to the recovery tarball.
+func (m *MicroCluster) RecoverFromQuorumLoss(members []cluster.DqliteMember) (string, error) {
+	// Double check to make sure the cluster configuration has actually changed
+	oldMembers, err := m.GetDqliteClusterMembers()
+	if err != nil {
+		return "", err
+	}
+
+	err = recover.ValidateMemberChanges(oldMembers, members)
+	if err != nil {
+		return "", err
+	}
+
+	// Set up our new cluster configuration
+	nodeInfo := make([]dqlite.NodeInfo, 0, len(members))
+	for _, member := range members {
+		info, err := member.NodeInfo()
+		if err != nil {
+			return "", err
+		}
+		nodeInfo = append(nodeInfo, *info)
+	}
+
+	// Ensure that the daemon is not running
+	isSocketPresent, err := m.FileSystem.IsControlSocketPresent()
+	if err != nil {
+		return "", err
+	}
+
+	if isSocketPresent {
+		return "", fmt.Errorf("daemon is running (socket path exists: %q)", m.FileSystem.ControlSocketPath())
+	}
+
+	// Check each cluster member's /1.0 to ensure that they are unreachable.
+	// This is a sanity check to ensure that we're not reconfiguring a cluster
+	// that's still partially up.
+	remotes, err := recover.ReadTrustStore(m.FileSystem.TrustDir)
+	if err != nil {
+		return "", err
+	}
+
+	serverCert, err := m.FileSystem.ServerCert()
+	if err != nil {
+		return "", err
+	}
+
+	clusterCert, err := m.FileSystem.ClusterCert()
+	if err != nil {
+		return "", err
+	}
+
+	clusterKey, err := clusterCert.PublicKeyX509()
+	if err != nil {
+		return "", err
+	}
+
+	cluster, err := remotes.Cluster(false, serverCert, clusterKey)
+	if err != nil {
+		return "", err
+	}
+
+	cancelCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	err = cluster.Query(cancelCtx, true, func(ctx context.Context, client *client.Client) error {
+		var rslt internalTypes.Server
+		err := client.Query(ctx, "GET", "1.0", api.NewURL(), nil, &rslt)
+		if err == nil {
+			return fmt.Errorf("contacted cluster member at %q; please shut down all cluster members", rslt.Name)
+		}
+		return nil
+	})
+	cancel()
+	if err != nil {
+		return "", err
+	}
+
+	err = recover.CreateDatabaseBackup(m.FileSystem)
+	if err != nil {
+		return "", err
+	}
+
+	err = dqlite.ReconfigureMembershipExt(m.FileSystem.DatabaseDir, nodeInfo)
+	if err != nil {
+		return "", fmt.Errorf("dqlite recovery: %w", err)
+	}
+
+	// Tar up the m.FileSystem.DatabaseDir and write to `dbExportPath`
+	recoveryTarballPath, err := recover.CreateRecoveryTarball(m.FileSystem)
+	if err != nil {
+		return "", err
+	}
+
+	return recoveryTarballPath, nil
 }
 
 // NewJoinToken creates and records a new join token containing all the necessary credentials for joining a cluster.

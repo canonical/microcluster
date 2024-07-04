@@ -72,19 +72,19 @@ func clusterCertificatesPut(s *state.State, r *http.Request) response.Response {
 			return response.BadRequest(fmt.Errorf("CA must be base64 encoded PEM key"))
 		}
 
-		err = os.WriteFile(filepath.Join(s.OS.StateDir, "cluster.ca"), []byte(req.CA), 0650)
+		err = os.WriteFile(filepath.Join(s.OS.StateDir, "cluster.ca"), []byte(req.CA), 0664)
 		if err != nil {
 			return response.SmartError(err)
 		}
 	}
 
 	// Write the keypair to the state directory.
-	err = os.WriteFile(filepath.Join(s.OS.StateDir, "cluster.crt"), []byte(req.PublicKey), 0650)
+	err = os.WriteFile(filepath.Join(s.OS.StateDir, "cluster.crt"), []byte(req.PublicKey), 0664)
 	if err != nil {
 		return response.SmartError(err)
 	}
 
-	err = os.WriteFile(filepath.Join(s.OS.StateDir, "cluster.key"), []byte(req.PrivateKey), 0650)
+	err = os.WriteFile(filepath.Join(s.OS.StateDir, "cluster.key"), []byte(req.PrivateKey), 0600)
 	if err != nil {
 		return response.SmartError(err)
 	}

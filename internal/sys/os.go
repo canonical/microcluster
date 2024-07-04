@@ -12,11 +12,12 @@ import (
 
 // OS contains fields and methods for interacting with the state directory.
 type OS struct {
-	StateDir    string
-	DatabaseDir string
-	TrustDir    string
-	LogFile     string
-	SocketGroup string
+	StateDir        string
+	DatabaseDir     string
+	TrustDir        string
+	CertificatesDir string
+	LogFile         string
+	SocketGroup     string
 }
 
 // DefaultOS returns a fresh uninitialized OS instance with default values.
@@ -32,11 +33,12 @@ func DefaultOS(stateDir string, socketGroup string, createDir bool) (*OS, error)
 	// TODO: Configurable log file path.
 
 	os := &OS{
-		StateDir:    stateDir,
-		DatabaseDir: filepath.Join(stateDir, "database"),
-		TrustDir:    filepath.Join(stateDir, "truststore"),
-		LogFile:     "",
-		SocketGroup: socketGroup,
+		StateDir:        stateDir,
+		DatabaseDir:     filepath.Join(stateDir, "database"),
+		TrustDir:        filepath.Join(stateDir, "truststore"),
+		CertificatesDir: filepath.Join(stateDir, "certificates"),
+		LogFile:         "",
+		SocketGroup:     socketGroup,
 	}
 
 	err := os.init(createDir)
@@ -55,6 +57,7 @@ func (s *OS) init(createDir bool) error {
 		{s.StateDir, 0711},
 		{s.DatabaseDir, 0700},
 		{s.TrustDir, 0700},
+		{s.CertificatesDir, 0700},
 	}
 
 	for _, dir := range dirs {

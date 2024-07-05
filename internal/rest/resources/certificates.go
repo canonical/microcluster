@@ -56,7 +56,7 @@ func clusterCertificatesPut(s *state.State, r *http.Request) response.Response {
 		}
 
 		err = cluster.Query(s.Context, true, func(ctx context.Context, c *client.Client) error {
-			return c.UpdateClusterCertificate(ctx, req)
+			return c.UpdateClusterCertificate(ctx, certificateName, req)
 		})
 		if err != nil {
 			return response.SmartError(fmt.Errorf("Failed to update %q certificate on peers: %w", certificateName, err))

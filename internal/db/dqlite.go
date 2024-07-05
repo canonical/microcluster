@@ -141,8 +141,6 @@ func (db *DB) Bootstrap(extensions extensions.Extensions, project string, addr a
 		return err
 	}
 
-	go db.loopHeartbeat()
-
 	return nil
 }
 
@@ -174,8 +172,6 @@ func (db *DB) Join(extensions extensions.Extensions, project string, addr api.UR
 
 		return err
 	}
-
-	go db.loopHeartbeat()
 
 	return nil
 }
@@ -289,38 +285,6 @@ func (db *DB) dialFunc() dqliteClient.DialFunc {
 		}
 
 		return conn, nil
-	}
-}
-
-// loopHeartbeat runs the heartbeat command continuously every second.
-func (db *DB) loopHeartbeat() {
-	for {
-		db.heartbeat(db.ctx)
-		time.Sleep(10 * time.Second)
-	}
-}
-
-func (db *DB) heartbeat(ctx context.Context) {
-	if db.IsOpen(ctx) != nil {
-		logger.Debug("Database is not yet open, aborting heartbeat", logger.Ctx{"address": db.listenAddr.String()})
-		return
-	}
-
-	// Use the heartbeat lock to prevent another heartbeat attempt if we are currently initiating one.
-	db.heartbeatLock.Lock()
-	defer db.heartbeatLock.Unlock()
-
-	client, err := internalClient.New(db.os.ControlSocket(), nil, nil, false)
-	if err != nil {
-		logger.Error("Failed to get local client", logger.Ctx{"address": db.listenAddr.String(), "error": err})
-		return
-	}
-
-	// Initiate a heartbeat from this node.
-	err = internalClient.Heartbeat(ctx, client, internalTypes.HeartbeatInfo{BeginRound: true})
-	if err != nil && err.Error() != "Attempt to initiate heartbeat from non-leader" {
-		logger.Error("Failed to initiate heartbeat round", logger.Ctx{"address": db.dqlite.Address(), "error": err})
-		return
 	}
 }
 

@@ -55,6 +55,11 @@ func (d *DaemonConfig) Load() error {
 	return nil
 }
 
+// Dump dumps the entire daemon's config.
+func (d *DaemonConfig) Dump() *types.DaemonConfig {
+	return d.config
+}
+
 // Write writes the daemon's config to its path.
 func (d *DaemonConfig) Write() error {
 	d.lock.Lock()

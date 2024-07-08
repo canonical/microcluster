@@ -125,3 +125,36 @@ func (e *Endpoints) Down(types ...EndpointType) error {
 
 	return nil
 }
+
+// DownBy closes the configured listeners based on the decisionFunc.
+// If it returns true the respective listener gets closed.
+func (e *Endpoints) DownBy(decisionFunc func(endpoint Endpoint) bool) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	for _, listener := range e.listeners {
+		if decisionFunc(listener) {
+			err := listener.Close()
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// List returns a list of already added endpoints.
+func (e *Endpoints) List(types ...EndpointType) []Endpoint {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	var endpoints = make([]Endpoint, 0)
+	for _, listener := range e.listeners {
+		if shared.ValueInSlice(listener.Type(), types) {
+			endpoints = append(endpoints, listener)
+		}
+	}
+
+	return endpoints
+}

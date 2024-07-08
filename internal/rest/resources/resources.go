@@ -42,6 +42,7 @@ var InternalEndpoints = rest.Resources{
 		trustCmd,
 		trustEntryCmd,
 		hooksCmd,
+		daemonCmd,
 	},
 }
 

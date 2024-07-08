@@ -123,12 +123,10 @@ func clusterCertificatesPut(s *state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	if certificateName == "cluster" {
-		// Load the new cluster cert from the state directory on this node.
-		err = state.ReloadClusterCert()
-		if err != nil {
-			return response.SmartError(err)
-		}
+	// Load the new cert from the state directory on this node.
+	err = state.ReloadCert(certificateName)
+	if err != nil {
+		return response.SmartError(err)
 	}
 
 	return response.EmptySyncResponse

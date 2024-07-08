@@ -484,7 +484,7 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 		}
 	}
 
-	err = d.ReloadClusterCert()
+	err = d.ReloadCert("cluster")
 	if err != nil {
 		return err
 	}
@@ -896,18 +896,48 @@ func (d *Daemon) ClusterCert() *shared.CertInfo {
 	return shared.NewCertInfo(d.clusterCert.KeyPair(), d.clusterCert.CA(), d.clusterCert.CRL())
 }
 
-// ReloadClusterCert reloads the cluster keypair from the state directory.
-func (d *Daemon) ReloadClusterCert() error {
+// ReloadCert reloads a specific certificate from the filesytem.
+func (d *Daemon) ReloadCert(name string) error {
 	d.clusterMu.Lock()
 	defer d.clusterMu.Unlock()
 
-	clusterCert, err := util.LoadClusterCert(d.os.StateDir)
-	if err != nil {
-		return err
+	var dir string
+	if name == "cluster" {
+		dir = d.os.StateDir
+	} else {
+		dir = d.os.CertificatesDir
 	}
 
-	d.clusterCert = clusterCert
-	d.endpoints.UpdateTLS(clusterCert)
+	cert, err := shared.KeyPairAndCA(dir, name, shared.CertServer, true)
+	if err != nil {
+		return fmt.Errorf("Failed to load TLS certificate %q: %w", name, err)
+	}
+
+	// In case the cluster certificate gets reloaded also populate its value.
+	if name == "cluster" {
+		d.clusterCert = cert
+
+		// The core API endpoints are labeled with core.
+		// When the cluster certificate gets updated reload those.
+		d.endpoints.UpdateTLSByName(endpoints.EndpointsCore, cert)
+
+		// Reload all the other additional listeners that also use the cluster certificate.
+		// This might be the case if they
+		// - don't use a dedicated certificate
+		// - aren't part of the core API
+		// - and cannot load a custom certificate which shares their name
+		d.extensionServersMu.RLock()
+		for name, server := range d.extensionServers {
+			certExists := shared.PathExists(filepath.Join(d.os.CertificatesDir, fmt.Sprintf("%s.crt", name)))
+			if !server.CoreAPI && !server.DedicatedCertificate && !certExists {
+				d.endpoints.UpdateTLSByName(name, cert)
+			}
+		}
+
+		d.extensionServersMu.RUnlock()
+	} else {
+		d.endpoints.UpdateTLSByName(name, cert)
+	}
 
 	return nil
 }
@@ -959,7 +989,7 @@ func (d *Daemon) State() *state.State {
 	state.PostRemoveHook = d.hooks.PostRemove
 	state.OnHeartbeatHook = d.hooks.OnHeartbeat
 	state.OnNewMemberHook = d.hooks.OnNewMember
-	state.ReloadClusterCert = d.ReloadClusterCert
+	state.ReloadCert = d.ReloadCert
 	state.StopListeners = func() error {
 		err := d.fsWatcher.Close()
 		if err != nil {

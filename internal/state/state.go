@@ -86,8 +86,8 @@ var OnHeartbeatHook func(state *State) error
 // OnNewMemberHook is a post-action hook that is run on all cluster members when a new cluster member joins the cluster.
 var OnNewMemberHook func(state *State) error
 
-// ReloadClusterCert reloads the cluster keypair from the state directory.
-var ReloadClusterCert func() error
+// ReloadCert reloads the given keypair from the state directory.
+var ReloadCert func(name string) error
 
 // Cluster returns a client for every member of a cluster, except
 // this one.

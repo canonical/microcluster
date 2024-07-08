@@ -32,6 +32,9 @@ const (
 
 	// OnHeartbeat is run after a successful heartbeat round.
 	OnHeartbeat HookType = "on-heartbeat"
+
+	// OnDaemonConfigUpdate is run after the local daemon received a config update.
+	OnDaemonConfigUpdate HookType = "on-daemon-config-update"
 )
 
 // HookRemoveMemberOptions holds configuration pertaining to the PreRemove and PostRemove hooks.

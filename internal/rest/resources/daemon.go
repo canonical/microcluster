@@ -1,12 +1,17 @@
 package resources
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/canonical/lxd/lxd/response"
 	"github.com/canonical/lxd/shared"
 
+	"github.com/canonical/microcluster/client"
+	internalClient "github.com/canonical/microcluster/internal/rest/client"
+	internalTypes "github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/rest"
 	"github.com/canonical/microcluster/rest/access"
 	"github.com/canonical/microcluster/rest/types"
@@ -71,6 +76,31 @@ func daemonServersPut(s *state.State, r *http.Request) response.Response {
 
 	// Update the additional listeners.
 	err = s.UpdateServers()
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	cluster, err := s.Cluster(false)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	// Run the OnDaemonConfigUpdate hook on all other members.
+	remotes := s.Remotes()
+	err = cluster.Query(s.Context, true, func(ctx context.Context, c *client.Client) error {
+		c.SetClusterNotification()
+		addrPort, err := types.ParseAddrPort(c.URL().URL.Host)
+		if err != nil {
+			return err
+		}
+
+		remote := remotes.RemoteByAddress(addrPort)
+		if remote == nil {
+			return fmt.Errorf("No remote found at address %q to run the %q hook", c.URL().URL.Host, internalTypes.OnDaemonConfigUpdate)
+		}
+
+		return internalClient.RunOnDaemonConfigUpdateHook(ctx, c.Client.UseTarget(remote.Name), daemonConfig.Dump())
+	})
 	if err != nil {
 		return response.SmartError(err)
 	}

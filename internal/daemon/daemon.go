@@ -291,6 +291,7 @@ func (d *Daemon) applyHooks(hooks *config.Hooks) {
 	noOpHook := func(s *state.State) error { return nil }
 	noOpRemoveHook := func(s *state.State, force bool) error { return nil }
 	noOpInitHook := func(s *state.State, initConfig map[string]string) error { return nil }
+	noOpConfigHook := func(s *state.State, config types.DaemonConfig) error { return nil }
 
 	if hooks == nil {
 		d.hooks = config.Hooks{}
@@ -332,6 +333,10 @@ func (d *Daemon) applyHooks(hooks *config.Hooks) {
 
 	if d.hooks.PostRemove == nil {
 		d.hooks.PostRemove = noOpRemoveHook
+	}
+
+	if d.hooks.OnDaemonConfigUpdate == nil {
+		d.hooks.OnDaemonConfigUpdate = noOpConfigHook
 	}
 }
 
@@ -989,6 +994,7 @@ func (d *Daemon) State() *state.State {
 	state.PostRemoveHook = d.hooks.PostRemove
 	state.OnHeartbeatHook = d.hooks.OnHeartbeat
 	state.OnNewMemberHook = d.hooks.OnNewMember
+	state.OnDaemonConfigUpdate = d.hooks.OnDaemonConfigUpdate
 	state.ReloadCert = d.ReloadCert
 	state.StopListeners = func() error {
 		err := d.fsWatcher.Close()

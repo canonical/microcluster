@@ -13,6 +13,7 @@ import (
 	"github.com/canonical/microcluster/internal/state"
 	"github.com/canonical/microcluster/rest"
 	"github.com/canonical/microcluster/rest/access"
+	"github.com/canonical/microcluster/rest/types"
 )
 
 var hooksCmd = rest.Endpoint{
@@ -65,6 +66,17 @@ func hooksPost(s *state.State, r *http.Request) response.Response {
 		err = state.OnNewMemberHook(s)
 		if err != nil {
 			return response.SmartError(fmt.Errorf("Failed to run hook after system %q has joined the cluster: %w", req.Name, err))
+		}
+	case internalTypes.OnDaemonConfigUpdate:
+		var req types.DaemonConfig
+		err = json.NewDecoder(r.Body).Decode(&req)
+		if err != nil {
+			return response.BadRequest(err)
+		}
+
+		err = state.OnDaemonConfigUpdate(s, req)
+		if err != nil {
+			return response.SmartError(fmt.Errorf("Failed to run hook on %q after daemon received local config update: %w", s.Name(), err))
 		}
 	default:
 		return response.SmartError(fmt.Errorf("No valid hook found for the given type"))

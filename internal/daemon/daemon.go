@@ -661,6 +661,83 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 	return nil
 }
 
+// UpdateServers updates and start/stops the additional listeners.
+func (d *Daemon) UpdateServers() error {
+	configuredServers := d.config.GetServers()
+
+	// Create a list of additional listeners which are currently configured.
+	var configuredServerNames []string
+	for name := range configuredServers {
+		configuredServerNames = append(configuredServerNames, name)
+	}
+
+	// Stop all additional listeners which got removed from the config.
+	for _, serverName := range d.ExtensionServers() {
+		if !shared.ValueInSlice(serverName, configuredServerNames) {
+			// Remove their config.
+			d.extensionServersMu.Lock()
+			extensionServer, ok := d.extensionServers[serverName]
+			if !ok {
+				// There isn't any additional listener set that matches this name.
+				d.extensionServersMu.Unlock()
+				continue
+			}
+
+			// Set an empty config for this specific additional listener.
+			extensionServer.ServerConfig = types.ServerConfig{}
+
+			// Reassign the map struct.
+			d.extensionServers[serverName] = extensionServer
+			d.extensionServersMu.Unlock()
+
+			err := d.endpoints.DownByName(serverName)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	// Restart all additional listeners which received an update.
+	for serverName, extensionServerConfig := range configuredServers {
+		// Lock the entire section to ensure the reassignment can happen.
+		d.extensionServersMu.Lock()
+		extensionServer, ok := d.extensionServers[serverName]
+		if !ok {
+			// There isn't any additional listener set that matches this name.
+			d.extensionServersMu.Unlock()
+			continue
+		}
+
+		modified := false
+		if extensionServer.ServerConfig != extensionServerConfig {
+			modified = true
+		}
+
+		extensionServer.ServerConfig = extensionServerConfig
+
+		// Reassign the map struct.
+		d.extensionServers[serverName] = extensionServer
+		d.extensionServersMu.Unlock()
+
+		// Stop the additional listener in case it got modified.
+		if modified {
+			err := d.endpoints.DownByName(serverName)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	// Start any additional listener.
+	// This operation is idempotent.
+	err := d.addExtensionServers(false, d.ClusterCert(), d.address.URL.Host)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // startUnixServer starts up the core unix listener with the given resources.
 func (d *Daemon) startUnixServer(serverEndpoints []rest.Resources) error {
 	ctlServer := d.initServer(serverEndpoints...)
@@ -707,6 +784,7 @@ func (d *Daemon) addCoreServers(preInit bool, defaultURL api.URL, defaultCert *s
 // addExtensionServers initialises a new *endpoints.Network for each extension server and adds it to the Daemon endpoints.
 // Only servers with a defined address will be started.
 // If a server lacks a certificate, the fallbackCert will be used instead.
+// The function is idempotent and doesn't start already running extension servers.
 func (d *Daemon) addExtensionServers(preInit bool, fallbackCert *shared.CertInfo, coreAddress string) error {
 	var networks = make(map[string]endpoints.Endpoint)
 	d.extensionServersMu.RLock()
@@ -892,18 +970,19 @@ func (d *Daemon) State() *state.State {
 	}
 
 	state := &state.State{
-		Context:     d.shutdownCtx,
-		ReadyCh:     d.ReadyChan,
-		OS:          d.os,
-		Address:     d.Address,
-		Name:        d.Name,
-		Endpoints:   d.endpoints,
-		ServerCert:  d.ServerCert,
-		ClusterCert: d.ClusterCert,
-		LocalConfig: d.LocalConfig,
-		Database:    d.db,
-		Remotes:     d.trustStore.Remotes,
-		StartAPI:    d.StartAPI,
+		Context:       d.shutdownCtx,
+		ReadyCh:       d.ReadyChan,
+		OS:            d.os,
+		Address:       d.Address,
+		Name:          d.Name,
+		Endpoints:     d.endpoints,
+		ServerCert:    d.ServerCert,
+		ClusterCert:   d.ClusterCert,
+		LocalConfig:   d.LocalConfig,
+		Database:      d.db,
+		Remotes:       d.trustStore.Remotes,
+		StartAPI:      d.StartAPI,
+		UpdateServers: d.UpdateServers,
 		Stop: func() (exit func(), stopErr error) {
 			stopErr = d.stop()
 			exit = func() {

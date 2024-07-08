@@ -58,6 +58,9 @@ type State struct {
 	// Initialize APIs and bootstrap/join database.
 	StartAPI func(bootstrap bool, initConfig map[string]string, newConfig *trust.Location, joinAddresses ...string) error
 
+	// Update the additional listeners.
+	UpdateServers func() error
+
 	// Stop fully stops the daemon, its database, and all listeners.
 	Stop func() (exit func(), stopErr error)
 

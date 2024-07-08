@@ -8,6 +8,7 @@ import (
 	"github.com/canonical/lxd/shared/api"
 
 	"github.com/canonical/microcluster/client"
+	internalConfig "github.com/canonical/microcluster/internal/config"
 	"github.com/canonical/microcluster/internal/db"
 	"github.com/canonical/microcluster/internal/endpoints"
 	"github.com/canonical/microcluster/internal/extensions"
@@ -44,6 +45,9 @@ type State struct {
 
 	// Cluster certificate is used for downstream connections within a cluster.
 	ClusterCert func() *shared.CertInfo
+
+	// Local daemon's config.
+	LocalConfig func() *internalConfig.DaemonConfig
 
 	// Database.
 	Database *db.DB

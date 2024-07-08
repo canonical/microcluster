@@ -20,11 +20,11 @@ import (
 	"github.com/canonical/lxd/shared/logger"
 	"github.com/canonical/lxd/shared/revert"
 	"github.com/gorilla/mux"
-	"gopkg.in/yaml.v2"
 
 	"github.com/canonical/microcluster/client"
 	"github.com/canonical/microcluster/cluster"
 	"github.com/canonical/microcluster/config"
+	internalConfig "github.com/canonical/microcluster/internal/config"
 	"github.com/canonical/microcluster/internal/db"
 	"github.com/canonical/microcluster/internal/endpoints"
 	"github.com/canonical/microcluster/internal/extensions"
@@ -44,8 +44,8 @@ import (
 type Daemon struct {
 	project string // The project refers to the name of the go-project that is calling MicroCluster.
 
-	address api.URL // Listen Address.
-	name    string  // Name of the cluster member.
+	address api.URL                      // Listen Address.
+	config  *internalConfig.DaemonConfig // Local daemon's configuration from daemon.yaml file.
 
 	os         *sys.OS
 	serverCert *shared.CertInfo
@@ -134,6 +134,9 @@ func (d *Daemon) Run(ctx context.Context, listenPort string, stateDir string, so
 		return fmt.Errorf("Failed to initialize directory structure: %w", err)
 	}
 
+	// Setup the deamon's internal config.
+	d.config = internalConfig.NewDaemonConfig(filepath.Join(d.os.StateDir, "daemon.yaml"))
+
 	// Clean up the daemon state on an error during init.
 	reverter := revert.New()
 	defer reverter.Fail()
@@ -190,10 +193,12 @@ func (d *Daemon) init(listenPort string, schemaExtensions []schema.Update, apiEx
 	d.applyHooks(hooks)
 
 	var err error
-	d.name, err = os.Hostname()
+	name, err := os.Hostname()
 	if err != nil {
 		return fmt.Errorf("Failed to assign default system name: %w", err)
 	}
+
+	d.config.SetName(name)
 
 	// Initialize the extensions registry with the internal extensions.
 	d.Extensions, err = extensions.NewExtensionRegistry(true)
@@ -351,7 +356,7 @@ func (d *Daemon) reloadIfBootstrapped() error {
 		return err
 	}
 
-	err = d.setDaemonConfig(nil)
+	err = d.config.Load()
 	if err != nil {
 		return fmt.Errorf("Failed to retrieve daemon configuration yaml: %w", err)
 	}
@@ -428,11 +433,23 @@ func (d *Daemon) initServer(resources ...rest.Resources) *http.Server {
 // if we are bootstrapping the first node.
 func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfig *trust.Location, joinAddresses ...string) error {
 	if newConfig != nil {
-		err := d.setDaemonConfig(newConfig)
+		d.config.SetAddress(newConfig.Address)
+		d.config.SetName(newConfig.Name)
+
+		// Write the latest config to disk.
+		err := d.config.Write()
 		if err != nil {
-			return fmt.Errorf("Failed to apply and save new daemon configuration: %w", err)
+			return err
+		}
+	} else {
+		err := d.config.Load()
+		if err != nil {
+			return err
 		}
 	}
+
+	// For convenience set the local daemon's server address together with its port.
+	d.address = *api.NewURL().Scheme("https").Host(d.config.GetAddress().String())
 
 	if bootstrap {
 		err := d.hooks.PreBootstrap(d.State(), initConfig)
@@ -441,7 +458,7 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 		}
 	}
 
-	if d.address.URL.Host == "" || d.name == "" {
+	if d.address.URL.Host == "" || d.config.GetName() == "" {
 		return fmt.Errorf("Cannot start network API without valid daemon configuration")
 	}
 
@@ -456,7 +473,7 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 	}
 
 	localNode := trust.Remote{
-		Location:    trust.Location{Name: d.name, Address: addrPort},
+		Location:    trust.Location{Name: d.config.GetName(), Address: addrPort},
 		Certificate: types.X509Certificate{Certificate: serverCert},
 	}
 
@@ -803,7 +820,13 @@ func (d *Daemon) Address() *api.URL {
 
 // Name ensures both the daemon and state have the same name.
 func (d *Daemon) Name() string {
-	return d.name
+	return d.config.GetName()
+}
+
+// LocalConfig returns the daemon's internal config implementation.
+// It is thread safe and can be used to both read and write config.
+func (d *Daemon) LocalConfig() *internalConfig.DaemonConfig {
+	return d.config
 }
 
 // ExtensionServers returns an immutable list of the daemon's additional listeners.
@@ -850,6 +873,7 @@ func (d *Daemon) State() *state.State {
 		Endpoints:   d.endpoints,
 		ServerCert:  d.ServerCert,
 		ClusterCert: d.ClusterCert,
+		LocalConfig: d.LocalConfig,
 		Database:    d.db,
 		Remotes:     d.trustStore.Remotes,
 		StartAPI:    d.StartAPI,
@@ -866,36 +890,4 @@ func (d *Daemon) State() *state.State {
 	}
 
 	return state
-}
-
-// setDaemonConfig sets the daemon's address and name from the given location information. If none is supplied, the file
-// at `state-dir/daemon.yaml` will be read for the information.
-func (d *Daemon) setDaemonConfig(config *trust.Location) error {
-	if config != nil {
-		bytes, err := yaml.Marshal(config)
-		if err != nil {
-			return fmt.Errorf("Failed to parse daemon config to yaml: %w", err)
-		}
-
-		err = os.WriteFile(filepath.Join(d.os.StateDir, "daemon.yaml"), bytes, 0644)
-		if err != nil {
-			return fmt.Errorf("Failed to write daemon configuration yaml: %w", err)
-		}
-	} else {
-		data, err := os.ReadFile(filepath.Join(d.os.StateDir, "daemon.yaml"))
-		if err != nil {
-			return fmt.Errorf("Failed to find daemon configuration: %w", err)
-		}
-
-		config = &trust.Location{}
-		err = yaml.Unmarshal(data, config)
-		if err != nil {
-			return fmt.Errorf("Failed to parse daemon config from yaml: %w", err)
-		}
-	}
-
-	d.address = *api.NewURL().Scheme("https").Host(config.Address.String())
-	d.name = config.Name
-
-	return nil
 }

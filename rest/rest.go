@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"github.com/canonical/lxd/lxd/response"
-	"github.com/canonical/lxd/shared"
 	"github.com/canonical/microcluster/rest/types"
 	"github.com/canonical/microcluster/state"
 )
@@ -57,9 +56,11 @@ type Server struct {
 	// ServeUnix sets whether the resources of this endpoint should also be served over the unix socket.
 	ServeUnix bool
 
-	// Certificate is used for setting up TLS on the server.
-	// x509 PEM Certificate
-	Certificate *shared.CertInfo
+	// DedicatedCertificate sets whether the additional listener should use its own self signed certificate.
+	// If false it tries to use a custom certificate from the daemon's state `/certificates` directory
+	// based on the name provided when creating the server.
+	// In case there isn't any custom certificate it falls back to the cluster certificate of the core API.
+	DedicatedCertificate bool
 
 	// Resources is the list of resources offered by this server.
 	Resources []Resources

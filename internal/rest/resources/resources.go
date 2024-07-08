@@ -75,8 +75,8 @@ func ValidateEndpoints(extensionServers map[string]rest.Server, coreAddress stri
 			return fmt.Errorf("Cannot serve non-core API resources over the core unix socket")
 		}
 
-		if server.CoreAPI && server.Certificate != nil {
-			return fmt.Errorf("Core API server cannot have a pre-defined certificate")
+		if server.CoreAPI && server.DedicatedCertificate {
+			return fmt.Errorf("Core API server cannot have a dedicated certificate")
 		}
 
 		if server.CoreAPI && server.Address != (types.AddrPort{}) {

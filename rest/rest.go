@@ -5,7 +5,6 @@ import (
 
 	"github.com/canonical/lxd/lxd/response"
 	"github.com/canonical/lxd/shared"
-
 	"github.com/canonical/microcluster/rest/types"
 	"github.com/canonical/microcluster/state"
 )
@@ -47,6 +46,8 @@ type Resources struct {
 
 // Server contains configuration and handlers for additional listeners to be instantiated after app startup.
 type Server struct {
+	types.ServerConfig
+
 	// CoreAPI determines whether the the resources of the server should be served over the default cluster API.
 	CoreAPI bool
 
@@ -55,14 +56,6 @@ type Server struct {
 
 	// ServeUnix sets whether the resources of this endpoint should also be served over the unix socket.
 	ServeUnix bool
-
-	// Protocol is the server protocol.
-	// Example: https
-	Protocol string
-
-	// Address is the server listen address.
-	// Example: 127.0.0.1:9000
-	Address types.AddrPort
 
 	// Certificate is used for setting up TLS on the server.
 	// x509 PEM Certificate

@@ -13,6 +13,13 @@ type TokenRecord struct {
 	Token string `json:"token" yaml:"token"`
 }
 
+// KeyPair holds a certificate together with its private key and optional CA.
+type KeyPair struct {
+	Cert string `json:"cert" yaml:"cert"`
+	Key  string `json:"key" yaml:"key"`
+	CA   string `json:"ca" yaml:"ca"`
+}
+
 // TokenResponse holds the information for connecting to a cluster by a node with a valid join token.
 type TokenResponse struct {
 	// ClusterCert is the public key used across the cluster.
@@ -24,6 +31,9 @@ type TokenResponse struct {
 	// ClusterMembers is the full list of cluster members that are currently present and available in the cluster.
 	// The joiner supplies this list to dqlite so that it can start its database.
 	ClusterMembers []ClusterMemberLocal `json:"cluster_members" yaml:"cluster_members"`
+
+	// ClusterAdditionalCerts is the full list of certificates added for additional listeners.
+	ClusterAdditionalCerts map[string]KeyPair
 
 	// TrustedMember contains the address of the existing cluster member
 	// who was dqlite leader at the time that the joiner supplied its join token.

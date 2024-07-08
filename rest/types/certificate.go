@@ -7,6 +7,13 @@ import (
 	"fmt"
 )
 
+// KeyPair holds a certificate together with its private key and optional CA.
+type KeyPair struct {
+	Cert string `json:"cert" yaml:"cert"`
+	Key  string `json:"key" yaml:"key"`
+	CA   string `json:"ca" yaml:"ca"`
+}
+
 // ClusterCertificatePut represents the content of a new cluster keypair and CA.
 type ClusterCertificatePut struct {
 	PublicKey  string `json:"public_key"  yaml:"public_key"`

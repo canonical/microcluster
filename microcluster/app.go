@@ -105,6 +105,16 @@ func (m *MicroCluster) AddServers(servers []rest.Server) {
 	m.args.extensionServers = servers
 }
 
+// UpdateServers updates the mutable fields of the additional server configuration.
+func (m *MicroCluster) UpdateServers(ctx context.Context, serversConfig map[string]types.ServerConfig) error {
+	c, err := m.LocalClient()
+	if err != nil {
+		return err
+	}
+
+	return c.UpdateServers(ctx, serversConfig)
+}
+
 // Status returns basic status information about the cluster.
 func (m *MicroCluster) Status(ctx context.Context) (*internalTypes.Server, error) {
 	c, err := m.LocalClient()

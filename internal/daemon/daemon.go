@@ -72,7 +72,7 @@ type Daemon struct {
 	stop func() error
 
 	extensionServersMu sync.RWMutex
-	extensionServers   []rest.Server
+	extensionServers   map[string]rest.Server
 }
 
 // NewDaemon initializes the Daemon context and channels.
@@ -114,7 +114,7 @@ func NewDaemon(project string) *Daemon {
 // - `extensionsSchema` is a list of schema updates in the order that they should be applied.
 // - `extensionServers` is a list of rest.Server that will be initialized and managed by microcluster.
 // - `hooks` are a set of functions that trigger at certain points during cluster communication.
-func (d *Daemon) Run(ctx context.Context, listenPort string, stateDir string, socketGroup string, extensionsSchema []schema.Update, apiExtensions []string, extensionServers []rest.Server, hooks *config.Hooks) error {
+func (d *Daemon) Run(ctx context.Context, listenPort string, stateDir string, socketGroup string, extensionsSchema []schema.Update, apiExtensions []string, extensionServers map[string]rest.Server, hooks *config.Hooks) error {
 	d.shutdownCtx, d.shutdownCancel = context.WithCancel(ctx)
 	if stateDir == "" {
 		stateDir = os.Getenv(sys.StateDir)

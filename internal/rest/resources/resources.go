@@ -52,7 +52,7 @@ var InternalEndpoints = rest.Resources{
 // - The address of the server clashes with another server.
 // - The server does not have defined resources.
 // If the Server is a core API server, its resources must not conflict with any other server, and it must not have a defined address or certificate.
-func ValidateEndpoints(extensionServers []rest.Server, coreAddress string) error {
+func ValidateEndpoints(extensionServers map[string]rest.Server, coreAddress string) error {
 	allExistingEndpoints := []rest.Resources{UnixEndpoints, PublicEndpoints, InternalEndpoints}
 	existingEndpointPaths := make(map[string]bool)
 	serverAddresses := map[string]bool{coreAddress: true}

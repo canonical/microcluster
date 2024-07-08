@@ -48,7 +48,7 @@ type Args struct {
 	Client     *client.Client
 	Proxy      func(*http.Request) (*url.URL, error)
 
-	extensionServers []rest.Server
+	extensionServers map[string]rest.Server
 }
 
 // App returns an instance of MicroCluster with a newly initialized filesystem if one does not exist.
@@ -101,7 +101,7 @@ func (m *MicroCluster) Start(ctx context.Context, extensionsSchema []schema.Upda
 }
 
 // AddServers adds additional server configurations to microcluster.
-func (m *MicroCluster) AddServers(servers []rest.Server) {
+func (m *MicroCluster) AddServers(servers map[string]rest.Server) {
 	m.args.extensionServers = servers
 }
 

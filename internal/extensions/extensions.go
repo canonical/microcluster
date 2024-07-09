@@ -7,6 +7,7 @@ import (
 	"regexp"
 
 	"github.com/canonical/lxd/shared"
+	"gopkg.in/yaml.v3"
 )
 
 var internalExtensionRegex = regexp.MustCompile(`^internal:[a-z0-9]+(_[a-z0-9]+)*$`)
@@ -189,6 +190,75 @@ func (e Extensions) IsSameVersion(t Extensions) error {
 		if (e)[i] != (t)[i] {
 			return fmt.Errorf("The source and target registries have different extensions")
 		}
+	}
+
+	return nil
+}
+
+// MarshalJSON implements json.Marshaler for the Extensions type.
+func (e Extensions) MarshalJSON() ([]byte, error) {
+	if len(e) == 1 {
+		return json.Marshal(e[0])
+	}
+
+	return json.Marshal([]string(e))
+}
+
+// MarshalYAML implements yaml.Marshaler for the Extensions type.
+func (e Extensions) MarshalYAML() (any, error) {
+	if len(e) == 1 {
+		return e[0], nil
+	}
+
+	return []string(e), nil
+}
+
+// UnmarshalJSON implements the json.Unmarshaler interface.
+func (e *Extensions) UnmarshalJSON(data []byte) error {
+	var v any
+	if err := json.Unmarshal(data, &v); err != nil {
+		return err
+	}
+
+	switch value := v.(type) {
+	case string:
+		*e = Extensions{value}
+	case []any:
+		*e = make(Extensions, len(value))
+		for i, item := range value {
+			str, ok := item.(string)
+			if !ok {
+				return fmt.Errorf("invalid type for Extension item at index %d", i)
+			}
+
+			(*e)[i] = str
+		}
+	default:
+		return fmt.Errorf("invalid type for Extension")
+	}
+
+	return nil
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (e *Extensions) UnmarshalYAML(value *yaml.Node) error {
+	switch value.Kind {
+	case yaml.ScalarNode:
+		var s string
+		if err := value.Decode(&s); err != nil {
+			return err
+		}
+
+		*e = Extensions{s}
+	case yaml.SequenceNode:
+		var slice []string
+		if err := value.Decode(&slice); err != nil {
+			return err
+		}
+
+		*e = Extensions(slice)
+	default:
+		return fmt.Errorf("invalid node kind for Extension: %v", value.Kind)
 	}
 
 	return nil

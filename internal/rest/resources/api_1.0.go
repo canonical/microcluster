@@ -24,8 +24,9 @@ func api10Get(s *state.State, r *http.Request) response.Response {
 	}
 
 	return response.SyncResponse(true, internalTypes.Server{
-		Name:    s.Name(),
-		Address: addrPort,
-		Ready:   s.Database.IsOpen(r.Context()) == nil,
+		Name:       s.Name(),
+		Address:    addrPort,
+		Ready:      s.Database.IsOpen(r.Context()) == nil,
+		Extensions: s.Extensions,
 	})
 }

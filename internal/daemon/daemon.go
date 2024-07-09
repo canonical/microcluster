@@ -71,15 +71,17 @@ type Daemon struct {
 	// stop is a sync.Once which wraps the daemon's stop sequence. Each call will block until the first one completes.
 	stop func() error
 
-	extensionServers []rest.Server
+	extensionServersMu sync.RWMutex
+	extensionServers   []rest.Server
 }
 
 // NewDaemon initializes the Daemon context and channels.
 func NewDaemon(project string) *Daemon {
 	d := &Daemon{
-		shutdownDoneCh: make(chan error),
-		ReadyChan:      make(chan struct{}),
-		project:        project,
+		shutdownDoneCh:   make(chan error),
+		ReadyChan:        make(chan struct{}),
+		extensionServers: make(map[string]rest.Server),
+		project:          project,
 	}
 
 	d.stop = sync.OnceValue(func() error {
@@ -147,7 +149,18 @@ func (d *Daemon) Run(ctx context.Context, listenPort string, stateDir string, so
 		return fmt.Errorf("Database recovery failed: %w", err)
 	}
 
-	d.extensionServers = extensionServers
+	d.extensionServersMu.Lock()
+	// Deep copy the supplied extension servers to prevent assigning the map by reference.
+	for k, v := range extensionServers {
+		// `core` and `unix` are reserved server names.
+		if shared.ValueInSlice(k, []string{endpoints.EndpointsCore, endpoints.EndpointsUnix}) {
+			return fmt.Errorf("Cannot use the reserved server name %q", k)
+		}
+
+		d.extensionServers[k] = v
+	}
+
+	d.extensionServersMu.Unlock()
 
 	err = d.init(listenPort, extensionsSchema, apiExtensions, hooks)
 	if err != nil {
@@ -211,10 +224,13 @@ func (d *Daemon) init(listenPort string, schemaExtensions []schema.Update, apiEx
 		listenAddr = listenAddr.Host(fmt.Sprintf(":%s", listenPort))
 	}
 
+	d.extensionServersMu.RLock()
 	err = resources.ValidateEndpoints(d.extensionServers, listenAddr.URL.Host)
 	if err != nil {
 		return err
 	}
+
+	d.extensionServersMu.RUnlock()
 
 	serverEndpoints := []rest.Resources{
 		resources.UnixEndpoints,
@@ -222,11 +238,14 @@ func (d *Daemon) init(listenPort string, schemaExtensions []schema.Update, apiEx
 		resources.PublicEndpoints,
 	}
 
+	d.extensionServersMu.RLock()
 	for _, server := range d.extensionServers {
 		if server.ServeUnix {
 			serverEndpoints = append(serverEndpoints, server.Resources...)
 		}
 	}
+
+	d.extensionServersMu.RUnlock()
 
 	err = d.startUnixServer(serverEndpoints)
 	if err != nil {
@@ -454,10 +473,13 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 	}
 
 	// Validate the extension servers again now that we have applied addresses.
+	d.extensionServersMu.RLock()
 	err = resources.ValidateEndpoints(d.extensionServers, d.address.URL.Host)
 	if err != nil {
 		return err
 	}
+
+	d.extensionServersMu.RUnlock()
 
 	err = d.endpoints.Down(endpoints.EndpointNetwork)
 	if err != nil {
@@ -638,6 +660,7 @@ func (d *Daemon) addCoreServers(preInit bool, defaultURL api.URL, defaultCert *s
 	serverEndpoints = append(serverEndpoints, defaultResources...)
 
 	// Append all extension servers whose address is empty or matches the default URL.
+	d.extensionServersMu.RLock()
 	for _, s := range d.extensionServers {
 		// If the server is not available prior to initialization, then skip it if we are before initialization.
 		if !s.PreInit && preInit {
@@ -652,6 +675,8 @@ func (d *Daemon) addCoreServers(preInit bool, defaultURL api.URL, defaultCert *s
 		serverEndpoints = append(serverEndpoints, s.Resources...)
 	}
 
+	d.extensionServersMu.RUnlock()
+
 	server := d.initServer(serverEndpoints...)
 	network := endpoints.NewNetwork(d.shutdownCtx, endpoints.EndpointNetwork, server, defaultURL, defaultCert)
 
@@ -663,6 +688,7 @@ func (d *Daemon) addCoreServers(preInit bool, defaultURL api.URL, defaultCert *s
 // If a server lacks a certificate, the fallbackCert will be used instead.
 func (d *Daemon) addExtensionServers(preInit bool, fallbackCert *shared.CertInfo, coreAddress string) error {
 	var networks []endpoints.Endpoint
+	d.extensionServersMu.RLock()
 	for _, extensionServer := range d.extensionServers {
 		// Skip any core API servers.
 		if extensionServer.CoreAPI {
@@ -695,6 +721,8 @@ func (d *Daemon) addExtensionServers(preInit bool, fallbackCert *shared.CertInfo
 		network := endpoints.NewNetwork(d.shutdownCtx, endpoints.EndpointNetwork, server, *url, cert)
 		networks = append(networks, network)
 	}
+
+	d.extensionServersMu.RUnlock()
 
 	if len(networks) > 0 {
 		err := d.endpoints.Add(networks...)

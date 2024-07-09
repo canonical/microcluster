@@ -68,7 +68,7 @@ func Authenticate(state *state.State, r *http.Request, hostAddress string, trust
 	case hostAddrPort.String():
 		if r.TLS != nil {
 			for _, cert := range r.TLS.PeerCertificates {
-				trusted, fingerprint := util.CheckTrustState(*cert, trustedCerts, nil, false)
+				trusted, fingerprint := util.CheckMutualTLS(*cert, trustedCerts)
 				if trusted {
 					logger.Debugf("Trusting HTTP request to %q from %q with fingerprint %q", r.URL.String(), r.RemoteAddr, fingerprint)
 

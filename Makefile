@@ -27,8 +27,6 @@ endif
 update-gomod:
 	go get -t -v -d -u ./...
 	go mod tidy -go=$(GOMIN)
-	# Eliminate toolchain directive in go.mod
-	go get toolchain@none
 
 # Update lxd-generate generated database helpers.
 .PHONY: update-schema

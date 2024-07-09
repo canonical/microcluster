@@ -35,7 +35,7 @@ func clusterCertificatesPut(s *state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	req := types.ClusterCertificatePut{}
+	req := types.KeyPair{}
 
 	// Parse the request.
 	err = json.NewDecoder(r.Body).Decode(&req)
@@ -63,12 +63,12 @@ func clusterCertificatesPut(s *state.State, r *http.Request) response.Response {
 		}
 	}
 
-	certBlock, _ := pem.Decode([]byte(req.PublicKey))
+	certBlock, _ := pem.Decode([]byte(req.Cert))
 	if certBlock == nil {
 		return response.BadRequest(fmt.Errorf("Certificate must be base64 encoded PEM certificate"))
 	}
 
-	keyBlock, _ := pem.Decode([]byte(req.PrivateKey))
+	keyBlock, _ := pem.Decode([]byte(req.Key))
 	if keyBlock == nil {
 		return response.BadRequest(fmt.Errorf("Private key must be base64 encoded PEM key"))
 	}
@@ -113,12 +113,12 @@ func clusterCertificatesPut(s *state.State, r *http.Request) response.Response {
 	}
 
 	// Write the keypair to the state directory.
-	err = os.WriteFile(filepath.Join(certificateDir, fmt.Sprintf("%s.crt", certificateName)), []byte(req.PublicKey), 0664)
+	err = os.WriteFile(filepath.Join(certificateDir, fmt.Sprintf("%s.crt", certificateName)), []byte(req.Cert), 0664)
 	if err != nil {
 		return response.SmartError(err)
 	}
 
-	err = os.WriteFile(filepath.Join(certificateDir, fmt.Sprintf("%s.key", certificateName)), []byte(req.PrivateKey), 0600)
+	err = os.WriteFile(filepath.Join(certificateDir, fmt.Sprintf("%s.key", certificateName)), []byte(req.Key), 0600)
 	if err != nil {
 		return response.SmartError(err)
 	}

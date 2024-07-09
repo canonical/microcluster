@@ -14,6 +14,9 @@ jobs:
   code-tests:
     name: Code
     runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        go: ["1.22.x"]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -22,16 +25,16 @@ jobs:
         uses: actions/dependency-review-action@v4
         if: github.event_name == 'pull_request'
 
-      - name: Check compatibility with min Go version (${{ matrix.go }})
-        if: matrix.go == '1.22.x'
-        run: |
-          set -eux
-          go mod tidy -go=1.22.0
-
-      - name: Install Go
+      - name: Install Go (${{ matrix.go }})
         uses: actions/setup-go@v5
         with:
-          go-version: 1.22.x
+          go-version: ${{ matrix.go }}
+
+      - name: Check compatibility with min Go version (${{ matrix.go }})
+        run: |
+          set -eux
+          GOMIN="$(sed -n 's/^GOMIN=\([0-9.]\+\)$/\1/p' Makefile)"
+          go mod tidy -go="${GOMIN}"
 
       - name: Install dependencies
         run: |

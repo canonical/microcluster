@@ -23,6 +23,12 @@ func TLSClientConfig(clientCert *shared.CertInfo, remoteCert *x509.Certificate) 
 	keypair := clientCert.KeyPair()
 	config := shared.InitTLSConfig()
 	config.Certificates = []tls.Certificate{keypair}
+	config.GetClientCertificate = func(info *tls.CertificateRequestInfo) (*tls.Certificate, error) {
+		// GetClientCertificate is called if not nil instead of performing the default selection of an appropriate
+		// certificate from the `Certificates` list. We only have one-key pair to send, and we always want to send it
+		// because this is what uniquely identifies the caller to the server.
+		return &keypair, nil
+	}
 
 	// Add the public key to the CA pool to make it trusted.
 	config.RootCAs = x509.NewCertPool()

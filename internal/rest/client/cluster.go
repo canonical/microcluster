@@ -62,7 +62,7 @@ func (c *Client) ResetClusterMember(ctx context.Context, name string, force bool
 }
 
 // UpdateClusterCertificate sets a new cluster keypair and CA.
-func (c *Client) UpdateClusterCertificate(ctx context.Context, name string, args apiTypes.ClusterCertificatePut) error {
+func (c *Client) UpdateClusterCertificate(ctx context.Context, name string, args apiTypes.KeyPair) error {
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 

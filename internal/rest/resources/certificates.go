@@ -83,6 +83,20 @@ func clusterCertificatesPut(s *state.State, r *http.Request) response.Response {
 		certificateDir = s.OS.StateDir
 	} else {
 		certificateDir = s.OS.CertificatesDir
+
+		// Check if an additional listener exists for that name.
+		// We cannot query the daemon's config of the additional listeners as
+		// they might not yet be confiugred on every cluster member.
+		found := false
+		for _, name := range s.ExtensionServers() {
+			if name == certificateName {
+				found = true
+			}
+		}
+
+		if !found {
+			return response.BadRequest(fmt.Errorf("No matching additional server found for %q", certificateName))
+		}
 	}
 
 	// If a CA was specified, validate that as well.

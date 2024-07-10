@@ -778,6 +778,25 @@ func (d *Daemon) Name() string {
 	return d.name
 }
 
+// ExtensionServers returns an immutable list of the daemon's additional listeners.
+// Only the listeners which can be modified are returned.
+// The listeners which are part of the core API are excluded.
+func (d *Daemon) ExtensionServers() []string {
+	d.extensionServersMu.RLock()
+	defer d.extensionServersMu.RUnlock()
+
+	var serverNames []string
+	for name, server := range d.extensionServers {
+		if server.CoreAPI {
+			continue
+		}
+
+		serverNames = append(serverNames, name)
+	}
+
+	return serverNames
+}
+
 // State creates a State instance with the daemon's stateful components.
 func (d *Daemon) State() *state.State {
 	state.PreRemoveHook = d.hooks.PreRemove
@@ -814,7 +833,8 @@ func (d *Daemon) State() *state.State {
 
 			return exit, stopErr
 		},
-		Extensions: d.Extensions,
+		Extensions:       d.Extensions,
+		ExtensionServers: d.ExtensionServers,
 	}
 
 	return state

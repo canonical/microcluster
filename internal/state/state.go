@@ -59,6 +59,9 @@ type State struct {
 
 	// Runtime extensions.
 	Extensions extensions.Extensions
+
+	// Returns an immutable list of the daemon's additional listeners.
+	ExtensionServers func() []string
 }
 
 // StopListeners stops the network listeners and the fsnotify listener.

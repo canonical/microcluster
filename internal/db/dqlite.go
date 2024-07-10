@@ -53,6 +53,7 @@ type DB struct {
 
 	heartbeatLock     sync.Mutex
 	heartbeatInterval time.Duration
+	maxConns          int64
 
 	schema *update.SchemaUpdate
 
@@ -109,6 +110,7 @@ func NewDB(ctx context.Context, serverCert *shared.CertInfo, clusterCert func() 
 		ctx:               shutdownCtx,
 		cancel:            shutdownCancel,
 		status:            StatusNotReady,
+		maxConns:          1,
 	}
 }
 
@@ -132,6 +134,7 @@ func (db *DB) Bootstrap(extensions extensions.Extensions, project string, addr a
 		dqlite.WithAddress(db.listenAddr.URL.Host),
 		dqlite.WithRolesAdjustmentFrequency(db.heartbeatInterval),
 		dqlite.WithRolesAdjustmentHook(db.heartbeat),
+		dqlite.WithConcurrentLeaderConns(&db.maxConns),
 		dqlite.WithExternalConn(db.dialFunc(), db.acceptCh),
 		dqlite.WithUnixSocket(os.Getenv(sys.DqliteSocket)))
 	if err != nil {
@@ -166,6 +169,7 @@ func (db *DB) Join(extensions extensions.Extensions, project string, addr api.UR
 		dqlite.WithRolesAdjustmentFrequency(db.heartbeatInterval),
 		dqlite.WithRolesAdjustmentHook(db.heartbeat),
 		dqlite.WithAddress(db.listenAddr.URL.Host),
+		dqlite.WithConcurrentLeaderConns(&db.maxConns),
 		dqlite.WithExternalConn(db.dialFunc(), db.acceptCh),
 		dqlite.WithUnixSocket(os.Getenv(sys.DqliteSocket)))
 	if err != nil {
@@ -203,7 +207,8 @@ func (db *DB) StartWithCluster(extensions extensions.Extensions, project string,
 
 // Leader returns a client connected to the leader of the dqlite cluster.
 func (db *DB) Leader(ctx context.Context) (*dqliteClient.Client, error) {
-	return db.dqlite.Leader(ctx)
+	// Always only try one connection at a time when fetching the leader manually, as this can be an expensive call.
+	return db.dqlite.Leader(ctx, dqliteClient.WithConcurrentLeaderConns(1))
 }
 
 // Cluster returns information about dqlite cluster members.

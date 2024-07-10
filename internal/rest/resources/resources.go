@@ -90,8 +90,6 @@ func ValidateEndpoints(extensionServers map[string]rest.Server, coreAddress stri
 			}
 
 			serverAddresses[server.Address.String()] = true
-		} else if server.Protocol != "" {
-			return fmt.Errorf("Server protocol defined without address")
 		}
 
 		// Ensure no endpoint path conflicts with another endpoint on the same server.

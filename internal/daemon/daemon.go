@@ -810,7 +810,7 @@ func (d *Daemon) addExtensionServers(preInit bool, fallbackCert *shared.CertInfo
 			continue
 		}
 
-		url := api.NewURL().Scheme(extensionServer.Protocol).Host(extensionServer.Address.String())
+		url := api.NewURL().Scheme("https").Host(extensionServer.Address.String())
 		alreadyRunning := false
 		for name := range d.endpoints.List(endpoints.EndpointNetwork) {
 			if name == serverName {

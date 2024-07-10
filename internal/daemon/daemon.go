@@ -44,8 +44,7 @@ import (
 type Daemon struct {
 	project string // The project refers to the name of the go-project that is calling MicroCluster.
 
-	address api.URL                      // Listen Address.
-	config  *internalConfig.DaemonConfig // Local daemon's configuration from daemon.yaml file.
+	config *internalConfig.DaemonConfig // Local daemon's configuration from daemon.yaml file.
 
 	os         *sys.OS
 	serverCert *shared.CertInfo
@@ -453,9 +452,6 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 		}
 	}
 
-	// For convenience set the local daemon's server address together with its port.
-	d.address = *api.NewURL().Scheme("https").Host(d.config.GetAddress().String())
-
 	if bootstrap {
 		err := d.hooks.PreBootstrap(d.State(), initConfig)
 		if err != nil {
@@ -463,7 +459,7 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 		}
 	}
 
-	if d.address.URL.Host == "" || d.config.GetName() == "" {
+	if d.Address().URL.Host == "" || d.config.GetName() == "" {
 		return fmt.Errorf("Cannot start network API without valid daemon configuration")
 	}
 
@@ -472,7 +468,7 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 		return fmt.Errorf("Failed to parse server certificate when bootstrapping API: %w", err)
 	}
 
-	addrPort, err := types.ParseAddrPort(d.address.URL.Host)
+	addrPort, err := types.ParseAddrPort(d.Address().URL.Host)
 	if err != nil {
 		return fmt.Errorf("Failed to parse listen address when bootstrapping API: %w", err)
 	}
@@ -496,7 +492,7 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 
 	// Validate the extension servers again now that we have applied addresses.
 	d.extensionServersMu.RLock()
-	err = resources.ValidateEndpoints(d.extensionServers, d.address.URL.Host)
+	err = resources.ValidateEndpoints(d.extensionServers, d.Address().URL.Host)
 	if err != nil {
 		return err
 	}
@@ -509,13 +505,13 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 	}
 
 	serverEndpoints := []rest.Resources{resources.InternalEndpoints, resources.PublicEndpoints}
-	err = d.addCoreServers(false, d.address, d.ClusterCert(), serverEndpoints)
+	err = d.addCoreServers(false, *d.Address(), d.ClusterCert(), serverEndpoints)
 	if err != nil {
 		return err
 	}
 
 	// Add extension servers before post-join hook.
-	err = d.addExtensionServers(false, d.ClusterCert(), d.address.URL.Host)
+	err = d.addExtensionServers(false, d.ClusterCert(), d.Address().URL.Host)
 	if err != nil {
 		return err
 	}
@@ -532,7 +528,7 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 
 		clusterMember.SchemaInternal, clusterMember.SchemaExternal, _ = d.db.Schema().Version()
 
-		err = d.db.Bootstrap(d.Extensions, d.project, d.address, clusterMember)
+		err = d.db.Bootstrap(d.Extensions, d.project, *d.Address(), clusterMember)
 		if err != nil {
 			return err
 		}
@@ -552,12 +548,12 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 	}
 
 	if len(joinAddresses) != 0 {
-		err = d.db.Join(d.Extensions, d.project, d.address, joinAddresses...)
+		err = d.db.Join(d.Extensions, d.project, *d.Address(), joinAddresses...)
 		if err != nil {
 			return fmt.Errorf("Failed to join cluster: %w", err)
 		}
 	} else {
-		err = d.db.StartWithCluster(d.Extensions, d.project, d.address, d.trustStore.Remotes().Addresses())
+		err = d.db.StartWithCluster(d.Extensions, d.project, *d.Address(), d.trustStore.Remotes().Addresses())
 		if err != nil {
 			return fmt.Errorf("Failed to re-establish cluster connection: %w", err)
 		}
@@ -592,7 +588,7 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 		var clusterConfirmation bool
 		err = cluster.Query(d.shutdownCtx, true, func(ctx context.Context, c *client.Client) error {
 			// No need to send a request to ourselves.
-			if d.address.URL.Host == c.URL().URL.Host {
+			if d.Address().URL.Host == c.URL().URL.Host {
 				return nil
 			}
 
@@ -624,7 +620,7 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 		c.SetClusterNotification()
 
 		// No need to send a request to ourselves.
-		if d.address.URL.Host == c.URL().URL.Host {
+		if d.Address().URL.Host == c.URL().URL.Host {
 			return nil
 		}
 
@@ -735,7 +731,7 @@ func (d *Daemon) UpdateServers() error {
 
 	// Start any additional listener.
 	// This operation is idempotent.
-	err := d.addExtensionServers(false, d.ClusterCert(), d.address.URL.Host)
+	err := d.addExtensionServers(false, d.ClusterCert(), d.Address().URL.Host)
 	if err != nil {
 		return err
 	}
@@ -954,8 +950,7 @@ func (d *Daemon) ServerCert() *shared.CertInfo {
 
 // Address ensures both the daemon and state have the same address.
 func (d *Daemon) Address() *api.URL {
-	copyURL := d.address
-	return &copyURL
+	return api.NewURL().Scheme("https").Host(d.config.GetAddress().String())
 }
 
 // Name ensures both the daemon and state have the same name.

@@ -8,6 +8,8 @@ import (
 
 	"github.com/canonical/lxd/shared"
 	"github.com/canonical/lxd/shared/api"
+
+	"github.com/canonical/microcluster/rest/types"
 )
 
 // OS contains fields and methods for interacting with the state directory.
@@ -135,11 +137,11 @@ func (s *OS) ServerCert() (*shared.CertInfo, error) {
 
 // ClusterCert gets the local cluster certificate from the state directory.
 func (s *OS) ClusterCert() (*shared.CertInfo, error) {
-	if !shared.PathExists(filepath.Join(s.StateDir, "cluster.crt")) {
-		return nil, fmt.Errorf("Failed to get cluster.crt from directory %q", s.StateDir)
+	if !shared.PathExists(filepath.Join(s.StateDir, fmt.Sprintf("%s.crt", types.ClusterCertificateName))) {
+		return nil, fmt.Errorf("Failed to get %s.crt from directory %q", types.ClusterCertificateName, s.StateDir)
 	}
 
-	cert, err := shared.KeyPairAndCA(s.StateDir, "cluster", shared.CertServer, true)
+	cert, err := shared.KeyPairAndCA(s.StateDir, string(types.ClusterCertificateName), shared.CertServer, true)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to load TLS certificate: %w", err)
 	}

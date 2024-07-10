@@ -61,11 +61,11 @@ func (c *Client) ResetClusterMember(ctx context.Context, name string, force bool
 	return c.QueryStruct(queryCtx, "PUT", types.PublicEndpoint, endpoint, nil, nil)
 }
 
-// UpdateClusterCertificate sets a new cluster keypair and CA.
-func (c *Client) UpdateClusterCertificate(ctx context.Context, name string, args apiTypes.KeyPair) error {
+// UpdateCertificate sets a new keypair and CA.
+func (c *Client) UpdateCertificate(ctx context.Context, name apiTypes.CertificateName, args apiTypes.KeyPair) error {
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	endpoint := api.NewURL().Path("cluster", "certificates", name)
+	endpoint := api.NewURL().Path("cluster", "certificates", string(name))
 	return c.QueryStruct(queryCtx, "PUT", types.InternalEndpoint, endpoint, args, nil)
 }

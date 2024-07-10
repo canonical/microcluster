@@ -56,7 +56,7 @@ func clusterCertificatesPut(s *state.State, r *http.Request) response.Response {
 		}
 
 		err = cluster.Query(s.Context, true, func(ctx context.Context, c *client.Client) error {
-			return c.UpdateClusterCertificate(ctx, certificateName, req)
+			return c.UpdateCertificate(ctx, types.CertificateName(certificateName), req)
 		})
 		if err != nil {
 			return response.SmartError(fmt.Errorf("Failed to update %q certificate on peers: %w", certificateName, err))
@@ -79,7 +79,7 @@ func clusterCertificatesPut(s *state.State, r *http.Request) response.Response {
 	}
 
 	var certificateDir string
-	if certificateName == "cluster" {
+	if certificateName == string(types.ClusterCertificateName) {
 		certificateDir = s.OS.StateDir
 	} else {
 		certificateDir = s.OS.CertificatesDir
@@ -124,7 +124,7 @@ func clusterCertificatesPut(s *state.State, r *http.Request) response.Response {
 	}
 
 	// Load the new cert from the state directory on this node.
-	err = state.ReloadCert(certificateName)
+	err = state.ReloadCert(types.CertificateName(certificateName))
 	if err != nil {
 		return response.SmartError(err)
 	}

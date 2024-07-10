@@ -177,7 +177,7 @@ func joinWithToken(state *state.State, r *http.Request, req *internalTypes.Contr
 	})
 
 	// Set up cluster certificate.
-	err = util.WriteCert(state.OS.StateDir, "cluster", []byte(joinInfo.ClusterCert.String()), []byte(joinInfo.ClusterKey), nil)
+	err = util.WriteCert(state.OS.StateDir, string(types.ClusterCertificateName), []byte(joinInfo.ClusterCert.String()), []byte(joinInfo.ClusterKey), nil)
 	if err != nil {
 		return response.SmartError(err)
 	}

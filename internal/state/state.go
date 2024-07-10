@@ -91,7 +91,7 @@ var OnNewMemberHook func(state *State) error
 var OnDaemonConfigUpdate func(state *State, config types.DaemonConfig) error
 
 // ReloadCert reloads the given keypair from the state directory.
-var ReloadCert func(name string) error
+var ReloadCert func(name types.CertificateName) error
 
 // Cluster returns a client for every member of a cluster, except
 // this one.

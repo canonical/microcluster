@@ -493,11 +493,11 @@ func (m *MicroCluster) SQL(ctx context.Context, query string) (string, *internal
 
 // UpdateCertificate allows updating the cluster certificate and any additional ones.
 // If you want to update the cluster certificate set name to cluster.
-func (m *MicroCluster) UpdateCertificate(ctx context.Context, name string, keypair types.KeyPair) error {
+func (m *MicroCluster) UpdateCertificate(ctx context.Context, name types.CertificateName, keypair types.KeyPair) error {
 	c, err := m.LocalClient()
 	if err != nil {
 		return err
 	}
 
-	return c.UpdateClusterCertificate(ctx, name, keypair)
+	return c.UpdateCertificate(ctx, name, keypair)
 }

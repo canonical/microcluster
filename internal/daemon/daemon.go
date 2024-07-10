@@ -485,7 +485,7 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 		}
 	}
 
-	err = d.ReloadCert("cluster")
+	err = d.ReloadCert(types.ClusterCertificateName)
 	if err != nil {
 		return err
 	}
@@ -898,24 +898,24 @@ func (d *Daemon) ClusterCert() *shared.CertInfo {
 }
 
 // ReloadCert reloads a specific certificate from the filesytem.
-func (d *Daemon) ReloadCert(name string) error {
+func (d *Daemon) ReloadCert(name types.CertificateName) error {
 	d.clusterMu.Lock()
 	defer d.clusterMu.Unlock()
 
 	var dir string
-	if name == "cluster" {
+	if name == types.ClusterCertificateName {
 		dir = d.os.StateDir
 	} else {
 		dir = d.os.CertificatesDir
 	}
 
-	cert, err := shared.KeyPairAndCA(dir, name, shared.CertServer, true)
+	cert, err := shared.KeyPairAndCA(dir, string(name), shared.CertServer, true)
 	if err != nil {
 		return fmt.Errorf("Failed to load TLS certificate %q: %w", name, err)
 	}
 
 	// In case the cluster certificate gets reloaded also populate its value.
-	if name == "cluster" {
+	if name == types.ClusterCertificateName {
 		d.clusterCert = cert
 
 		// The core API endpoints are labeled with core.
@@ -937,7 +937,7 @@ func (d *Daemon) ReloadCert(name string) error {
 
 		d.extensionServersMu.RUnlock()
 	} else {
-		d.endpoints.UpdateTLSByName(name, cert)
+		d.endpoints.UpdateTLSByName(string(name), cert)
 	}
 
 	return nil

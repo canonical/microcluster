@@ -665,7 +665,9 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 func (d *Daemon) startUnixServer(serverEndpoints []rest.Resources) error {
 	ctlServer := d.initServer(serverEndpoints...)
 	ctl := endpoints.NewSocket(d.shutdownCtx, ctlServer, d.os.ControlSocket(), d.os.SocketGroup)
-	d.endpoints = endpoints.NewEndpoints(d.shutdownCtx, ctl)
+	d.endpoints = endpoints.NewEndpoints(d.shutdownCtx, map[string]endpoints.Endpoint{
+		endpoints.EndpointsUnix: ctl,
+	})
 
 	return d.endpoints.Up()
 }
@@ -697,16 +699,18 @@ func (d *Daemon) addCoreServers(preInit bool, defaultURL api.URL, defaultCert *s
 	server := d.initServer(serverEndpoints...)
 	network := endpoints.NewNetwork(d.shutdownCtx, endpoints.EndpointNetwork, server, defaultURL, defaultCert)
 
-	return d.endpoints.Add(network)
+	return d.endpoints.Add(map[string]endpoints.Endpoint{
+		endpoints.EndpointsCore: network,
+	})
 }
 
 // addExtensionServers initialises a new *endpoints.Network for each extension server and adds it to the Daemon endpoints.
 // Only servers with a defined address will be started.
 // If a server lacks a certificate, the fallbackCert will be used instead.
 func (d *Daemon) addExtensionServers(preInit bool, fallbackCert *shared.CertInfo, coreAddress string) error {
-	var networks []endpoints.Endpoint
+	var networks = make(map[string]endpoints.Endpoint)
 	d.extensionServersMu.RLock()
-	for _, extensionServer := range d.extensionServers {
+	for serverName, extensionServer := range d.extensionServers {
 		// Skip any core API servers.
 		if extensionServer.CoreAPI {
 			continue
@@ -727,22 +731,45 @@ func (d *Daemon) addExtensionServers(preInit bool, fallbackCert *shared.CertInfo
 			continue
 		}
 
-		// If there is no certificate defined, apply the default certificate for the core server.
-		cert := extensionServer.Certificate
-		if cert == nil {
+		url := api.NewURL().Scheme(extensionServer.Protocol).Host(extensionServer.Address.String())
+		alreadyRunning := false
+		for name := range d.endpoints.List(endpoints.EndpointNetwork) {
+			if name == serverName {
+				alreadyRunning = true
+				break
+			}
+		}
+
+		// Skip already running listeners.
+		if alreadyRunning {
+			continue
+		}
+
+		customCertExists := shared.PathExists(filepath.Join(d.os.CertificatesDir, fmt.Sprintf("%s.crt", serverName)))
+
+		var err error
+		var cert *shared.CertInfo
+		if !extensionServer.DedicatedCertificate && !customCertExists {
+			// If there is no certificate defined, apply the default certificate for the core server.
 			cert = fallbackCert
+		} else {
+			// Generate a dedicated certificate or load the custom one if it exists.
+			// When updating the additional listeners the dedicated certificate from before will be reused.
+			cert, err = shared.KeyPairAndCA(d.os.CertificatesDir, serverName, shared.CertServer, true)
+			if err != nil {
+				return fmt.Errorf("Failed to setup dedicated certificate for additional server %q: %w", serverName, err)
+			}
 		}
 
 		server := d.initServer(extensionServer.Resources...)
-		url := api.NewURL().Scheme(extensionServer.Protocol).Host(extensionServer.Address.String())
 		network := endpoints.NewNetwork(d.shutdownCtx, endpoints.EndpointNetwork, server, *url, cert)
-		networks = append(networks, network)
+		networks[serverName] = network
 	}
 
 	d.extensionServersMu.RUnlock()
 
 	if len(networks) > 0 {
-		err := d.endpoints.Add(networks...)
+		err := d.endpoints.Add(networks)
 		if err != nil {
 			return err
 		}

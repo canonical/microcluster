@@ -176,9 +176,24 @@ func joinWithToken(state *state.State, r *http.Request, req *internalTypes.Contr
 		}
 	})
 
-	err = util.WriteCert(state.OS.StateDir, "cluster", []byte(joinInfo.ClusterCert.String()), []byte(joinInfo.ClusterKey), nil)
+	// Set up cluster certificate.
+	err = util.WriteCert(state.OS.StateDir, string(types.ClusterCertificateName), []byte(joinInfo.ClusterCert.String()), []byte(joinInfo.ClusterKey), nil)
 	if err != nil {
 		return response.SmartError(err)
+	}
+
+	// Setup any additional certificates.
+	for name, cert := range joinInfo.ClusterAdditionalCerts {
+		// Only write the CA if present.
+		var ca []byte
+		if cert.CA != "" {
+			ca = []byte(cert.CA)
+		}
+
+		err := util.WriteCert(state.OS.CertificatesDir, name, []byte(cert.Cert), []byte(cert.Key), ca)
+		if err != nil {
+			return response.SmartError(err)
+		}
 	}
 
 	joinAddrs := types.AddrPorts{}

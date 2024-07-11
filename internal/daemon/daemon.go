@@ -20,11 +20,11 @@ import (
 	"github.com/canonical/lxd/shared/logger"
 	"github.com/canonical/lxd/shared/revert"
 	"github.com/gorilla/mux"
-	"gopkg.in/yaml.v2"
 
 	"github.com/canonical/microcluster/client"
 	"github.com/canonical/microcluster/cluster"
 	"github.com/canonical/microcluster/config"
+	internalConfig "github.com/canonical/microcluster/internal/config"
 	"github.com/canonical/microcluster/internal/db"
 	"github.com/canonical/microcluster/internal/endpoints"
 	"github.com/canonical/microcluster/internal/extensions"
@@ -44,8 +44,7 @@ import (
 type Daemon struct {
 	project string // The project refers to the name of the go-project that is calling MicroCluster.
 
-	address api.URL // Listen Address.
-	name    string  // Name of the cluster member.
+	config *internalConfig.DaemonConfig // Local daemon's configuration from daemon.yaml file.
 
 	os         *sys.OS
 	serverCert *shared.CertInfo
@@ -71,15 +70,17 @@ type Daemon struct {
 	// stop is a sync.Once which wraps the daemon's stop sequence. Each call will block until the first one completes.
 	stop func() error
 
-	extensionServers []rest.Server
+	extensionServersMu sync.RWMutex
+	extensionServers   map[string]rest.Server
 }
 
 // NewDaemon initializes the Daemon context and channels.
 func NewDaemon(project string) *Daemon {
 	d := &Daemon{
-		shutdownDoneCh: make(chan error),
-		ReadyChan:      make(chan struct{}),
-		project:        project,
+		shutdownDoneCh:   make(chan error),
+		ReadyChan:        make(chan struct{}),
+		extensionServers: make(map[string]rest.Server),
+		project:          project,
 	}
 
 	d.stop = sync.OnceValue(func() error {
@@ -112,7 +113,7 @@ func NewDaemon(project string) *Daemon {
 // - `extensionsSchema` is a list of schema updates in the order that they should be applied.
 // - `extensionServers` is a list of rest.Server that will be initialized and managed by microcluster.
 // - `hooks` are a set of functions that trigger at certain points during cluster communication.
-func (d *Daemon) Run(ctx context.Context, listenPort string, stateDir string, socketGroup string, extensionsSchema []schema.Update, apiExtensions []string, extensionServers []rest.Server, hooks *config.Hooks) error {
+func (d *Daemon) Run(ctx context.Context, listenAddress string, stateDir string, socketGroup string, extensionsSchema []schema.Update, apiExtensions []string, extensionServers map[string]rest.Server, hooks *config.Hooks) error {
 	d.shutdownCtx, d.shutdownCancel = context.WithCancel(ctx)
 	if stateDir == "" {
 		stateDir = os.Getenv(sys.StateDir)
@@ -132,6 +133,9 @@ func (d *Daemon) Run(ctx context.Context, listenPort string, stateDir string, so
 		return fmt.Errorf("Failed to initialize directory structure: %w", err)
 	}
 
+	// Setup the deamon's internal config.
+	d.config = internalConfig.NewDaemonConfig(filepath.Join(d.os.StateDir, "daemon.yaml"))
+
 	// Clean up the daemon state on an error during init.
 	reverter := revert.New()
 	defer reverter.Fail()
@@ -147,9 +151,20 @@ func (d *Daemon) Run(ctx context.Context, listenPort string, stateDir string, so
 		return fmt.Errorf("Database recovery failed: %w", err)
 	}
 
-	d.extensionServers = extensionServers
+	d.extensionServersMu.Lock()
+	// Deep copy the supplied extension servers to prevent assigning the map by reference.
+	for k, v := range extensionServers {
+		// `core` and `unix` are reserved server names.
+		if shared.ValueInSlice(k, []string{endpoints.EndpointsCore, endpoints.EndpointsUnix}) {
+			return fmt.Errorf("Cannot use the reserved server name %q", k)
+		}
 
-	err = d.init(listenPort, extensionsSchema, apiExtensions, hooks)
+		d.extensionServers[k] = v
+	}
+
+	d.extensionServersMu.Unlock()
+
+	err = d.init(listenAddress, extensionsSchema, apiExtensions, hooks)
 	if err != nil {
 		return fmt.Errorf("Daemon failed to start: %w", err)
 	}
@@ -173,14 +188,16 @@ func (d *Daemon) Run(ctx context.Context, listenPort string, stateDir string, so
 	}
 }
 
-func (d *Daemon) init(listenPort string, schemaExtensions []schema.Update, apiExtensions []string, hooks *config.Hooks) error {
+func (d *Daemon) init(listenAddress string, schemaExtensions []schema.Update, apiExtensions []string, hooks *config.Hooks) error {
 	d.applyHooks(hooks)
 
 	var err error
-	d.name, err = os.Hostname()
+	name, err := os.Hostname()
 	if err != nil {
 		return fmt.Errorf("Failed to assign default system name: %w", err)
 	}
+
+	d.config.SetName(name)
 
 	// Initialize the extensions registry with the internal extensions.
 	d.Extensions, err = extensions.NewExtensionRegistry(true)
@@ -207,14 +224,24 @@ func (d *Daemon) init(listenPort string, schemaExtensions []schema.Update, apiEx
 	d.db = db.NewDB(d.shutdownCtx, d.serverCert, d.ClusterCert, d.os)
 
 	listenAddr := api.NewURL()
-	if listenPort != "" {
-		listenAddr = listenAddr.Host(fmt.Sprintf(":%s", listenPort))
+	if listenAddress != "" {
+		listenAddr = listenAddr.Host(listenAddress)
+
+		addrPort, err := types.ParseAddrPort(listenAddress)
+		if err != nil {
+			return fmt.Errorf("Failed to parse initial listen address: %w", err)
+		}
+
+		d.config.SetAddress(addrPort)
 	}
 
+	d.extensionServersMu.RLock()
 	err = resources.ValidateEndpoints(d.extensionServers, listenAddr.URL.Host)
 	if err != nil {
 		return err
 	}
+
+	d.extensionServersMu.RUnlock()
 
 	serverEndpoints := []rest.Resources{
 		resources.UnixEndpoints,
@@ -222,18 +249,21 @@ func (d *Daemon) init(listenPort string, schemaExtensions []schema.Update, apiEx
 		resources.PublicEndpoints,
 	}
 
+	d.extensionServersMu.RLock()
 	for _, server := range d.extensionServers {
 		if server.ServeUnix {
 			serverEndpoints = append(serverEndpoints, server.Resources...)
 		}
 	}
 
+	d.extensionServersMu.RUnlock()
+
 	err = d.startUnixServer(serverEndpoints)
 	if err != nil {
 		return err
 	}
 
-	if listenPort != "" {
+	if listenAddress != "" {
 		serverEndpoints = []rest.Resources{resources.PublicEndpoints}
 		err = d.addCoreServers(true, *listenAddr, d.ServerCert(), serverEndpoints)
 		if err != nil {
@@ -267,6 +297,7 @@ func (d *Daemon) applyHooks(hooks *config.Hooks) {
 	noOpHook := func(s *state.State) error { return nil }
 	noOpRemoveHook := func(s *state.State, force bool) error { return nil }
 	noOpInitHook := func(s *state.State, initConfig map[string]string) error { return nil }
+	noOpConfigHook := func(s *state.State, config types.DaemonConfig) error { return nil }
 
 	if hooks == nil {
 		d.hooks = config.Hooks{}
@@ -309,6 +340,10 @@ func (d *Daemon) applyHooks(hooks *config.Hooks) {
 	if d.hooks.PostRemove == nil {
 		d.hooks.PostRemove = noOpRemoveHook
 	}
+
+	if d.hooks.OnDaemonConfigUpdate == nil {
+		d.hooks.OnDaemonConfigUpdate = noOpConfigHook
+	}
 }
 
 func (d *Daemon) reloadIfBootstrapped() error {
@@ -332,7 +367,7 @@ func (d *Daemon) reloadIfBootstrapped() error {
 		return err
 	}
 
-	err = d.setDaemonConfig(nil)
+	err = d.config.Load()
 	if err != nil {
 		return fmt.Errorf("Failed to retrieve daemon configuration yaml: %w", err)
 	}
@@ -409,9 +444,18 @@ func (d *Daemon) initServer(resources ...rest.Resources) *http.Server {
 // if we are bootstrapping the first node.
 func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfig *trust.Location, joinAddresses ...string) error {
 	if newConfig != nil {
-		err := d.setDaemonConfig(newConfig)
+		d.config.SetAddress(newConfig.Address)
+		d.config.SetName(newConfig.Name)
+
+		// Write the latest config to disk.
+		err := d.config.Write()
 		if err != nil {
-			return fmt.Errorf("Failed to apply and save new daemon configuration: %w", err)
+			return err
+		}
+	} else {
+		err := d.config.Load()
+		if err != nil {
+			return err
 		}
 	}
 
@@ -422,7 +466,7 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 		}
 	}
 
-	if d.address.URL.Host == "" || d.name == "" {
+	if d.Address().URL.Host == "" || d.config.GetName() == "" {
 		return fmt.Errorf("Cannot start network API without valid daemon configuration")
 	}
 
@@ -431,13 +475,13 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 		return fmt.Errorf("Failed to parse server certificate when bootstrapping API: %w", err)
 	}
 
-	addrPort, err := types.ParseAddrPort(d.address.URL.Host)
+	addrPort, err := types.ParseAddrPort(d.Address().URL.Host)
 	if err != nil {
 		return fmt.Errorf("Failed to parse listen address when bootstrapping API: %w", err)
 	}
 
 	localNode := trust.Remote{
-		Location:    trust.Location{Name: d.name, Address: addrPort},
+		Location:    trust.Location{Name: d.config.GetName(), Address: addrPort},
 		Certificate: types.X509Certificate{Certificate: serverCert},
 	}
 
@@ -448,16 +492,19 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 		}
 	}
 
-	err = d.ReloadClusterCert()
+	err = d.ReloadCert(types.ClusterCertificateName)
 	if err != nil {
 		return err
 	}
 
 	// Validate the extension servers again now that we have applied addresses.
-	err = resources.ValidateEndpoints(d.extensionServers, d.address.URL.Host)
+	d.extensionServersMu.RLock()
+	err = resources.ValidateEndpoints(d.extensionServers, d.Address().URL.Host)
 	if err != nil {
 		return err
 	}
+
+	d.extensionServersMu.RUnlock()
 
 	err = d.endpoints.Down(endpoints.EndpointNetwork)
 	if err != nil {
@@ -465,13 +512,13 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 	}
 
 	serverEndpoints := []rest.Resources{resources.InternalEndpoints, resources.PublicEndpoints}
-	err = d.addCoreServers(false, d.address, d.ClusterCert(), serverEndpoints)
+	err = d.addCoreServers(false, *d.Address(), d.ClusterCert(), serverEndpoints)
 	if err != nil {
 		return err
 	}
 
 	// Add extension servers before post-join hook.
-	err = d.addExtensionServers(false, d.ClusterCert(), d.address.URL.Host)
+	err = d.addExtensionServers(false, d.ClusterCert(), d.Address().URL.Host)
 	if err != nil {
 		return err
 	}
@@ -488,7 +535,7 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 
 		clusterMember.SchemaInternal, clusterMember.SchemaExternal, _ = d.db.Schema().Version()
 
-		err = d.db.Bootstrap(d.Extensions, d.project, d.address, clusterMember)
+		err = d.db.Bootstrap(d.Extensions, d.project, *d.Address(), clusterMember)
 		if err != nil {
 			return err
 		}
@@ -508,12 +555,12 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 	}
 
 	if len(joinAddresses) != 0 {
-		err = d.db.Join(d.Extensions, d.project, d.address, joinAddresses...)
+		err = d.db.Join(d.Extensions, d.project, *d.Address(), joinAddresses...)
 		if err != nil {
 			return fmt.Errorf("Failed to join cluster: %w", err)
 		}
 	} else {
-		err = d.db.StartWithCluster(d.Extensions, d.project, d.address, d.trustStore.Remotes().Addresses())
+		err = d.db.StartWithCluster(d.Extensions, d.project, *d.Address(), d.trustStore.Remotes().Addresses())
 		if err != nil {
 			return fmt.Errorf("Failed to re-establish cluster connection: %w", err)
 		}
@@ -548,7 +595,7 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 		var clusterConfirmation bool
 		err = cluster.Query(d.shutdownCtx, true, func(ctx context.Context, c *client.Client) error {
 			// No need to send a request to ourselves.
-			if d.address.URL.Host == c.URL().URL.Host {
+			if d.Address().URL.Host == c.URL().URL.Host {
 				return nil
 			}
 
@@ -580,7 +627,7 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 		c.SetClusterNotification()
 
 		// No need to send a request to ourselves.
-		if d.address.URL.Host == c.URL().URL.Host {
+		if d.Address().URL.Host == c.URL().URL.Host {
 			return nil
 		}
 
@@ -622,11 +669,90 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 	return nil
 }
 
+// UpdateServers updates and start/stops the additional listeners.
+func (d *Daemon) UpdateServers() error {
+	configuredServers := d.config.GetServers()
+
+	// Create a list of additional listeners which are currently configured.
+	var configuredServerNames []string
+	for name := range configuredServers {
+		configuredServerNames = append(configuredServerNames, name)
+	}
+
+	// Stop all additional listeners which got removed from the config.
+	for _, serverName := range d.ExtensionServers() {
+		if !shared.ValueInSlice(serverName, configuredServerNames) {
+			// Remove their config.
+			d.extensionServersMu.Lock()
+			extensionServer, ok := d.extensionServers[serverName]
+			if !ok {
+				// There isn't any additional listener set that matches this name.
+				d.extensionServersMu.Unlock()
+				continue
+			}
+
+			// Set an empty config for this specific additional listener.
+			extensionServer.ServerConfig = types.ServerConfig{}
+
+			// Reassign the map struct.
+			d.extensionServers[serverName] = extensionServer
+			d.extensionServersMu.Unlock()
+
+			err := d.endpoints.DownByName(serverName)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	// Restart all additional listeners which received an update.
+	for serverName, extensionServerConfig := range configuredServers {
+		// Lock the entire section to ensure the reassignment can happen.
+		d.extensionServersMu.Lock()
+		extensionServer, ok := d.extensionServers[serverName]
+		if !ok {
+			// There isn't any additional listener set that matches this name.
+			d.extensionServersMu.Unlock()
+			continue
+		}
+
+		modified := false
+		if extensionServer.ServerConfig != extensionServerConfig {
+			modified = true
+		}
+
+		extensionServer.ServerConfig = extensionServerConfig
+
+		// Reassign the map struct.
+		d.extensionServers[serverName] = extensionServer
+		d.extensionServersMu.Unlock()
+
+		// Stop the additional listener in case it got modified.
+		if modified {
+			err := d.endpoints.DownByName(serverName)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	// Start any additional listener.
+	// This operation is idempotent.
+	err := d.addExtensionServers(false, d.ClusterCert(), d.Address().URL.Host)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // startUnixServer starts up the core unix listener with the given resources.
 func (d *Daemon) startUnixServer(serverEndpoints []rest.Resources) error {
 	ctlServer := d.initServer(serverEndpoints...)
 	ctl := endpoints.NewSocket(d.shutdownCtx, ctlServer, d.os.ControlSocket(), d.os.SocketGroup)
-	d.endpoints = endpoints.NewEndpoints(d.shutdownCtx, ctl)
+	d.endpoints = endpoints.NewEndpoints(d.shutdownCtx, map[string]endpoints.Endpoint{
+		endpoints.EndpointsUnix: ctl,
+	})
 
 	return d.endpoints.Up()
 }
@@ -638,6 +764,7 @@ func (d *Daemon) addCoreServers(preInit bool, defaultURL api.URL, defaultCert *s
 	serverEndpoints = append(serverEndpoints, defaultResources...)
 
 	// Append all extension servers whose address is empty or matches the default URL.
+	d.extensionServersMu.RLock()
 	for _, s := range d.extensionServers {
 		// If the server is not available prior to initialization, then skip it if we are before initialization.
 		if !s.PreInit && preInit {
@@ -652,18 +779,24 @@ func (d *Daemon) addCoreServers(preInit bool, defaultURL api.URL, defaultCert *s
 		serverEndpoints = append(serverEndpoints, s.Resources...)
 	}
 
+	d.extensionServersMu.RUnlock()
+
 	server := d.initServer(serverEndpoints...)
 	network := endpoints.NewNetwork(d.shutdownCtx, endpoints.EndpointNetwork, server, defaultURL, defaultCert)
 
-	return d.endpoints.Add(network)
+	return d.endpoints.Add(map[string]endpoints.Endpoint{
+		endpoints.EndpointsCore: network,
+	})
 }
 
 // addExtensionServers initialises a new *endpoints.Network for each extension server and adds it to the Daemon endpoints.
 // Only servers with a defined address will be started.
 // If a server lacks a certificate, the fallbackCert will be used instead.
+// The function is idempotent and doesn't start already running extension servers.
 func (d *Daemon) addExtensionServers(preInit bool, fallbackCert *shared.CertInfo, coreAddress string) error {
-	var networks []endpoints.Endpoint
-	for _, extensionServer := range d.extensionServers {
+	var networks = make(map[string]endpoints.Endpoint)
+	d.extensionServersMu.RLock()
+	for serverName, extensionServer := range d.extensionServers {
 		// Skip any core API servers.
 		if extensionServer.CoreAPI {
 			continue
@@ -684,20 +817,45 @@ func (d *Daemon) addExtensionServers(preInit bool, fallbackCert *shared.CertInfo
 			continue
 		}
 
-		// If there is no certificate defined, apply the default certificate for the core server.
-		cert := extensionServer.Certificate
-		if cert == nil {
+		url := api.NewURL().Scheme("https").Host(extensionServer.Address.String())
+		alreadyRunning := false
+		for name := range d.endpoints.List(endpoints.EndpointNetwork) {
+			if name == serverName {
+				alreadyRunning = true
+				break
+			}
+		}
+
+		// Skip already running listeners.
+		if alreadyRunning {
+			continue
+		}
+
+		customCertExists := shared.PathExists(filepath.Join(d.os.CertificatesDir, fmt.Sprintf("%s.crt", serverName)))
+
+		var err error
+		var cert *shared.CertInfo
+		if !extensionServer.DedicatedCertificate && !customCertExists {
+			// If there is no certificate defined, apply the default certificate for the core server.
 			cert = fallbackCert
+		} else {
+			// Generate a dedicated certificate or load the custom one if it exists.
+			// When updating the additional listeners the dedicated certificate from before will be reused.
+			cert, err = shared.KeyPairAndCA(d.os.CertificatesDir, serverName, shared.CertServer, true)
+			if err != nil {
+				return fmt.Errorf("Failed to setup dedicated certificate for additional server %q: %w", serverName, err)
+			}
 		}
 
 		server := d.initServer(extensionServer.Resources...)
-		url := api.NewURL().Scheme(extensionServer.Protocol).Host(extensionServer.Address.String())
 		network := endpoints.NewNetwork(d.shutdownCtx, endpoints.EndpointNetwork, server, *url, cert)
-		networks = append(networks, network)
+		networks[serverName] = network
 	}
 
+	d.extensionServersMu.RUnlock()
+
 	if len(networks) > 0 {
-		err := d.endpoints.Add(networks...)
+		err := d.endpoints.Add(networks)
 		if err != nil {
 			return err
 		}
@@ -746,18 +904,48 @@ func (d *Daemon) ClusterCert() *shared.CertInfo {
 	return shared.NewCertInfo(d.clusterCert.KeyPair(), d.clusterCert.CA(), d.clusterCert.CRL())
 }
 
-// ReloadClusterCert reloads the cluster keypair from the state directory.
-func (d *Daemon) ReloadClusterCert() error {
+// ReloadCert reloads a specific certificate from the filesytem.
+func (d *Daemon) ReloadCert(name types.CertificateName) error {
 	d.clusterMu.Lock()
 	defer d.clusterMu.Unlock()
 
-	clusterCert, err := util.LoadClusterCert(d.os.StateDir)
-	if err != nil {
-		return err
+	var dir string
+	if name == types.ClusterCertificateName {
+		dir = d.os.StateDir
+	} else {
+		dir = d.os.CertificatesDir
 	}
 
-	d.clusterCert = clusterCert
-	d.endpoints.UpdateTLS(clusterCert)
+	cert, err := shared.KeyPairAndCA(dir, string(name), shared.CertServer, true)
+	if err != nil {
+		return fmt.Errorf("Failed to load TLS certificate %q: %w", name, err)
+	}
+
+	// In case the cluster certificate gets reloaded also populate its value.
+	if name == types.ClusterCertificateName {
+		d.clusterCert = cert
+
+		// The core API endpoints are labeled with core.
+		// When the cluster certificate gets updated reload those.
+		d.endpoints.UpdateTLSByName(endpoints.EndpointsCore, cert)
+
+		// Reload all the other additional listeners that also use the cluster certificate.
+		// This might be the case if they
+		// - don't use a dedicated certificate
+		// - aren't part of the core API
+		// - and cannot load a custom certificate which shares their name
+		d.extensionServersMu.RLock()
+		for name, server := range d.extensionServers {
+			certExists := shared.PathExists(filepath.Join(d.os.CertificatesDir, fmt.Sprintf("%s.crt", name)))
+			if !server.CoreAPI && !server.DedicatedCertificate && !certExists {
+				d.endpoints.UpdateTLSByName(name, cert)
+			}
+		}
+
+		d.extensionServersMu.RUnlock()
+	} else {
+		d.endpoints.UpdateTLSByName(string(name), cert)
+	}
 
 	return nil
 }
@@ -769,13 +957,37 @@ func (d *Daemon) ServerCert() *shared.CertInfo {
 
 // Address ensures both the daemon and state have the same address.
 func (d *Daemon) Address() *api.URL {
-	copyURL := d.address
-	return &copyURL
+	return api.NewURL().Scheme("https").Host(d.config.GetAddress().String())
 }
 
 // Name ensures both the daemon and state have the same name.
 func (d *Daemon) Name() string {
-	return d.name
+	return d.config.GetName()
+}
+
+// LocalConfig returns the daemon's internal config implementation.
+// It is thread safe and can be used to both read and write config.
+func (d *Daemon) LocalConfig() *internalConfig.DaemonConfig {
+	return d.config
+}
+
+// ExtensionServers returns an immutable list of the daemon's additional listeners.
+// Only the listeners which can be modified are returned.
+// The listeners which are part of the core API are excluded.
+func (d *Daemon) ExtensionServers() []string {
+	d.extensionServersMu.RLock()
+	defer d.extensionServersMu.RUnlock()
+
+	var serverNames []string
+	for name, server := range d.extensionServers {
+		if server.CoreAPI {
+			continue
+		}
+
+		serverNames = append(serverNames, name)
+	}
+
+	return serverNames
 }
 
 // State creates a State instance with the daemon's stateful components.
@@ -784,7 +996,8 @@ func (d *Daemon) State() *state.State {
 	state.PostRemoveHook = d.hooks.PostRemove
 	state.OnHeartbeatHook = d.hooks.OnHeartbeat
 	state.OnNewMemberHook = d.hooks.OnNewMember
-	state.ReloadClusterCert = d.ReloadClusterCert
+	state.OnDaemonConfigUpdate = d.hooks.OnDaemonConfigUpdate
+	state.ReloadCert = d.ReloadCert
 	state.StopListeners = func() error {
 		err := d.fsWatcher.Close()
 		if err != nil {
@@ -795,17 +1008,19 @@ func (d *Daemon) State() *state.State {
 	}
 
 	state := &state.State{
-		Context:     d.shutdownCtx,
-		ReadyCh:     d.ReadyChan,
-		OS:          d.os,
-		Address:     d.Address,
-		Name:        d.Name,
-		Endpoints:   d.endpoints,
-		ServerCert:  d.ServerCert,
-		ClusterCert: d.ClusterCert,
-		Database:    d.db,
-		Remotes:     d.trustStore.Remotes,
-		StartAPI:    d.StartAPI,
+		Context:       d.shutdownCtx,
+		ReadyCh:       d.ReadyChan,
+		OS:            d.os,
+		Address:       d.Address,
+		Name:          d.Name,
+		Endpoints:     d.endpoints,
+		ServerCert:    d.ServerCert,
+		ClusterCert:   d.ClusterCert,
+		LocalConfig:   d.LocalConfig,
+		Database:      d.db,
+		Remotes:       d.trustStore.Remotes,
+		StartAPI:      d.StartAPI,
+		UpdateServers: d.UpdateServers,
 		Stop: func() (exit func(), stopErr error) {
 			stopErr = d.stop()
 			exit = func() {
@@ -814,40 +1029,9 @@ func (d *Daemon) State() *state.State {
 
 			return exit, stopErr
 		},
-		Extensions: d.Extensions,
+		Extensions:       d.Extensions,
+		ExtensionServers: d.ExtensionServers,
 	}
 
 	return state
-}
-
-// setDaemonConfig sets the daemon's address and name from the given location information. If none is supplied, the file
-// at `state-dir/daemon.yaml` will be read for the information.
-func (d *Daemon) setDaemonConfig(config *trust.Location) error {
-	if config != nil {
-		bytes, err := yaml.Marshal(config)
-		if err != nil {
-			return fmt.Errorf("Failed to parse daemon config to yaml: %w", err)
-		}
-
-		err = os.WriteFile(filepath.Join(d.os.StateDir, "daemon.yaml"), bytes, 0644)
-		if err != nil {
-			return fmt.Errorf("Failed to write daemon configuration yaml: %w", err)
-		}
-	} else {
-		data, err := os.ReadFile(filepath.Join(d.os.StateDir, "daemon.yaml"))
-		if err != nil {
-			return fmt.Errorf("Failed to find daemon configuration: %w", err)
-		}
-
-		config = &trust.Location{}
-		err = yaml.Unmarshal(data, config)
-		if err != nil {
-			return fmt.Errorf("Failed to parse daemon config from yaml: %w", err)
-		}
-	}
-
-	d.address = *api.NewURL().Scheme("https").Host(config.Address.String())
-	d.name = config.Name
-
-	return nil
 }

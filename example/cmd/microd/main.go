@@ -12,6 +12,7 @@ import (
 	"github.com/canonical/microcluster/example/database"
 	"github.com/canonical/microcluster/example/version"
 	"github.com/canonical/microcluster/microcluster"
+	"github.com/canonical/microcluster/rest/types"
 	"github.com/canonical/microcluster/state"
 )
 
@@ -179,6 +180,13 @@ func (c *cmdDaemon) run(cmd *cobra.Command, args []string) error {
 		// OnNewMember is run after a new member has joined.
 		OnNewMember: func(s *state.State) error {
 			logger.Infof("This is a hook that is run on peer %q when a new cluster member has joined", s.Name())
+
+			return nil
+		},
+
+		// OnDaemonConfigUpdate is run after the local daemon config of a cluster member got modified.
+		OnDaemonConfigUpdate: func(s *state.State, config types.DaemonConfig) error {
+			logger.Infof("Running OnDaemonConfigUpdate triggered by %q", config.Name)
 
 			return nil
 		},

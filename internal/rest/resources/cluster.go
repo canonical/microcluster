@@ -5,16 +5,19 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"math/rand"
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
 	dqliteClient "github.com/canonical/go-dqlite/client"
 	"github.com/canonical/lxd/lxd/response"
+	"github.com/canonical/lxd/shared"
 	"github.com/canonical/lxd/shared/api"
 	"github.com/canonical/lxd/shared/logger"
 	"github.com/gorilla/mux"
@@ -167,6 +170,42 @@ func clusterPost(s *state.State, r *http.Request) response.Response {
 
 	// Add the cluster member to our local store for authentication.
 	err = s.Remotes().Add(s.OS.TrustDir, newRemote)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	tokenResponse.ClusterAdditionalCerts = make(map[string]types.KeyPair)
+
+	// Load the list of custom certificates from its state directory.
+	err = filepath.WalkDir(s.OS.CertificatesDir, func(path string, d fs.DirEntry, err error) error {
+		// Skip directories
+		if d.IsDir() {
+			return nil
+		}
+
+		// Find all .crt files to create a list of custom certificates.
+		splittedPath := strings.Split(filepath.Base(path), ".")
+		if len(splittedPath) == 2 && splittedPath[1] == "crt" {
+			// Load the certificate
+			cert, err := shared.KeyPairAndCA(s.OS.CertificatesDir, splittedPath[0], shared.CertServer, true)
+			if err != nil {
+				return fmt.Errorf("Failed to load certificate for additional server %q: %w", splittedPath[0], err)
+			}
+
+			additionalCertificate := types.KeyPair{
+				Cert: string(cert.PublicKey()),
+				Key:  string(cert.PrivateKey()),
+			}
+
+			if cert.CA() != nil {
+				additionalCertificate.CA = string(cert.CA().Raw)
+			}
+
+			tokenResponse.ClusterAdditionalCerts[splittedPath[0]] = additionalCertificate
+		}
+
+		return nil
+	})
 	if err != nil {
 		return response.SmartError(err)
 	}

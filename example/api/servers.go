@@ -9,8 +9,8 @@ import (
 // Servers represents the list of listeners that the daemon will start
 // Each Server has pre-defined endpoints that will be added to the listener
 // If the Server is marked as CoreAPI, its endpoints will be added to the core listener of Microcluster.
-var Servers = []rest.Server{
-	{
+var Servers = map[string]rest.Server{
+	"extended": {
 		CoreAPI:   true,
 		ServeUnix: true,
 		Resources: []rest.Resources{

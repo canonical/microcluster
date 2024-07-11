@@ -25,6 +25,9 @@ type TokenResponse struct {
 	// The joiner supplies this list to dqlite so that it can start its database.
 	ClusterMembers []ClusterMemberLocal `json:"cluster_members" yaml:"cluster_members"`
 
+	// ClusterAdditionalCerts is the full list of certificates added for additional listeners.
+	ClusterAdditionalCerts map[string]types.KeyPair
+
 	// TrustedMember contains the address of the existing cluster member
 	// who was dqlite leader at the time that the joiner supplied its join token.
 	//

@@ -8,15 +8,18 @@ import (
 
 	"github.com/canonical/lxd/shared"
 	"github.com/canonical/lxd/shared/api"
+
+	"github.com/canonical/microcluster/rest/types"
 )
 
 // OS contains fields and methods for interacting with the state directory.
 type OS struct {
-	StateDir    string
-	DatabaseDir string
-	TrustDir    string
-	LogFile     string
-	SocketGroup string
+	StateDir        string
+	DatabaseDir     string
+	TrustDir        string
+	CertificatesDir string
+	LogFile         string
+	SocketGroup     string
 }
 
 // DefaultOS returns a fresh uninitialized OS instance with default values.
@@ -32,11 +35,12 @@ func DefaultOS(stateDir string, socketGroup string, createDir bool) (*OS, error)
 	// TODO: Configurable log file path.
 
 	os := &OS{
-		StateDir:    stateDir,
-		DatabaseDir: filepath.Join(stateDir, "database"),
-		TrustDir:    filepath.Join(stateDir, "truststore"),
-		LogFile:     "",
-		SocketGroup: socketGroup,
+		StateDir:        stateDir,
+		DatabaseDir:     filepath.Join(stateDir, "database"),
+		TrustDir:        filepath.Join(stateDir, "truststore"),
+		CertificatesDir: filepath.Join(stateDir, "certificates"),
+		LogFile:         "",
+		SocketGroup:     socketGroup,
 	}
 
 	err := os.init(createDir)
@@ -55,6 +59,7 @@ func (s *OS) init(createDir bool) error {
 		{s.StateDir, 0711},
 		{s.DatabaseDir, 0700},
 		{s.TrustDir, 0700},
+		{s.CertificatesDir, 0700},
 	}
 
 	for _, dir := range dirs {
@@ -132,11 +137,11 @@ func (s *OS) ServerCert() (*shared.CertInfo, error) {
 
 // ClusterCert gets the local cluster certificate from the state directory.
 func (s *OS) ClusterCert() (*shared.CertInfo, error) {
-	if !shared.PathExists(filepath.Join(s.StateDir, "cluster.crt")) {
-		return nil, fmt.Errorf("Failed to get cluster.crt from directory %q", s.StateDir)
+	if !shared.PathExists(filepath.Join(s.StateDir, fmt.Sprintf("%s.crt", types.ClusterCertificateName))) {
+		return nil, fmt.Errorf("Failed to get %s.crt from directory %q", types.ClusterCertificateName, s.StateDir)
 	}
 
-	cert, err := shared.KeyPairAndCA(s.StateDir, "cluster", shared.CertServer, true)
+	cert, err := shared.KeyPairAndCA(s.StateDir, string(types.ClusterCertificateName), shared.CertServer, true)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to load TLS certificate: %w", err)
 	}

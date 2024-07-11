@@ -44,11 +44,11 @@ type Args struct {
 	StateDir    string
 	SocketGroup string
 
-	ListenPort string
-	Client     *client.Client
-	Proxy      func(*http.Request) (*url.URL, error)
+	PreInitListenAddress string
+	Client               *client.Client
+	Proxy                func(*http.Request) (*url.URL, error)
 
-	extensionServers []rest.Server
+	extensionServers map[string]rest.Server
 }
 
 // App returns an instance of MicroCluster with a newly initialized filesystem if one does not exist.
@@ -92,7 +92,7 @@ func (m *MicroCluster) Start(ctx context.Context, extensionsSchema []schema.Upda
 	ctx, cancel := signal.NotifyContext(ctx, unix.SIGPWR, unix.SIGTERM, unix.SIGINT, unix.SIGQUIT)
 	defer cancel()
 
-	err = d.Run(ctx, m.args.ListenPort, m.FileSystem.StateDir, m.FileSystem.SocketGroup, extensionsSchema, apiExtensions, m.args.extensionServers, hooks)
+	err = d.Run(ctx, m.args.PreInitListenAddress, m.FileSystem.StateDir, m.FileSystem.SocketGroup, extensionsSchema, apiExtensions, m.args.extensionServers, hooks)
 	if err != nil {
 		return fmt.Errorf("Daemon stopped with error: %w", err)
 	}
@@ -101,8 +101,18 @@ func (m *MicroCluster) Start(ctx context.Context, extensionsSchema []schema.Upda
 }
 
 // AddServers adds additional server configurations to microcluster.
-func (m *MicroCluster) AddServers(servers []rest.Server) {
+func (m *MicroCluster) AddServers(servers map[string]rest.Server) {
 	m.args.extensionServers = servers
+}
+
+// UpdateServers updates the mutable fields of the additional server configuration.
+func (m *MicroCluster) UpdateServers(ctx context.Context, serversConfig map[string]types.ServerConfig) error {
+	c, err := m.LocalClient()
+	if err != nil {
+		return err
+	}
+
+	return c.UpdateServers(ctx, serversConfig)
 }
 
 // Status returns basic status information about the cluster.
@@ -479,4 +489,15 @@ func (m *MicroCluster) SQL(ctx context.Context, query string) (string, *internal
 	batch, err := c.PostSQL(ctx, data)
 
 	return "", batch, err
+}
+
+// UpdateCertificate allows updating the cluster certificate and any additional ones.
+// If you want to update the cluster certificate set name to cluster.
+func (m *MicroCluster) UpdateCertificate(ctx context.Context, name types.CertificateName, keypair types.KeyPair) error {
+	c, err := m.LocalClient()
+	if err != nil {
+		return err
+	}
+
+	return c.UpdateCertificate(ctx, name, keypair)
 }

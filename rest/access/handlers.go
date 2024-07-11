@@ -10,6 +10,7 @@ import (
 	"github.com/canonical/lxd/lxd/util"
 	"github.com/canonical/lxd/shared/logger"
 
+	"github.com/canonical/microcluster/internal/endpoints"
 	"github.com/canonical/microcluster/internal/rest/access"
 	"github.com/canonical/microcluster/internal/state"
 	"github.com/canonical/microcluster/rest/types"
@@ -53,9 +54,15 @@ func Authenticate(state *state.State, r *http.Request, hostAddress string, trust
 		return true, nil
 	}
 
-	if state.Address().URL.Host == "" {
-		logger.Info("Allowing unauthenticated request to un-initialized system")
-		return true, nil
+	// Check if it's the core API listener and if it is using the server.crt.
+	// This indicates that the daemon is in a pre-init state and is listening on the PreInitListenAddress.
+	endpoint := state.Endpoints.Get(endpoints.EndpointsCore)
+	network, ok := endpoint.(*endpoints.Network)
+	if ok {
+		if state.ServerCert().Fingerprint() == network.TLS().Fingerprint() {
+			logger.Info("Allowing unauthenticated request to un-initialized system")
+			return true, nil
+		}
 	}
 
 	// Ensure the given host address is valid.

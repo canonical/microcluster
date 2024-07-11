@@ -42,6 +42,7 @@ var InternalEndpoints = rest.Resources{
 		trustCmd,
 		trustEntryCmd,
 		hooksCmd,
+		daemonCmd,
 	},
 }
 
@@ -51,7 +52,7 @@ var InternalEndpoints = rest.Resources{
 // - The address of the server clashes with another server.
 // - The server does not have defined resources.
 // If the Server is a core API server, its resources must not conflict with any other server, and it must not have a defined address or certificate.
-func ValidateEndpoints(extensionServers []rest.Server, coreAddress string) error {
+func ValidateEndpoints(extensionServers map[string]rest.Server, coreAddress string) error {
 	allExistingEndpoints := []rest.Resources{UnixEndpoints, PublicEndpoints, InternalEndpoints}
 	existingEndpointPaths := make(map[string]bool)
 	serverAddresses := map[string]bool{coreAddress: true}
@@ -74,8 +75,8 @@ func ValidateEndpoints(extensionServers []rest.Server, coreAddress string) error
 			return fmt.Errorf("Cannot serve non-core API resources over the core unix socket")
 		}
 
-		if server.CoreAPI && server.Certificate != nil {
-			return fmt.Errorf("Core API server cannot have a pre-defined certificate")
+		if server.CoreAPI && server.DedicatedCertificate {
+			return fmt.Errorf("Core API server cannot have a dedicated certificate")
 		}
 
 		if server.CoreAPI && server.Address != (types.AddrPort{}) {
@@ -89,8 +90,6 @@ func ValidateEndpoints(extensionServers []rest.Server, coreAddress string) error
 			}
 
 			serverAddresses[server.Address.String()] = true
-		} else if server.Protocol != "" {
-			return fmt.Errorf("Server protocol defined without address")
 		}
 
 		// Ensure no endpoint path conflicts with another endpoint on the same server.

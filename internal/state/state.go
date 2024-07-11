@@ -8,12 +8,14 @@ import (
 	"github.com/canonical/lxd/shared/api"
 
 	"github.com/canonical/microcluster/client"
+	internalConfig "github.com/canonical/microcluster/internal/config"
 	"github.com/canonical/microcluster/internal/db"
 	"github.com/canonical/microcluster/internal/endpoints"
 	"github.com/canonical/microcluster/internal/extensions"
 	internalClient "github.com/canonical/microcluster/internal/rest/client"
 	"github.com/canonical/microcluster/internal/sys"
 	"github.com/canonical/microcluster/internal/trust"
+	"github.com/canonical/microcluster/rest/types"
 )
 
 // State is a gateway to the stateful components of the microcluster daemon.
@@ -45,6 +47,9 @@ type State struct {
 	// Cluster certificate is used for downstream connections within a cluster.
 	ClusterCert func() *shared.CertInfo
 
+	// Local daemon's config.
+	LocalConfig func() *internalConfig.DaemonConfig
+
 	// Database.
 	Database *db.DB
 
@@ -54,11 +59,17 @@ type State struct {
 	// Initialize APIs and bootstrap/join database.
 	StartAPI func(bootstrap bool, initConfig map[string]string, newConfig *trust.Location, joinAddresses ...string) error
 
+	// Update the additional listeners.
+	UpdateServers func() error
+
 	// Stop fully stops the daemon, its database, and all listeners.
 	Stop func() (exit func(), stopErr error)
 
 	// Runtime extensions.
 	Extensions extensions.Extensions
+
+	// Returns an immutable list of the daemon's additional listeners.
+	ExtensionServers func() []string
 }
 
 // StopListeners stops the network listeners and the fsnotify listener.
@@ -76,8 +87,11 @@ var OnHeartbeatHook func(state *State) error
 // OnNewMemberHook is a post-action hook that is run on all cluster members when a new cluster member joins the cluster.
 var OnNewMemberHook func(state *State) error
 
-// ReloadClusterCert reloads the cluster keypair from the state directory.
-var ReloadClusterCert func() error
+// OnDaemonConfigUpdate is a post-action hook that is run on all cluster members when any cluster member receives a local configuration update.
+var OnDaemonConfigUpdate func(state *State, config types.DaemonConfig) error
+
+// ReloadCert reloads the given keypair from the state directory.
+var ReloadCert func(name types.CertificateName) error
 
 // Cluster returns a client for every member of a cluster, except
 // this one.

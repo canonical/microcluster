@@ -157,3 +157,11 @@ func (e *Endpoints) List(types ...EndpointType) map[string]Endpoint {
 
 	return endpoints
 }
+
+// Get returns a specific endpoint based on its name.
+func (e *Endpoints) Get(name string) Endpoint {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	return e.listeners[name]
+}

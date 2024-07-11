@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/canonical/lxd/lxd/endpoints/listeners"
 	"github.com/canonical/lxd/lxd/util"
@@ -17,6 +18,7 @@ import (
 // Network represents an HTTPS listener and its server.
 type Network struct {
 	address     api.URL
+	certMu      sync.RWMutex
 	cert        *shared.CertInfo
 	networkType EndpointType
 
@@ -75,9 +77,21 @@ func (n *Network) Listen() error {
 func (n *Network) UpdateTLS(cert *shared.CertInfo) {
 	l, ok := n.listener.(*listeners.FancyTLSListener)
 	if ok {
+		n.certMu.Lock()
 		n.cert = cert
+		n.certMu.Unlock()
+
 		l.Config(cert)
 	}
+}
+
+// TLS returns the network's certificate information.
+func (n *Network) TLS() *shared.CertInfo {
+	n.certMu.RLock()
+	defer n.certMu.RUnlock()
+
+	certCopy := *n.cert
+	return &certCopy
 }
 
 // Serve binds to the Network's server.

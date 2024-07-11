@@ -19,6 +19,14 @@ const (
 	EndpointNetwork
 )
 
+const (
+	// EndpointsUnix represents the name of the Unix endpoints.
+	EndpointsUnix string = "unix"
+
+	// EndpointsCore represents the name of the core API endpoints.
+	EndpointsCore string = "core"
+)
+
 // String labels EndpointTypes for logging purposes.
 func (et EndpointType) String() string {
 	switch et {

@@ -7,6 +7,14 @@ import (
 	"fmt"
 )
 
+// CertificateName represents the name of a certificate.
+type CertificateName string
+
+const (
+	// ClusterCertificateName represents the name of the cluster certificate used by the core API.
+	ClusterCertificateName CertificateName = "cluster"
+)
+
 // KeyPair holds a certificate together with its private key and optional CA.
 type KeyPair struct {
 	Cert string `json:"cert" yaml:"cert"`

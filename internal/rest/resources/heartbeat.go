@@ -16,8 +16,9 @@ import (
 	"github.com/canonical/microcluster/cluster"
 	internalClient "github.com/canonical/microcluster/internal/rest/client"
 	"github.com/canonical/microcluster/internal/rest/types"
-	"github.com/canonical/microcluster/internal/state"
+	internalState "github.com/canonical/microcluster/internal/state"
 	"github.com/canonical/microcluster/rest"
+	"github.com/canonical/microcluster/state"
 )
 
 var heartbeatCmd = rest.Endpoint{
@@ -26,7 +27,7 @@ var heartbeatCmd = rest.Endpoint{
 	Post: rest.EndpointAction{Handler: heartbeatPost, AllowUntrusted: true},
 }
 
-func heartbeatPost(s *state.State, r *http.Request) response.Response {
+func heartbeatPost(s state.State, r *http.Request) response.Response {
 	var hbInfo types.HeartbeatInfo
 	err := json.NewDecoder(r.Body).Decode(&hbInfo)
 	if err != nil {
@@ -40,7 +41,7 @@ func heartbeatPost(s *state.State, r *http.Request) response.Response {
 	// If we are not beginning a heartbeat, we are receiving one sent by the leader,
 	// so we should update our local store of cluster members with the data from the heartbeat.
 
-	err = s.Database.IsOpen(r.Context())
+	err = s.Database().IsOpen(r.Context())
 	if err != nil {
 		return response.SmartError(fmt.Errorf("Failed to respond to heartbeat, database is not yet open: %w", err))
 	}
@@ -50,13 +51,13 @@ func heartbeatPost(s *state.State, r *http.Request) response.Response {
 		clusterMemberList = append(clusterMemberList, clusterMember)
 	}
 
-	err = s.Remotes().Replace(s.OS.TrustDir, clusterMemberList...)
+	err = s.Remotes().Replace(s.FileSystem().TrustDir, clusterMemberList...)
 	if err != nil {
 		return response.SmartError(err)
 	}
 
 	var internalSchemaVersion, externalSchemaVersion uint64
-	err = s.Database.Transaction(s.Context, func(ctx context.Context, tx *sql.Tx) error {
+	err = s.Database().Transaction(r.Context(), func(ctx context.Context, tx *sql.Tx) error {
 		localClusterMember, err := cluster.GetInternalClusterMember(ctx, tx, s.Name())
 		if err != nil {
 			return err
@@ -72,7 +73,7 @@ func heartbeatPost(s *state.State, r *http.Request) response.Response {
 	}
 
 	if internalSchemaVersion != hbInfo.MaxSchemaInternal || externalSchemaVersion != hbInfo.MaxSchemaExternal {
-		err := s.Database.Update()
+		err := s.Database().Update()
 		if err != nil {
 			return response.SmartError(err)
 		}
@@ -85,13 +86,13 @@ func heartbeatPost(s *state.State, r *http.Request) response.Response {
 
 // beginHeartbeat initiates a heartbeat from the leader node to all other cluster members, if we haven't sent one out
 // recently.
-func beginHeartbeat(s *state.State, r *http.Request) response.Response {
+func beginHeartbeat(s state.State, r *http.Request) response.Response {
 	// Set a 5 second timeout in case dqlite locks up.
-	ctx, cancel := context.WithTimeout(s.Context, time.Second*30)
+	ctx, cancel := context.WithTimeout(r.Context(), time.Second*30)
 	defer cancel()
 
 	// Only a leader can begin a heartbeat round.
-	leader, err := s.Database.Leader(ctx)
+	leader, err := s.Database().Leader(ctx)
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -107,7 +108,7 @@ func beginHeartbeat(s *state.State, r *http.Request) response.Response {
 
 	// Get the database record of cluster members.
 	var clusterMembers []types.ClusterMember
-	err = s.Database.Transaction(s.Context, func(ctx context.Context, tx *sql.Tx) error {
+	err = s.Database().Transaction(r.Context(), func(ctx context.Context, tx *sql.Tx) error {
 		dbClusterMembers, err := cluster.GetInternalClusterMembers(ctx, tx)
 		if err != nil {
 			return err
@@ -130,7 +131,7 @@ func beginHeartbeat(s *state.State, r *http.Request) response.Response {
 	}
 
 	// Get dqlite record of cluster members.
-	dqliteCluster, err := s.Database.Cluster(ctx, leader)
+	dqliteCluster, err := s.Database().Cluster(ctx, leader)
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -188,7 +189,7 @@ func beginHeartbeat(s *state.State, r *http.Request) response.Response {
 	logger.Debug("Beginning new heartbeat round", logger.Ctx{"address": s.Address().URL.Host})
 
 	// Update local record of cluster members from the database, including any pending nodes for authentication.
-	err = s.Remotes().Replace(s.OS.TrustDir, clusterMembers...)
+	err = s.Remotes().Replace(s.FileSystem().TrustDir, clusterMembers...)
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -218,7 +219,7 @@ func beginHeartbeat(s *state.State, r *http.Request) response.Response {
 	mapLock := sync.RWMutex{}
 	// Send heartbeat to non-leader members, updating their local member cache and updating the node.
 	// If we sent a heartbeat to this node within double the request timeout, then we can skip the node this round.
-	err = clusterClients.Query(s.Context, true, func(ctx context.Context, c *client.Client) error {
+	err = clusterClients.Query(r.Context(), true, func(ctx context.Context, c *client.Client) error {
 		addr := c.URL().URL.Host
 
 		mapLock.RLock()
@@ -254,7 +255,7 @@ func beginHeartbeat(s *state.State, r *http.Request) response.Response {
 	}
 
 	// Having sent a heartbeat to each valid cluster member, update the database record of members.
-	err = s.Database.Transaction(s.Context, func(ctx context.Context, tx *sql.Tx) error {
+	err = s.Database().Transaction(r.Context(), func(ctx context.Context, tx *sql.Tx) error {
 		dbClusterMembers, err := cluster.GetInternalClusterMembers(ctx, tx)
 		if err != nil {
 			return err
@@ -280,7 +281,12 @@ func beginHeartbeat(s *state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	err = state.OnHeartbeatHook(s)
+	intState, err := internalState.ToInternal(s)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	err = intState.Hooks.OnHeartbeat(s)
 	if err != nil {
 		return response.SmartError(err)
 	}

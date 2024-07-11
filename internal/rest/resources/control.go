@@ -17,11 +17,12 @@ import (
 
 	"github.com/canonical/microcluster/internal/rest/client"
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
-	"github.com/canonical/microcluster/internal/state"
+	internalState "github.com/canonical/microcluster/internal/state"
 	"github.com/canonical/microcluster/internal/trust"
 	"github.com/canonical/microcluster/rest"
 	"github.com/canonical/microcluster/rest/access"
 	"github.com/canonical/microcluster/rest/types"
+	"github.com/canonical/microcluster/state"
 )
 
 var controlCmd = rest.Endpoint{
@@ -48,7 +49,7 @@ func validateFQDN(name string) error {
 	return nil
 }
 
-func controlPost(state *state.State, r *http.Request) response.Response {
+func controlPost(state state.State, r *http.Request) response.Response {
 	req := &internalTypes.Control{}
 	// Parse the request.
 	err := json.NewDecoder(r.Body).Decode(&req)
@@ -65,12 +66,17 @@ func controlPost(state *state.State, r *http.Request) response.Response {
 		return response.SmartError(fmt.Errorf("Invalid cluster member name %q: %w", req.Name, err))
 	}
 
+	intState, err := internalState.ToInternal(state)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
 	if req.JoinToken != "" {
 		return joinWithToken(state, r, req)
 	}
 
 	daemonConfig := &trust.Location{Address: req.Address, Name: req.Name}
-	err = state.StartAPI(req.Bootstrap, req.InitConfig, daemonConfig)
+	err = intState.StartAPI(req.Bootstrap, req.InitConfig, daemonConfig)
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -78,7 +84,7 @@ func controlPost(state *state.State, r *http.Request) response.Response {
 	return response.EmptySyncResponse
 }
 
-func joinWithToken(state *state.State, r *http.Request, req *internalTypes.Control) response.Response {
+func joinWithToken(state state.State, r *http.Request, req *internalTypes.Control) response.Response {
 	token, err := internalTypes.DecodeToken(req.JoinToken)
 	if err != nil {
 		return response.SmartError(err)
@@ -89,6 +95,11 @@ func joinWithToken(state *state.State, r *http.Request, req *internalTypes.Contr
 		return response.SmartError(fmt.Errorf("Failed to parse server certificate when bootstrapping API: %w", err))
 	}
 
+	intState, err := internalState.ToInternal(state)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
 	// Add the local node to the list of clusterMembers.
 	daemonConfig := &trust.Location{Address: req.Address, Name: req.Name}
 	localClusterMember := trust.Remote{
@@ -97,7 +108,7 @@ func joinWithToken(state *state.State, r *http.Request, req *internalTypes.Contr
 	}
 
 	// Prepare the cluster for the incoming dqlite request by creating a database entry.
-	internalVersion, externalVersion, _ := state.Database.Schema().Version()
+	internalVersion, externalVersion, _ := state.Database().Schema().Version()
 	newClusterMember := internalTypes.ClusterMember{
 		ClusterMemberLocal: internalTypes.ClusterMemberLocal{
 			Name:        localClusterMember.Name,
@@ -107,7 +118,7 @@ func joinWithToken(state *state.State, r *http.Request, req *internalTypes.Contr
 		SchemaInternalVersion: internalVersion,
 		SchemaExternalVersion: externalVersion,
 		Secret:                token.Secret,
-		Extensions:            state.Extensions,
+		Extensions:            intState.Extensions,
 	}
 
 	// Get a client to the target address.
@@ -177,7 +188,7 @@ func joinWithToken(state *state.State, r *http.Request, req *internalTypes.Contr
 	})
 
 	// Set up cluster certificate.
-	err = util.WriteCert(state.OS.StateDir, string(types.ClusterCertificateName), []byte(joinInfo.ClusterCert.String()), []byte(joinInfo.ClusterKey), nil)
+	err = util.WriteCert(state.FileSystem().StateDir, string(types.ClusterCertificateName), []byte(joinInfo.ClusterCert.String()), []byte(joinInfo.ClusterKey), nil)
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -190,7 +201,7 @@ func joinWithToken(state *state.State, r *http.Request, req *internalTypes.Contr
 			ca = []byte(cert.CA)
 		}
 
-		err := util.WriteCert(state.OS.CertificatesDir, name, []byte(cert.Cert), []byte(cert.Key), ca)
+		err := util.WriteCert(state.FileSystem().CertificatesDir, name, []byte(cert.Cert), []byte(cert.Key), ca)
 		if err != nil {
 			return response.SmartError(err)
 		}
@@ -209,13 +220,13 @@ func joinWithToken(state *state.State, r *http.Request, req *internalTypes.Contr
 	}
 
 	clusterMembers = append(clusterMembers, localClusterMember)
-	err = state.Remotes().Add(state.OS.TrustDir, clusterMembers...)
+	err = state.Remotes().Add(state.FileSystem().TrustDir, clusterMembers...)
 	if err != nil {
 		return response.SmartError(err)
 	}
 
 	// Start the HTTPS listeners and join Dqlite.
-	err = state.StartAPI(false, req.InitConfig, daemonConfig, joinAddrs.Strings()...)
+	err = intState.StartAPI(false, req.InitConfig, daemonConfig, joinAddrs.Strings()...)
 	if err != nil {
 		return response.SmartError(err)
 	}

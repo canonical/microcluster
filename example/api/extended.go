@@ -24,7 +24,7 @@ var extendedCmd = rest.Endpoint{
 
 // This is the POST handler for the /1.0/extended endpoint.
 // This example shows how to forward a request to other cluster members.
-func cmdPost(state *state.State, r *http.Request) response.Response {
+func cmdPost(state state.State, r *http.Request) response.Response {
 	// Check the user agent header to check if we are the notifying cluster member.
 	if !client.IsNotification(r) {
 		// Get a collection of clients every other cluster member, with the notification user-agent set.
@@ -34,7 +34,7 @@ func cmdPost(state *state.State, r *http.Request) response.Response {
 		}
 
 		messages := make([]string, 0, len(cluster))
-		err = cluster.Query(state.Context, true, func(ctx context.Context, c *client.Client) error {
+		err = cluster.Query(r.Context(), true, func(ctx context.Context, c *client.Client) error {
 			addrPort, err := types.ParseAddrPort(state.Address().URL.Host)
 			if err != nil {
 				return fmt.Errorf("Failed to parse addr:port of listen address %q: %w", state.Address().URL.Host, err)

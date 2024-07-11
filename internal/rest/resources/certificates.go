@@ -16,10 +16,11 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/canonical/microcluster/client"
-	"github.com/canonical/microcluster/internal/state"
+	internalState "github.com/canonical/microcluster/internal/state"
 	"github.com/canonical/microcluster/rest"
 	"github.com/canonical/microcluster/rest/access"
 	"github.com/canonical/microcluster/rest/types"
+	"github.com/canonical/microcluster/state"
 )
 
 var clusterCertificatesCmd = rest.Endpoint{
@@ -29,7 +30,7 @@ var clusterCertificatesCmd = rest.Endpoint{
 	Put: rest.EndpointAction{Handler: clusterCertificatesPut, AccessHandler: access.AllowAuthenticated},
 }
 
-func clusterCertificatesPut(s *state.State, r *http.Request) response.Response {
+func clusterCertificatesPut(s state.State, r *http.Request) response.Response {
 	certificateName, err := url.PathUnescape(mux.Vars(r)["name"])
 	if err != nil {
 		return response.SmartError(err)
@@ -43,7 +44,7 @@ func clusterCertificatesPut(s *state.State, r *http.Request) response.Response {
 		return response.BadRequest(err)
 	}
 
-	err = s.Database.IsOpen(r.Context())
+	err = s.Database().IsOpen(r.Context())
 	if err != nil {
 		logger.Warn(fmt.Sprintf("Database is offline, only updating local %q certificate", certificateName), logger.Ctx{"error": err})
 	}
@@ -55,7 +56,7 @@ func clusterCertificatesPut(s *state.State, r *http.Request) response.Response {
 			return response.SmartError(err)
 		}
 
-		err = cluster.Query(s.Context, true, func(ctx context.Context, c *client.Client) error {
+		err = cluster.Query(r.Context(), true, func(ctx context.Context, c *client.Client) error {
 			return c.UpdateCertificate(ctx, types.CertificateName(certificateName), req)
 		})
 		if err != nil {
@@ -80,9 +81,9 @@ func clusterCertificatesPut(s *state.State, r *http.Request) response.Response {
 
 	var certificateDir string
 	if certificateName == string(types.ClusterCertificateName) {
-		certificateDir = s.OS.StateDir
+		certificateDir = s.FileSystem().StateDir
 	} else {
-		certificateDir = s.OS.CertificatesDir
+		certificateDir = s.FileSystem().CertificatesDir
 
 		// Check if an additional listener exists for that name.
 		// We cannot query the daemon's config of the additional listeners as
@@ -123,8 +124,13 @@ func clusterCertificatesPut(s *state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
+	intState, err := internalState.ToInternal(s)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
 	// Load the new cert from the state directory on this node.
-	err = state.ReloadCert(types.CertificateName(certificateName))
+	err = intState.ReloadCert(types.CertificateName(certificateName))
 	if err != nil {
 		return response.SmartError(err)
 	}

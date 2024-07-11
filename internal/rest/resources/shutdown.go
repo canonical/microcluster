@@ -7,9 +7,10 @@ import (
 	"github.com/canonical/lxd/lxd/response"
 
 	"github.com/canonical/microcluster/internal/db"
-	"github.com/canonical/microcluster/internal/state"
+	internalState "github.com/canonical/microcluster/internal/state"
 	"github.com/canonical/microcluster/rest"
 	"github.com/canonical/microcluster/rest/access"
+	"github.com/canonical/microcluster/state"
 )
 
 var shutdownCmd = rest.Endpoint{
@@ -19,19 +20,24 @@ var shutdownCmd = rest.Endpoint{
 	Post: rest.EndpointAction{Handler: shutdownPost, AccessHandler: access.AllowAuthenticated},
 }
 
-func shutdownPost(state *state.State, r *http.Request) response.Response {
-	if state.Context.Err() != nil {
+func shutdownPost(state state.State, r *http.Request) response.Response {
+	intState, err := internalState.ToInternal(state)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	if intState.Context.Err() != nil {
 		return response.SmartError(fmt.Errorf("Shutdown already in progress"))
 	}
 
 	return response.ManualResponse(func(w http.ResponseWriter) error {
 		// If the database is waiting for an upgrade, we may never become ready, so go ahead and shut down the database anyway.
-		if state.Database.Status() != db.StatusWaiting {
-			<-state.ReadyCh // Wait for daemon to start.
+		if state.Database().Status() != db.StatusWaiting {
+			<-intState.ReadyCh // Wait for daemon to start.
 		}
 
 		// Run shutdown sequence synchronously.
-		exit, stopErr := state.Stop()
+		exit, stopErr := intState.Stop()
 		err := response.SmartError(stopErr).Render(w)
 		if err != nil {
 			return err

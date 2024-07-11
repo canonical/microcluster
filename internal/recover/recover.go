@@ -10,6 +10,8 @@ import (
 	"io/fs"
 	"os"
 	"path"
+	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -112,27 +114,14 @@ func ValidateMemberChanges(oldMembers []cluster.DqliteMember, newMembers []clust
 // go-dqlite's info.yaml is excluded from the tarball.
 // This function returns the path to the tarball.
 func CreateRecoveryTarball(filesystem *sys.OS) (string, error) {
-	dbFS := os.DirFS(filesystem.DatabaseDir)
-	dbFiles, err := fs.Glob(dbFS, "*")
-	if err != nil {
-		return "", fmt.Errorf("%w", err)
-	}
-
 	tarballPath := path.Join(filesystem.StateDir, "recovery_db.tar.gz")
 
 	// info.yaml is used by go-dqlite to keep track of the current cluster member's
 	// ID and address. We shouldn't replicate the recovery member's info.yaml
 	// to all other members, so exclude it from the tarball:
-	for indx, filename := range dbFiles {
-		if filename == "info.yaml" {
-			newlen := len(dbFiles) - 1
-			dbFiles[indx] = dbFiles[newlen]
-			dbFiles = dbFiles[:newlen]
-			break
-		}
-	}
+	err := createTarball(tarballPath, filesystem.DatabaseDir, ".", []string{"info.yaml"})
 
-	return tarballPath, createTarball(tarballPath, filesystem.DatabaseDir, dbFiles)
+	return tarballPath, err
 }
 
 // MaybeUnpackRecoveryTarball checks for the presence of a recovery tarball in
@@ -235,13 +224,22 @@ func CreateDatabaseBackup(filesystem *sys.OS) error {
 
 	logger.Info("Creating database backup", logger.Ctx{"archive": backupFilePath})
 
-	dbFS := os.DirFS(filesystem.StateDir)
-	dbFiles, err := fs.Glob(dbFS, "database/*")
+	// For DB backups the tarball should contain the subdirs (usually `database/`)
+	// so that the user can easily untar the backup from the state dir.
+	rootDir := filesystem.StateDir
+	walkDir, err := filepath.Rel(filesystem.StateDir, filesystem.DatabaseDir)
+
+	// Don't bother if DatabaseDir is not inside StateDir
 	if err != nil {
-		return fmt.Errorf("database backup: %w", err)
+		logger.Warn("DB backup: DatabaseDir (%q) not in StateDir (%q)", logger.Ctx{
+			"databaseDir": filesystem.DatabaseDir,
+			"stateDir":    filesystem.StateDir,
+		})
+		rootDir = filesystem.DatabaseDir
+		walkDir = "."
 	}
 
-	err = createTarball(backupFilePath, filesystem.StateDir, dbFiles)
+	err = createTarball(backupFilePath, rootDir, walkDir, []string{})
 	if err != nil {
 		return fmt.Errorf("database backup: %w", err)
 	}
@@ -249,9 +247,10 @@ func CreateDatabaseBackup(filesystem *sys.OS) error {
 	return nil
 }
 
-// create tarball at tarballPath with files path.Join(dir, file)
-// Note: does not handle subdirectories.
-func createTarball(tarballPath string, dir string, files []string) error {
+// createTarball creates tarball at tarballPath, rooted at rootDir and including
+// all files in walkDir except those paths found in excludeFiles.
+// walkDir and excludeFiles elements are relative to rootDir.
+func createTarball(tarballPath string, rootDir string, walkDir string, excludeFiles []string) error {
 	tarball, err := os.Create(tarballPath)
 	if err != nil {
 		return err
@@ -260,41 +259,58 @@ func createTarball(tarballPath string, dir string, files []string) error {
 	gzWriter := gzip.NewWriter(tarball)
 	tarWriter := tar.NewWriter(gzWriter)
 
-	for _, filename := range files {
-		filepath := path.Join(dir, filename)
+	filesys := os.DirFS(rootDir)
 
-		file, err := os.Open(filepath)
+	err = fs.WalkDir(filesys, walkDir, func(filepath string, stat fs.DirEntry, err error) error {
+		if err != nil {
+			logger.Warn("Failed to read file while creating tarball; skipping", logger.Ctx{"file": filepath, "err": err})
+			return nil
+		}
+
+		if slices.Contains(excludeFiles, filepath) {
+			return nil
+		}
+
+		info, err := stat.Info()
 		if err != nil {
 			return err
 		}
 
-		stat, err := file.Stat()
-		if err != nil {
-			return err
-		}
-
-		header, err := tar.FileInfoHeader(stat, filename)
+		header, err := tar.FileInfoHeader(info, filepath)
 		if err != nil {
 			return fmt.Errorf("create tar header for %q: %w", filepath, err)
 		}
 
 		// header.Name is the basename of `stat` by default
-		header.Name = filename
+		header.Name = filepath
 
 		err = tarWriter.WriteHeader(header)
 		if err != nil {
 			return err
 		}
 
-		_, err = io.Copy(tarWriter, file)
-		if err != nil {
-			return err
+		// Only write contents for regular files
+		if header.Typeflag == tar.TypeReg {
+			file, err := os.Open(path.Join(rootDir, filepath))
+			if err != nil {
+				return err
+			}
+
+			_, err = io.Copy(tarWriter, file)
+			if err != nil {
+				return err
+			}
+
+			err = file.Close()
+			if err != nil {
+				return err
+			}
 		}
 
-		err = file.Close()
-		if err != nil {
-			return err
-		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 
 	err = tarWriter.Close()
@@ -315,7 +331,6 @@ func createTarball(tarballPath string, dir string, files []string) error {
 	return nil
 }
 
-// Note: Does not handle subdirectories.
 func unpackTarball(tarballPath string, destRoot string) error {
 	tarball, err := os.Open(tarballPath)
 	if err != nil {
@@ -348,16 +363,25 @@ func unpackTarball(tarballPath string, destRoot string) error {
 		}
 
 		filepath := path.Join(destRoot, header.Name)
-		file, err := os.Create(filepath)
-		if err != nil {
-			return err
-		}
 
-		countWritten, err := io.Copy(file, tarReader)
-		if countWritten != header.Size {
-			return fmt.Errorf("mismatched written (%d) and size (%d) for entry %q in %q", countWritten, header.Size, header.Name, tarballPath)
-		} else if err != nil {
-			return err
+		switch header.Typeflag {
+		case tar.TypeReg:
+			file, err := os.Create(filepath)
+			if err != nil {
+				return err
+			}
+
+			countWritten, err := io.Copy(file, tarReader)
+			if countWritten != header.Size {
+				return fmt.Errorf("Mismatched written (%d) and size (%d) for entry %q in %q", countWritten, header.Size, header.Name, tarballPath)
+			} else if err != nil {
+				return err
+			}
+		case tar.TypeDir:
+			err = os.MkdirAll(filepath, fs.FileMode(header.Mode&int64(fs.ModePerm)))
+			if err != nil {
+				return err
+			}
 		}
 	}
 

@@ -20,7 +20,7 @@ var api10Cmd = rest.Endpoint{
 func api10Get(s *state.State, r *http.Request) response.Response {
 	addrPort, err := types.ParseAddrPort(s.Address().URL.Host)
 	if err != nil {
-		return response.SmartError(err)
+		addrPort = types.AddrPort{}
 	}
 
 	return response.SyncResponse(true, internalTypes.Server{

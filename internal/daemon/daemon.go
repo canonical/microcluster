@@ -113,7 +113,7 @@ func NewDaemon(project string) *Daemon {
 // - `extensionsSchema` is a list of schema updates in the order that they should be applied.
 // - `extensionServers` is a list of rest.Server that will be initialized and managed by microcluster.
 // - `hooks` are a set of functions that trigger at certain points during cluster communication.
-func (d *Daemon) Run(ctx context.Context, listenPort string, stateDir string, socketGroup string, extensionsSchema []schema.Update, apiExtensions []string, extensionServers map[string]rest.Server, hooks *config.Hooks) error {
+func (d *Daemon) Run(ctx context.Context, listenAddress string, stateDir string, socketGroup string, extensionsSchema []schema.Update, apiExtensions []string, extensionServers map[string]rest.Server, hooks *config.Hooks) error {
 	d.shutdownCtx, d.shutdownCancel = context.WithCancel(ctx)
 	if stateDir == "" {
 		stateDir = os.Getenv(sys.StateDir)
@@ -164,7 +164,7 @@ func (d *Daemon) Run(ctx context.Context, listenPort string, stateDir string, so
 
 	d.extensionServersMu.Unlock()
 
-	err = d.init(listenPort, extensionsSchema, apiExtensions, hooks)
+	err = d.init(listenAddress, extensionsSchema, apiExtensions, hooks)
 	if err != nil {
 		return fmt.Errorf("Daemon failed to start: %w", err)
 	}
@@ -188,7 +188,7 @@ func (d *Daemon) Run(ctx context.Context, listenPort string, stateDir string, so
 	}
 }
 
-func (d *Daemon) init(listenPort string, schemaExtensions []schema.Update, apiExtensions []string, hooks *config.Hooks) error {
+func (d *Daemon) init(listenAddress string, schemaExtensions []schema.Update, apiExtensions []string, hooks *config.Hooks) error {
 	d.applyHooks(hooks)
 
 	var err error
@@ -224,8 +224,15 @@ func (d *Daemon) init(listenPort string, schemaExtensions []schema.Update, apiEx
 	d.db = db.NewDB(d.shutdownCtx, d.serverCert, d.ClusterCert, d.os)
 
 	listenAddr := api.NewURL()
-	if listenPort != "" {
-		listenAddr = listenAddr.Host(fmt.Sprintf(":%s", listenPort))
+	if listenAddress != "" {
+		listenAddr = listenAddr.Host(listenAddress)
+
+		addrPort, err := types.ParseAddrPort(listenAddress)
+		if err != nil {
+			return fmt.Errorf("Failed to parse initial listen address: %w", err)
+		}
+
+		d.config.SetAddress(addrPort)
 	}
 
 	d.extensionServersMu.RLock()
@@ -256,7 +263,7 @@ func (d *Daemon) init(listenPort string, schemaExtensions []schema.Update, apiEx
 		return err
 	}
 
-	if listenPort != "" {
+	if listenAddress != "" {
 		serverEndpoints = []rest.Resources{resources.PublicEndpoints}
 		err = d.addCoreServers(true, *listenAddr, d.ServerCert(), serverEndpoints)
 		if err != nil {

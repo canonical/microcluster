@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/canonical/microcluster/internal/endpoints"
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/rest"
 	"github.com/canonical/microcluster/rest/types"
@@ -51,21 +52,21 @@ var InternalEndpoints = rest.Resources{
 // - The PathPrefix+Path of an endpoint conflicts with another endpoint in the same server.
 // - The address of the server clashes with another server.
 // - The server does not have defined resources.
-// If the Server is a core API server, its resources must not conflict with any other server, and it must not have a defined address or certificate.
+// If the Server is a core API server, its resources must not conflict with any other core API server, and it must not have a defined address or certificate.
 func ValidateEndpoints(extensionServers map[string]rest.Server, coreAddress string) error {
-	allExistingEndpoints := []rest.Resources{UnixEndpoints, PublicEndpoints, InternalEndpoints}
-	existingEndpointPaths := make(map[string]bool)
 	serverAddresses := map[string]bool{coreAddress: true}
+	baseCoreEndpoints := []rest.Resources{UnixEndpoints, PublicEndpoints, InternalEndpoints}
+	existingEndpointPaths := map[string]map[string]bool{endpoints.EndpointsCore: {}}
 
-	// Record the paths for all internal endpoints.
-	for _, endpoints := range allExistingEndpoints {
-		for _, e := range endpoints.Endpoints {
-			url := filepath.Join(string(endpoints.PathPrefix), e.Path)
-			existingEndpointPaths[url] = true
+	// Record the paths for all internal endpoints on the core listener.
+	for _, existing := range baseCoreEndpoints {
+		for _, e := range existing.Endpoints {
+			url := filepath.Join(string(existing.PathPrefix), e.Path)
+			existingEndpointPaths[endpoints.EndpointsCore][url] = true
 		}
 	}
 
-	for _, server := range extensionServers {
+	for serverName, server := range extensionServers {
 		// Ensure all servers have resources.
 		if len(server.Resources) == 0 {
 			return fmt.Errorf("Server must have defined resources")
@@ -93,48 +94,31 @@ func ValidateEndpoints(extensionServers map[string]rest.Server, coreAddress stri
 		}
 
 		// Ensure no endpoint path conflicts with another endpoint on the same server.
-		// If a server lacks an address, we need to compare it to every other server
-		// that also lacks an address, as well as the internal endpoints.
-		serverPaths, err := resourcesConflict(server, existingEndpointPaths)
-		if err != nil {
-			return err
-		}
+		// If a server is an extension to the core API, it will be compared against all core API paths.
+		for _, resource := range server.Resources {
+			for _, e := range resource.Endpoints {
+				url := filepath.Join(string(resource.PathPrefix), e.Path)
 
-		// Update the existing paths now that we have checked a new Server.
-		for k, v := range serverPaths {
-			if !existingEndpointPaths[k] {
-				existingEndpointPaths[k] = v
+				// Internally, core API servers will be lumped together with the "core" server so
+				// record them in the map under that name. Otherwise, use the given server name.
+				internalName := serverName
+				if server.CoreAPI {
+					internalName = endpoints.EndpointsCore
+				}
+
+				_, ok := existingEndpointPaths[internalName]
+				if !ok {
+					existingEndpointPaths[internalName] = map[string]bool{}
+				}
+
+				if existingEndpointPaths[internalName][url] {
+					return fmt.Errorf("Endpoint %q from server %q conflicts with another endpoint from server %q", url, serverName, internalName)
+				}
+
+				existingEndpointPaths[internalName][url] = true
 			}
 		}
 	}
 
 	return nil
-}
-
-// resourcesConflict returns an error if the endpoint paths of the given server conflict with any paths in the given map of existing paths.
-func resourcesConflict(server rest.Server, existingPaths map[string]bool) (map[string]bool, error) {
-	perServerPaths := map[string]bool{}
-	for _, resource := range server.Resources {
-		for _, endpoint := range resource.Endpoints {
-			url := filepath.Join(string(resource.PathPrefix), endpoint.Path)
-
-			// If the server uses the core API, its resources must not conflict with any existing listener.
-			if server.CoreAPI {
-				if existingPaths[url] || perServerPaths[url] {
-					return nil, fmt.Errorf("Core endpoint %q conflicts with another endpoint", url)
-				}
-
-				perServerPaths[url] = true
-			} else {
-				// The server has a unique address, so only compare it to other resources in the server.
-				if perServerPaths[url] {
-					return nil, fmt.Errorf("Endpoint %q conflicts with another endpoint on the same server", url)
-				}
-
-				perServerPaths[url] = true
-			}
-		}
-	}
-
-	return perServerPaths, nil
 }

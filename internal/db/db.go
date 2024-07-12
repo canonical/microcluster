@@ -150,6 +150,13 @@ func (db *DB) waitUpgrade(bootstrap bool, ext extensions.Extensions) error {
 				return fmt.Errorf("Failed to update schema version when joining cluster: %w", err)
 			}
 
+			// Attempt to update the API extensions right away in case the daemon already supports it.
+			// This means we won't need to wait longer after the final member commits all schema updates.
+			err = cluster.UpdateClusterMemberAPIExtensions(ctx, tx, ext, db.listenAddr.URL.Host)
+			if err != nil {
+				return fmt.Errorf("Failed to update API extensions when joining cluster: %w", err)
+			}
+
 			versionsInternal, versionsExternal, err := cluster.GetClusterMemberSchemaVersions(ctx, tx)
 			if err != nil {
 				return fmt.Errorf("Failed to get other members' schema versions: %w", err)

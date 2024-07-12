@@ -223,7 +223,25 @@ func UpdateClusterMemberAPIExtensions(ctx context.Context, tx *sql.Tx, apiExtens
 		return err
 	}
 
-	stmt := fmt.Sprintf("UPDATE %s SET api_extensions=? WHERE address=?", table)
+	// Check for the `api_extensions` column, which may not exist if we haven't actually run the update yet.
+	stmt := fmt.Sprintf(`
+SELECT count(name)
+FROM pragma_table_info('%s')
+WHERE name IN ('api_extensions');
+`, table)
+
+	var count int
+	err = tx.QueryRow(stmt).Scan(&count)
+	if err != nil {
+		return err
+	}
+
+	if count == 0 {
+		logger.Warn("Skipping API extension update, schema does not yet support it", logger.Ctx{"address": address})
+		return nil
+	}
+
+	stmt = fmt.Sprintf("UPDATE %s SET api_extensions=? WHERE address=?", table)
 	result, err := tx.ExecContext(ctx, stmt, apiExtensions, address)
 	if err != nil {
 		return err

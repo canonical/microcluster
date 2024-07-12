@@ -12,6 +12,7 @@ import (
 	"github.com/canonical/microcluster/client"
 	internalClient "github.com/canonical/microcluster/internal/rest/client"
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
+	internalState "github.com/canonical/microcluster/internal/state"
 	"github.com/canonical/microcluster/rest"
 	"github.com/canonical/microcluster/rest/access"
 	"github.com/canonical/microcluster/rest/types"
@@ -25,11 +26,16 @@ var daemonCmd = rest.Endpoint{
 	Put: rest.EndpointAction{Handler: daemonServersPut, AccessHandler: access.AllowAuthenticated},
 }
 
-func daemonServersGet(s *state.State, r *http.Request) response.Response {
-	return response.SyncResponse(true, s.LocalConfig().GetServers())
+func daemonServersGet(s state.State, r *http.Request) response.Response {
+	intState, err := internalState.ToInternal(s)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	return response.SyncResponse(true, intState.LocalConfig().GetServers())
 }
 
-func daemonServersPut(s *state.State, r *http.Request) response.Response {
+func daemonServersPut(s state.State, r *http.Request) response.Response {
 	req := make(map[string]types.ServerConfig)
 
 	// Parse the request.
@@ -65,7 +71,12 @@ func daemonServersPut(s *state.State, r *http.Request) response.Response {
 		serverAddresses = append(serverAddresses, serverAddress)
 	}
 
-	daemonConfig := s.LocalConfig()
+	intState, err := internalState.ToInternal(s)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	daemonConfig := intState.LocalConfig()
 	daemonConfig.SetServers(req)
 
 	// Persist the configuration changes to file.
@@ -75,7 +86,7 @@ func daemonServersPut(s *state.State, r *http.Request) response.Response {
 	}
 
 	// Update the additional listeners.
-	err = s.UpdateServers()
+	err = intState.UpdateServers()
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -87,7 +98,7 @@ func daemonServersPut(s *state.State, r *http.Request) response.Response {
 
 	// Run the OnDaemonConfigUpdate hook on all other members.
 	remotes := s.Remotes()
-	err = cluster.Query(s.Context, true, func(ctx context.Context, c *client.Client) error {
+	err = cluster.Query(r.Context(), true, func(ctx context.Context, c *client.Client) error {
 		c.SetClusterNotification()
 		addrPort, err := types.ParseAddrPort(c.URL().URL.Host)
 		if err != nil {

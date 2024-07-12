@@ -20,7 +20,6 @@ import (
 
 	"github.com/canonical/microcluster/client"
 	"github.com/canonical/microcluster/cluster"
-	"github.com/canonical/microcluster/config"
 	"github.com/canonical/microcluster/internal/daemon"
 	"github.com/canonical/microcluster/internal/recover"
 	internalClient "github.com/canonical/microcluster/internal/rest/client"
@@ -28,6 +27,7 @@ import (
 	"github.com/canonical/microcluster/internal/sys"
 	"github.com/canonical/microcluster/rest"
 	"github.com/canonical/microcluster/rest/types"
+	"github.com/canonical/microcluster/state"
 )
 
 // MicroCluster contains some basic filesystem information for interacting with the MicroCluster daemon.
@@ -75,7 +75,7 @@ func App(args Args) (*MicroCluster, error) {
 // database exists yet. Any api or schema extensions can be applied here.
 // - `extensionsSchema` is a list of schema updates in the order that they should be applied.
 // - `hooks` are a set of functions that trigger at certain points during cluster communication.
-func (m *MicroCluster) Start(ctx context.Context, extensionsSchema []schema.Update, apiExtensions []string, hooks *config.Hooks) error {
+func (m *MicroCluster) Start(ctx context.Context, extensionsSchema []schema.Update, apiExtensions []string, hooks *state.Hooks) error {
 	// Initialize the logger.
 	err := logger.InitLogger(m.FileSystem.LogFile, "", m.args.Verbose, m.args.Debug, nil)
 	if err != nil {

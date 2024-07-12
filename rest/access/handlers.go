@@ -12,8 +12,9 @@ import (
 
 	"github.com/canonical/microcluster/internal/endpoints"
 	"github.com/canonical/microcluster/internal/rest/access"
-	"github.com/canonical/microcluster/internal/state"
+	internalState "github.com/canonical/microcluster/internal/state"
 	"github.com/canonical/microcluster/rest/types"
+	"github.com/canonical/microcluster/state"
 )
 
 // ErrInvalidHost is used to indicate that a request host is invalid.
@@ -28,7 +29,7 @@ func (e ErrInvalidHost) Unwrap() error {
 
 // AllowAuthenticated checks if the request is trusted by extracting access.TrustedRequest from the request context.
 // This handler is used as an access handler by default if AllowUntrusted is false on a rest.EndpointAction.
-func AllowAuthenticated(state *state.State, r *http.Request) (bool, response.Response) {
+func AllowAuthenticated(state state.State, r *http.Request) (bool, response.Response) {
 	trusted := r.Context().Value(request.CtxAccess)
 	if trusted == nil {
 		return false, response.Forbidden(nil)
@@ -49,14 +50,19 @@ func AllowAuthenticated(state *state.State, r *http.Request) (bool, response.Res
 // Authenticate ensures the request certificates are trusted against the given set of trusted certificates.
 // - Requests over the unix socket are always allowed.
 // - HTTP requests require the TLS Peer certificate to match an entry in the supplied map of certificates.
-func Authenticate(state *state.State, r *http.Request, hostAddress string, trustedCerts map[string]x509.Certificate) (bool, error) {
+func Authenticate(state state.State, r *http.Request, hostAddress string, trustedCerts map[string]x509.Certificate) (bool, error) {
 	if r.RemoteAddr == "@" {
 		return true, nil
 	}
 
+	intState, err := internalState.ToInternal(state)
+	if err != nil {
+		return false, err
+	}
+
 	// Check if it's the core API listener and if it is using the server.crt.
 	// This indicates that the daemon is in a pre-init state and is listening on the PreInitListenAddress.
-	endpoint := state.Endpoints.Get(endpoints.EndpointsCore)
+	endpoint := intState.Endpoints.Get(endpoints.EndpointsCore)
 	network, ok := endpoint.(*endpoints.Network)
 	if ok {
 		if state.ServerCert().Fingerprint() == network.TLS().Fingerprint() {

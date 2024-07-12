@@ -81,6 +81,15 @@ func (a *AddrPort) UnmarshalYAML(unmarshal func(v any) error) error {
 	return nil
 }
 
+// String returns the string representation of the AddrPort, or an empty string if it is empty.
+func (a AddrPort) String() string {
+	if a == (AddrPort{}) {
+		return ""
+	}
+
+	return a.AddrPort.String()
+}
+
 // Strings returns a string slice of the AddrPorts.
 func (a AddrPorts) Strings() []string {
 	addrPortStrs := make([]string, len(a))

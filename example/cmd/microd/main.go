@@ -49,7 +49,7 @@ func (c *cmdDaemon) command() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "microd",
 		Short:   "Example daemon for MicroCluster - This will start a daemon with a running control socket and no database",
-		Version: version.Version,
+		Version: version.Version(),
 	}
 
 	cmd.RunE = c.run
@@ -64,6 +64,7 @@ func (c *cmdDaemon) run(cmd *cobra.Command, args []string) error {
 		SocketGroup: c.flagSocketGroup,
 		Verbose:     c.global.flagLogVerbose,
 		Debug:       c.global.flagLogDebug,
+		Version:     version.Version(),
 	})
 
 	if err != nil {

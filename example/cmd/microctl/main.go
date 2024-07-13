@@ -28,7 +28,7 @@ func main() {
 	app := &cobra.Command{
 		Use:               "microctl",
 		Short:             "Command for managing the MicroCluster daemon",
-		Version:           version.Version,
+		Version:           version.Version(),
 		SilenceUsage:      true,
 		CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
 	}

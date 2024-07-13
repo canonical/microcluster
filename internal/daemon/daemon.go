@@ -43,6 +43,7 @@ import (
 // Daemon holds information for the microcluster daemon.
 type Daemon struct {
 	project string // The project refers to the name of the go-project that is calling MicroCluster.
+	version string // The version of the go-project that is calling MicroCluster
 
 	config *internalConfig.DaemonConfig // Local daemon's configuration from daemon.yaml file.
 
@@ -75,12 +76,13 @@ type Daemon struct {
 }
 
 // NewDaemon initializes the Daemon context and channels.
-func NewDaemon(project string) *Daemon {
+func NewDaemon(project string, version string) *Daemon {
 	d := &Daemon{
 		shutdownDoneCh:   make(chan error),
 		ReadyChan:        make(chan struct{}),
 		extensionServers: make(map[string]rest.Server),
 		project:          project,
+		version:          version,
 	}
 
 	d.stop = sync.OnceValue(func() error {
@@ -955,14 +957,20 @@ func (d *Daemon) ServerCert() *shared.CertInfo {
 	return d.serverCert
 }
 
-// Address ensures both the daemon and state have the same address.
+// Address is the listen address for the daemon.
 func (d *Daemon) Address() *api.URL {
 	return api.NewURL().Scheme("https").Host(d.config.GetAddress().String())
 }
 
-// Name ensures both the daemon and state have the same name.
+// Name is this daemon's cluster member name.
 func (d *Daemon) Name() string {
 	return d.config.GetName()
+}
+
+// Version is provided by the MicroCluster consumer. The daemon includes it in
+// its /cluster/1.0 response.
+func (d *Daemon) Version() string {
+	return d.version
 }
 
 // LocalConfig returns the daemon's internal config implementation.
@@ -1011,6 +1019,7 @@ func (d *Daemon) State() state.State {
 		InternalFileSystem:       d.FileSystem,
 		InternalAddress:          d.Address,
 		InternalName:             d.Name,
+		InternalVersion:          d.Version,
 		InternalServerCert:       d.ServerCert,
 		InternalClusterCert:      d.ClusterCert,
 		InternalDatabase:         d.db,

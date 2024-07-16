@@ -61,7 +61,10 @@ jobs:
 
           make -C example check-unit
 
-      - name: Make example
+      - name: Example system tests
         run: |
           set -eux
           make -C example
+
+          cd example/test
+          CLUSTER_VERBOSE=1 ./main.sh

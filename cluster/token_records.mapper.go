@@ -16,59 +16,59 @@ import (
 
 var _ = api.ServerEnvironment{}
 
-var internalTokenRecordObjects = RegisterStmt(`
-SELECT internal_token_records.id, internal_token_records.secret, internal_token_records.name
-  FROM internal_token_records
-  ORDER BY internal_token_records.secret
+var coreTokenRecordObjects = RegisterStmt(`
+SELECT core_token_records.id, core_token_records.secret, core_token_records.name
+  FROM core_token_records
+  ORDER BY core_token_records.secret
 `)
 
-var internalTokenRecordObjectsBySecret = RegisterStmt(`
-SELECT internal_token_records.id, internal_token_records.secret, internal_token_records.name
-  FROM internal_token_records
-  WHERE ( internal_token_records.secret = ? )
-  ORDER BY internal_token_records.secret
+var coreTokenRecordObjectsBySecret = RegisterStmt(`
+SELECT core_token_records.id, core_token_records.secret, core_token_records.name
+  FROM core_token_records
+  WHERE ( core_token_records.secret = ? )
+  ORDER BY core_token_records.secret
 `)
 
-var internalTokenRecordID = RegisterStmt(`
-SELECT internal_token_records.id FROM internal_token_records
-  WHERE internal_token_records.secret = ?
+var coreTokenRecordID = RegisterStmt(`
+SELECT core_token_records.id FROM core_token_records
+  WHERE core_token_records.secret = ?
 `)
 
-var internalTokenRecordCreate = RegisterStmt(`
-INSERT INTO internal_token_records (secret, name)
+var coreTokenRecordCreate = RegisterStmt(`
+INSERT INTO core_token_records (secret, name)
   VALUES (?, ?)
 `)
 
-var internalTokenRecordDeleteByName = RegisterStmt(`
-DELETE FROM internal_token_records WHERE name = ?
+var coreTokenRecordDeleteByName = RegisterStmt(`
+DELETE FROM core_token_records WHERE name = ?
 `)
 
-// GetInternalTokenRecordID return the ID of the internal_token_record with the given key.
-// generator: internal_token_record ID
-func GetInternalTokenRecordID(ctx context.Context, tx *sql.Tx, secret string) (int64, error) {
-	stmt, err := Stmt(tx, internalTokenRecordID)
+// GetCoreTokenRecordID return the ID of the core_token_record with the given key.
+// generator: core_token_record ID
+func GetCoreTokenRecordID(ctx context.Context, tx *sql.Tx, secret string) (int64, error) {
+	stmt, err := Stmt(tx, coreTokenRecordID)
 	if err != nil {
-		return -1, fmt.Errorf("Failed to get \"internalTokenRecordID\" prepared statement: %w", err)
+		return -1, fmt.Errorf("Failed to get \"coreTokenRecordID\" prepared statement: %w", err)
 	}
 
 	row := stmt.QueryRowContext(ctx, secret)
 	var id int64
 	err = row.Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
-		return -1, api.StatusErrorf(http.StatusNotFound, "InternalTokenRecord not found")
+		return -1, api.StatusErrorf(http.StatusNotFound, "CoreTokenRecord not found")
 	}
 
 	if err != nil {
-		return -1, fmt.Errorf("Failed to get \"internal_token_records\" ID: %w", err)
+		return -1, fmt.Errorf("Failed to get \"core_token_records\" ID: %w", err)
 	}
 
 	return id, nil
 }
 
-// InternalTokenRecordExists checks if a internal_token_record with the given key exists.
-// generator: internal_token_record Exists
-func InternalTokenRecordExists(ctx context.Context, tx *sql.Tx, secret string) (bool, error) {
-	_, err := GetInternalTokenRecordID(ctx, tx, secret)
+// CoreTokenRecordExists checks if a core_token_record with the given key exists.
+// generator: core_token_record Exists
+func CoreTokenRecordExists(ctx context.Context, tx *sql.Tx, secret string) (bool, error) {
+	_, err := GetCoreTokenRecordID(ctx, tx, secret)
 	if err != nil {
 		if api.StatusErrorCheck(err, http.StatusNotFound) {
 			return false, nil
@@ -80,88 +80,88 @@ func InternalTokenRecordExists(ctx context.Context, tx *sql.Tx, secret string) (
 	return true, nil
 }
 
-// GetInternalTokenRecord returns the internal_token_record with the given key.
-// generator: internal_token_record GetOne
-func GetInternalTokenRecord(ctx context.Context, tx *sql.Tx, secret string) (*InternalTokenRecord, error) {
-	filter := InternalTokenRecordFilter{}
+// GetCoreTokenRecord returns the core_token_record with the given key.
+// generator: core_token_record GetOne
+func GetCoreTokenRecord(ctx context.Context, tx *sql.Tx, secret string) (*CoreTokenRecord, error) {
+	filter := CoreTokenRecordFilter{}
 	filter.Secret = &secret
 
-	objects, err := GetInternalTokenRecords(ctx, tx, filter)
+	objects, err := GetCoreTokenRecords(ctx, tx, filter)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to fetch from \"internal_token_records\" table: %w", err)
+		return nil, fmt.Errorf("Failed to fetch from \"core_token_records\" table: %w", err)
 	}
 
 	switch len(objects) {
 	case 0:
-		return nil, api.StatusErrorf(http.StatusNotFound, "InternalTokenRecord not found")
+		return nil, api.StatusErrorf(http.StatusNotFound, "CoreTokenRecord not found")
 	case 1:
 		return &objects[0], nil
 	default:
-		return nil, fmt.Errorf("More than one \"internal_token_records\" entry matches")
+		return nil, fmt.Errorf("More than one \"core_token_records\" entry matches")
 	}
 }
 
-// internalTokenRecordColumns returns a string of column names to be used with a SELECT statement for the entity.
-// Use this function when building statements to retrieve database entries matching the InternalTokenRecord entity.
-func internalTokenRecordColumns() string {
-	return "internal_token_records.id, internal_token_records.secret, internal_token_records.name"
+// coreTokenRecordColumns returns a string of column names to be used with a SELECT statement for the entity.
+// Use this function when building statements to retrieve database entries matching the CoreTokenRecord entity.
+func coreTokenRecordColumns() string {
+	return "core_token_records.id, core_token_records.secret, core_token_records.name"
 }
 
-// getInternalTokenRecords can be used to run handwritten sql.Stmts to return a slice of objects.
-func getInternalTokenRecords(ctx context.Context, stmt *sql.Stmt, args ...any) ([]InternalTokenRecord, error) {
-	objects := make([]InternalTokenRecord, 0)
+// getCoreTokenRecords can be used to run handwritten sql.Stmts to return a slice of objects.
+func getCoreTokenRecords(ctx context.Context, stmt *sql.Stmt, args ...any) ([]CoreTokenRecord, error) {
+	objects := make([]CoreTokenRecord, 0)
 
 	dest := func(scan func(dest ...any) error) error {
-		i := InternalTokenRecord{}
-		err := scan(&i.ID, &i.Secret, &i.Name)
+		c := CoreTokenRecord{}
+		err := scan(&c.ID, &c.Secret, &c.Name)
 		if err != nil {
 			return err
 		}
 
-		objects = append(objects, i)
+		objects = append(objects, c)
 
 		return nil
 	}
 
 	err := query.SelectObjects(ctx, stmt, dest, args...)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to fetch from \"internal_token_records\" table: %w", err)
+		return nil, fmt.Errorf("Failed to fetch from \"core_token_records\" table: %w", err)
 	}
 
 	return objects, nil
 }
 
-// getInternalTokenRecordsRaw can be used to run handwritten query strings to return a slice of objects.
-func getInternalTokenRecordsRaw(ctx context.Context, tx *sql.Tx, sql string, args ...any) ([]InternalTokenRecord, error) {
-	objects := make([]InternalTokenRecord, 0)
+// getCoreTokenRecordsRaw can be used to run handwritten query strings to return a slice of objects.
+func getCoreTokenRecordsRaw(ctx context.Context, tx *sql.Tx, sql string, args ...any) ([]CoreTokenRecord, error) {
+	objects := make([]CoreTokenRecord, 0)
 
 	dest := func(scan func(dest ...any) error) error {
-		i := InternalTokenRecord{}
-		err := scan(&i.ID, &i.Secret, &i.Name)
+		c := CoreTokenRecord{}
+		err := scan(&c.ID, &c.Secret, &c.Name)
 		if err != nil {
 			return err
 		}
 
-		objects = append(objects, i)
+		objects = append(objects, c)
 
 		return nil
 	}
 
 	err := query.Scan(ctx, tx, sql, dest, args...)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to fetch from \"internal_token_records\" table: %w", err)
+		return nil, fmt.Errorf("Failed to fetch from \"core_token_records\" table: %w", err)
 	}
 
 	return objects, nil
 }
 
-// GetInternalTokenRecords returns all available internal_token_records.
-// generator: internal_token_record GetMany
-func GetInternalTokenRecords(ctx context.Context, tx *sql.Tx, filters ...InternalTokenRecordFilter) ([]InternalTokenRecord, error) {
+// GetCoreTokenRecords returns all available core_token_records.
+// generator: core_token_record GetMany
+func GetCoreTokenRecords(ctx context.Context, tx *sql.Tx, filters ...CoreTokenRecordFilter) ([]CoreTokenRecord, error) {
 	var err error
 
 	// Result slice.
-	objects := make([]InternalTokenRecord, 0)
+	objects := make([]CoreTokenRecord, 0)
 
 	// Pick the prepared statement and arguments to use based on active criteria.
 	var sqlStmt *sql.Stmt
@@ -169,9 +169,9 @@ func GetInternalTokenRecords(ctx context.Context, tx *sql.Tx, filters ...Interna
 	queryParts := [2]string{}
 
 	if len(filters) == 0 {
-		sqlStmt, err = Stmt(tx, internalTokenRecordObjects)
+		sqlStmt, err = Stmt(tx, coreTokenRecordObjects)
 		if err != nil {
-			return nil, fmt.Errorf("Failed to get \"internalTokenRecordObjects\" prepared statement: %w", err)
+			return nil, fmt.Errorf("Failed to get \"coreTokenRecordObjects\" prepared statement: %w", err)
 		}
 	}
 
@@ -179,17 +179,17 @@ func GetInternalTokenRecords(ctx context.Context, tx *sql.Tx, filters ...Interna
 		if filter.Secret != nil && filter.ID == nil && filter.Name == nil {
 			args = append(args, []any{filter.Secret}...)
 			if len(filters) == 1 {
-				sqlStmt, err = Stmt(tx, internalTokenRecordObjectsBySecret)
+				sqlStmt, err = Stmt(tx, coreTokenRecordObjectsBySecret)
 				if err != nil {
-					return nil, fmt.Errorf("Failed to get \"internalTokenRecordObjectsBySecret\" prepared statement: %w", err)
+					return nil, fmt.Errorf("Failed to get \"coreTokenRecordObjectsBySecret\" prepared statement: %w", err)
 				}
 
 				break
 			}
 
-			query, err := StmtString(internalTokenRecordObjectsBySecret)
+			query, err := StmtString(coreTokenRecordObjectsBySecret)
 			if err != nil {
-				return nil, fmt.Errorf("Failed to get \"internalTokenRecordObjects\" prepared statement: %w", err)
+				return nil, fmt.Errorf("Failed to get \"coreTokenRecordObjects\" prepared statement: %w", err)
 			}
 
 			parts := strings.SplitN(query, "ORDER BY", 2)
@@ -201,7 +201,7 @@ func GetInternalTokenRecords(ctx context.Context, tx *sql.Tx, filters ...Interna
 			_, where, _ := strings.Cut(parts[0], "WHERE")
 			queryParts[0] += "OR" + where
 		} else if filter.ID == nil && filter.Secret == nil && filter.Name == nil {
-			return nil, fmt.Errorf("Cannot filter on empty InternalTokenRecordFilter")
+			return nil, fmt.Errorf("Cannot filter on empty CoreTokenRecordFilter")
 		} else {
 			return nil, fmt.Errorf("No statement exists for the given Filter")
 		}
@@ -209,30 +209,30 @@ func GetInternalTokenRecords(ctx context.Context, tx *sql.Tx, filters ...Interna
 
 	// Select.
 	if sqlStmt != nil {
-		objects, err = getInternalTokenRecords(ctx, sqlStmt, args...)
+		objects, err = getCoreTokenRecords(ctx, sqlStmt, args...)
 	} else {
 		queryStr := strings.Join(queryParts[:], "ORDER BY")
-		objects, err = getInternalTokenRecordsRaw(ctx, tx, queryStr, args...)
+		objects, err = getCoreTokenRecordsRaw(ctx, tx, queryStr, args...)
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("Failed to fetch from \"internal_token_records\" table: %w", err)
+		return nil, fmt.Errorf("Failed to fetch from \"core_token_records\" table: %w", err)
 	}
 
 	return objects, nil
 }
 
-// CreateInternalTokenRecord adds a new internal_token_record to the database.
-// generator: internal_token_record Create
-func CreateInternalTokenRecord(ctx context.Context, tx *sql.Tx, object InternalTokenRecord) (int64, error) {
-	// Check if a internal_token_record with the same key exists.
-	exists, err := InternalTokenRecordExists(ctx, tx, object.Secret)
+// CreateCoreTokenRecord adds a new core_token_record to the database.
+// generator: core_token_record Create
+func CreateCoreTokenRecord(ctx context.Context, tx *sql.Tx, object CoreTokenRecord) (int64, error) {
+	// Check if a core_token_record with the same key exists.
+	exists, err := CoreTokenRecordExists(ctx, tx, object.Secret)
 	if err != nil {
 		return -1, fmt.Errorf("Failed to check for duplicates: %w", err)
 	}
 
 	if exists {
-		return -1, api.StatusErrorf(http.StatusConflict, "This \"internal_token_records\" entry already exists")
+		return -1, api.StatusErrorf(http.StatusConflict, "This \"core_token_records\" entry already exists")
 	}
 
 	args := make([]any, 2)
@@ -242,36 +242,36 @@ func CreateInternalTokenRecord(ctx context.Context, tx *sql.Tx, object InternalT
 	args[1] = object.Name
 
 	// Prepared statement to use.
-	stmt, err := Stmt(tx, internalTokenRecordCreate)
+	stmt, err := Stmt(tx, coreTokenRecordCreate)
 	if err != nil {
-		return -1, fmt.Errorf("Failed to get \"internalTokenRecordCreate\" prepared statement: %w", err)
+		return -1, fmt.Errorf("Failed to get \"coreTokenRecordCreate\" prepared statement: %w", err)
 	}
 
 	// Execute the statement.
 	result, err := stmt.Exec(args...)
 	if err != nil {
-		return -1, fmt.Errorf("Failed to create \"internal_token_records\" entry: %w", err)
+		return -1, fmt.Errorf("Failed to create \"core_token_records\" entry: %w", err)
 	}
 
 	id, err := result.LastInsertId()
 	if err != nil {
-		return -1, fmt.Errorf("Failed to fetch \"internal_token_records\" entry ID: %w", err)
+		return -1, fmt.Errorf("Failed to fetch \"core_token_records\" entry ID: %w", err)
 	}
 
 	return id, nil
 }
 
-// DeleteInternalTokenRecord deletes the internal_token_record matching the given key parameters.
-// generator: internal_token_record DeleteOne-by-Name
-func DeleteInternalTokenRecord(ctx context.Context, tx *sql.Tx, name string) error {
-	stmt, err := Stmt(tx, internalTokenRecordDeleteByName)
+// DeleteCoreTokenRecord deletes the core_token_record matching the given key parameters.
+// generator: core_token_record DeleteOne-by-Name
+func DeleteCoreTokenRecord(ctx context.Context, tx *sql.Tx, name string) error {
+	stmt, err := Stmt(tx, coreTokenRecordDeleteByName)
 	if err != nil {
-		return fmt.Errorf("Failed to get \"internalTokenRecordDeleteByName\" prepared statement: %w", err)
+		return fmt.Errorf("Failed to get \"coreTokenRecordDeleteByName\" prepared statement: %w", err)
 	}
 
 	result, err := stmt.Exec(name)
 	if err != nil {
-		return fmt.Errorf("Delete \"internal_token_records\": %w", err)
+		return fmt.Errorf("Delete \"core_token_records\": %w", err)
 	}
 
 	n, err := result.RowsAffected()
@@ -280,9 +280,9 @@ func DeleteInternalTokenRecord(ctx context.Context, tx *sql.Tx, name string) err
 	}
 
 	if n == 0 {
-		return api.StatusErrorf(http.StatusNotFound, "InternalTokenRecord not found")
+		return api.StatusErrorf(http.StatusNotFound, "CoreTokenRecord not found")
 	} else if n > 1 {
-		return fmt.Errorf("Query deleted %d InternalTokenRecord rows instead of 1", n)
+		return fmt.Errorf("Query deleted %d CoreTokenRecord rows instead of 1", n)
 	}
 
 	return nil

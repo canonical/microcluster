@@ -1,5 +1,7 @@
 package types
 
+import "github.com/canonical/microcluster/rest/types"
+
 // HookType represents the various types of hooks available to microcluster.
 type HookType string
 
@@ -46,5 +48,5 @@ type HookRemoveMemberOptions struct {
 // HookNewMemberOptions holds configuration pertaining to the OnNewMember hook.
 type HookNewMemberOptions struct {
 	// Name is the name of the new cluster member that joined the cluster, triggering this hook.
-	Name string `json:"name" yaml:"name"`
+	NewMember types.ClusterMemberLocal `json:"new_member" yaml:"new_member"`
 }

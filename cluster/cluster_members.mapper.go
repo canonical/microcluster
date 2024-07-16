@@ -16,107 +16,107 @@ import (
 
 var _ = api.ServerEnvironment{}
 
-var internalClusterMemberObjects = RegisterStmt(`
-SELECT internal_cluster_members.id, internal_cluster_members.name, internal_cluster_members.address, internal_cluster_members.certificate, internal_cluster_members.schema_internal, internal_cluster_members.schema_external, internal_cluster_members.api_extensions, internal_cluster_members.heartbeat, internal_cluster_members.role
-  FROM internal_cluster_members
-  ORDER BY internal_cluster_members.name
+var coreClusterMemberObjects = RegisterStmt(`
+SELECT core_cluster_members.id, core_cluster_members.name, core_cluster_members.address, core_cluster_members.certificate, core_cluster_members.schema_internal, core_cluster_members.schema_external, core_cluster_members.api_extensions, core_cluster_members.heartbeat, core_cluster_members.role
+  FROM core_cluster_members
+  ORDER BY core_cluster_members.name
 `)
 
-var internalClusterMemberObjectsByAddress = RegisterStmt(`
-SELECT internal_cluster_members.id, internal_cluster_members.name, internal_cluster_members.address, internal_cluster_members.certificate, internal_cluster_members.schema_internal, internal_cluster_members.schema_external, internal_cluster_members.api_extensions, internal_cluster_members.heartbeat, internal_cluster_members.role
-  FROM internal_cluster_members
-  WHERE ( internal_cluster_members.address = ? )
-  ORDER BY internal_cluster_members.name
+var coreClusterMemberObjectsByAddress = RegisterStmt(`
+SELECT core_cluster_members.id, core_cluster_members.name, core_cluster_members.address, core_cluster_members.certificate, core_cluster_members.schema_internal, core_cluster_members.schema_external, core_cluster_members.api_extensions, core_cluster_members.heartbeat, core_cluster_members.role
+  FROM core_cluster_members
+  WHERE ( core_cluster_members.address = ? )
+  ORDER BY core_cluster_members.name
 `)
 
-var internalClusterMemberObjectsByName = RegisterStmt(`
-SELECT internal_cluster_members.id, internal_cluster_members.name, internal_cluster_members.address, internal_cluster_members.certificate, internal_cluster_members.schema_internal, internal_cluster_members.schema_external, internal_cluster_members.api_extensions, internal_cluster_members.heartbeat, internal_cluster_members.role
-  FROM internal_cluster_members
-  WHERE ( internal_cluster_members.name = ? )
-  ORDER BY internal_cluster_members.name
+var coreClusterMemberObjectsByName = RegisterStmt(`
+SELECT core_cluster_members.id, core_cluster_members.name, core_cluster_members.address, core_cluster_members.certificate, core_cluster_members.schema_internal, core_cluster_members.schema_external, core_cluster_members.api_extensions, core_cluster_members.heartbeat, core_cluster_members.role
+  FROM core_cluster_members
+  WHERE ( core_cluster_members.name = ? )
+  ORDER BY core_cluster_members.name
 `)
 
-var internalClusterMemberID = RegisterStmt(`
-SELECT internal_cluster_members.id FROM internal_cluster_members
-  WHERE internal_cluster_members.name = ?
+var coreClusterMemberID = RegisterStmt(`
+SELECT core_cluster_members.id FROM core_cluster_members
+  WHERE core_cluster_members.name = ?
 `)
 
-var internalClusterMemberCreate = RegisterStmt(`
-INSERT INTO internal_cluster_members (name, address, certificate, schema_internal, schema_external, api_extensions, heartbeat, role)
+var coreClusterMemberCreate = RegisterStmt(`
+INSERT INTO core_cluster_members (name, address, certificate, schema_internal, schema_external, api_extensions, heartbeat, role)
   VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 `)
 
-var internalClusterMemberDeleteByAddress = RegisterStmt(`
-DELETE FROM internal_cluster_members WHERE address = ?
+var coreClusterMemberDeleteByAddress = RegisterStmt(`
+DELETE FROM core_cluster_members WHERE address = ?
 `)
 
-var internalClusterMemberUpdate = RegisterStmt(`
-UPDATE internal_cluster_members
+var coreClusterMemberUpdate = RegisterStmt(`
+UPDATE core_cluster_members
   SET name = ?, address = ?, certificate = ?, schema_internal = ?, schema_external = ?, api_extensions = ?, heartbeat = ?, role = ?
  WHERE id = ?
 `)
 
-// internalClusterMemberColumns returns a string of column names to be used with a SELECT statement for the entity.
-// Use this function when building statements to retrieve database entries matching the InternalClusterMember entity.
-func internalClusterMemberColumns() string {
-	return "internal_cluster_members.id, internal_cluster_members.name, internal_cluster_members.address, internal_cluster_members.certificate, internal_cluster_members.schema_internal, internal_cluster_members.schema_external, internal_cluster_members.api_extensions, internal_cluster_members.heartbeat, internal_cluster_members.role"
+// coreClusterMemberColumns returns a string of column names to be used with a SELECT statement for the entity.
+// Use this function when building statements to retrieve database entries matching the CoreClusterMember entity.
+func coreClusterMemberColumns() string {
+	return "core_cluster_members.id, core_cluster_members.name, core_cluster_members.address, core_cluster_members.certificate, core_cluster_members.schema_internal, core_cluster_members.schema_external, core_cluster_members.api_extensions, core_cluster_members.heartbeat, core_cluster_members.role"
 }
 
-// getInternalClusterMembers can be used to run handwritten sql.Stmts to return a slice of objects.
-func getInternalClusterMembers(ctx context.Context, stmt *sql.Stmt, args ...any) ([]InternalClusterMember, error) {
-	objects := make([]InternalClusterMember, 0)
+// getCoreClusterMembers can be used to run handwritten sql.Stmts to return a slice of objects.
+func getCoreClusterMembers(ctx context.Context, stmt *sql.Stmt, args ...any) ([]CoreClusterMember, error) {
+	objects := make([]CoreClusterMember, 0)
 
 	dest := func(scan func(dest ...any) error) error {
-		i := InternalClusterMember{}
-		err := scan(&i.ID, &i.Name, &i.Address, &i.Certificate, &i.SchemaInternal, &i.SchemaExternal, &i.APIExtensions, &i.Heartbeat, &i.Role)
+		c := CoreClusterMember{}
+		err := scan(&c.ID, &c.Name, &c.Address, &c.Certificate, &c.SchemaInternal, &c.SchemaExternal, &c.APIExtensions, &c.Heartbeat, &c.Role)
 		if err != nil {
 			return err
 		}
 
-		objects = append(objects, i)
+		objects = append(objects, c)
 
 		return nil
 	}
 
 	err := query.SelectObjects(ctx, stmt, dest, args...)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to fetch from \"internal_cluster_members\" table: %w", err)
+		return nil, fmt.Errorf("Failed to fetch from \"core_cluster_members\" table: %w", err)
 	}
 
 	return objects, nil
 }
 
-// getInternalClusterMembersRaw can be used to run handwritten query strings to return a slice of objects.
-func getInternalClusterMembersRaw(ctx context.Context, tx *sql.Tx, sql string, args ...any) ([]InternalClusterMember, error) {
-	objects := make([]InternalClusterMember, 0)
+// getCoreClusterMembersRaw can be used to run handwritten query strings to return a slice of objects.
+func getCoreClusterMembersRaw(ctx context.Context, tx *sql.Tx, sql string, args ...any) ([]CoreClusterMember, error) {
+	objects := make([]CoreClusterMember, 0)
 
 	dest := func(scan func(dest ...any) error) error {
-		i := InternalClusterMember{}
-		err := scan(&i.ID, &i.Name, &i.Address, &i.Certificate, &i.SchemaInternal, &i.SchemaExternal, &i.APIExtensions, &i.Heartbeat, &i.Role)
+		c := CoreClusterMember{}
+		err := scan(&c.ID, &c.Name, &c.Address, &c.Certificate, &c.SchemaInternal, &c.SchemaExternal, &c.APIExtensions, &c.Heartbeat, &c.Role)
 		if err != nil {
 			return err
 		}
 
-		objects = append(objects, i)
+		objects = append(objects, c)
 
 		return nil
 	}
 
 	err := query.Scan(ctx, tx, sql, dest, args...)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to fetch from \"internal_cluster_members\" table: %w", err)
+		return nil, fmt.Errorf("Failed to fetch from \"core_cluster_members\" table: %w", err)
 	}
 
 	return objects, nil
 }
 
-// GetInternalClusterMembers returns all available internal_cluster_members.
-// generator: internal_cluster_member GetMany
-func GetInternalClusterMembers(ctx context.Context, tx *sql.Tx, filters ...InternalClusterMemberFilter) ([]InternalClusterMember, error) {
+// GetCoreClusterMembers returns all available core_cluster_members.
+// generator: core_cluster_member GetMany
+func GetCoreClusterMembers(ctx context.Context, tx *sql.Tx, filters ...CoreClusterMemberFilter) ([]CoreClusterMember, error) {
 	var err error
 
 	// Result slice.
-	objects := make([]InternalClusterMember, 0)
+	objects := make([]CoreClusterMember, 0)
 
 	// Pick the prepared statement and arguments to use based on active criteria.
 	var sqlStmt *sql.Stmt
@@ -124,9 +124,9 @@ func GetInternalClusterMembers(ctx context.Context, tx *sql.Tx, filters ...Inter
 	queryParts := [2]string{}
 
 	if len(filters) == 0 {
-		sqlStmt, err = Stmt(tx, internalClusterMemberObjects)
+		sqlStmt, err = Stmt(tx, coreClusterMemberObjects)
 		if err != nil {
-			return nil, fmt.Errorf("Failed to get \"internalClusterMemberObjects\" prepared statement: %w", err)
+			return nil, fmt.Errorf("Failed to get \"coreClusterMemberObjects\" prepared statement: %w", err)
 		}
 	}
 
@@ -134,17 +134,17 @@ func GetInternalClusterMembers(ctx context.Context, tx *sql.Tx, filters ...Inter
 		if filter.Name != nil && filter.Address == nil {
 			args = append(args, []any{filter.Name}...)
 			if len(filters) == 1 {
-				sqlStmt, err = Stmt(tx, internalClusterMemberObjectsByName)
+				sqlStmt, err = Stmt(tx, coreClusterMemberObjectsByName)
 				if err != nil {
-					return nil, fmt.Errorf("Failed to get \"internalClusterMemberObjectsByName\" prepared statement: %w", err)
+					return nil, fmt.Errorf("Failed to get \"coreClusterMemberObjectsByName\" prepared statement: %w", err)
 				}
 
 				break
 			}
 
-			query, err := StmtString(internalClusterMemberObjectsByName)
+			query, err := StmtString(coreClusterMemberObjectsByName)
 			if err != nil {
-				return nil, fmt.Errorf("Failed to get \"internalClusterMemberObjects\" prepared statement: %w", err)
+				return nil, fmt.Errorf("Failed to get \"coreClusterMemberObjects\" prepared statement: %w", err)
 			}
 
 			parts := strings.SplitN(query, "ORDER BY", 2)
@@ -158,17 +158,17 @@ func GetInternalClusterMembers(ctx context.Context, tx *sql.Tx, filters ...Inter
 		} else if filter.Address != nil && filter.Name == nil {
 			args = append(args, []any{filter.Address}...)
 			if len(filters) == 1 {
-				sqlStmt, err = Stmt(tx, internalClusterMemberObjectsByAddress)
+				sqlStmt, err = Stmt(tx, coreClusterMemberObjectsByAddress)
 				if err != nil {
-					return nil, fmt.Errorf("Failed to get \"internalClusterMemberObjectsByAddress\" prepared statement: %w", err)
+					return nil, fmt.Errorf("Failed to get \"coreClusterMemberObjectsByAddress\" prepared statement: %w", err)
 				}
 
 				break
 			}
 
-			query, err := StmtString(internalClusterMemberObjectsByAddress)
+			query, err := StmtString(coreClusterMemberObjectsByAddress)
 			if err != nil {
-				return nil, fmt.Errorf("Failed to get \"internalClusterMemberObjects\" prepared statement: %w", err)
+				return nil, fmt.Errorf("Failed to get \"coreClusterMemberObjects\" prepared statement: %w", err)
 			}
 
 			parts := strings.SplitN(query, "ORDER BY", 2)
@@ -180,7 +180,7 @@ func GetInternalClusterMembers(ctx context.Context, tx *sql.Tx, filters ...Inter
 			_, where, _ := strings.Cut(parts[0], "WHERE")
 			queryParts[0] += "OR" + where
 		} else if filter.Address == nil && filter.Name == nil {
-			return nil, fmt.Errorf("Cannot filter on empty InternalClusterMemberFilter")
+			return nil, fmt.Errorf("Cannot filter on empty CoreClusterMemberFilter")
 		} else {
 			return nil, fmt.Errorf("No statement exists for the given Filter")
 		}
@@ -188,66 +188,66 @@ func GetInternalClusterMembers(ctx context.Context, tx *sql.Tx, filters ...Inter
 
 	// Select.
 	if sqlStmt != nil {
-		objects, err = getInternalClusterMembers(ctx, sqlStmt, args...)
+		objects, err = getCoreClusterMembers(ctx, sqlStmt, args...)
 	} else {
 		queryStr := strings.Join(queryParts[:], "ORDER BY")
-		objects, err = getInternalClusterMembersRaw(ctx, tx, queryStr, args...)
+		objects, err = getCoreClusterMembersRaw(ctx, tx, queryStr, args...)
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("Failed to fetch from \"internal_cluster_members\" table: %w", err)
+		return nil, fmt.Errorf("Failed to fetch from \"core_cluster_members\" table: %w", err)
 	}
 
 	return objects, nil
 }
 
-// GetInternalClusterMember returns the internal_cluster_member with the given key.
-// generator: internal_cluster_member GetOne
-func GetInternalClusterMember(ctx context.Context, tx *sql.Tx, name string) (*InternalClusterMember, error) {
-	filter := InternalClusterMemberFilter{}
+// GetCoreClusterMember returns the core_cluster_member with the given key.
+// generator: core_cluster_member GetOne
+func GetCoreClusterMember(ctx context.Context, tx *sql.Tx, name string) (*CoreClusterMember, error) {
+	filter := CoreClusterMemberFilter{}
 	filter.Name = &name
 
-	objects, err := GetInternalClusterMembers(ctx, tx, filter)
+	objects, err := GetCoreClusterMembers(ctx, tx, filter)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to fetch from \"internal_cluster_members\" table: %w", err)
+		return nil, fmt.Errorf("Failed to fetch from \"core_cluster_members\" table: %w", err)
 	}
 
 	switch len(objects) {
 	case 0:
-		return nil, api.StatusErrorf(http.StatusNotFound, "InternalClusterMember not found")
+		return nil, api.StatusErrorf(http.StatusNotFound, "CoreClusterMember not found")
 	case 1:
 		return &objects[0], nil
 	default:
-		return nil, fmt.Errorf("More than one \"internal_cluster_members\" entry matches")
+		return nil, fmt.Errorf("More than one \"core_cluster_members\" entry matches")
 	}
 }
 
-// GetInternalClusterMemberID return the ID of the internal_cluster_member with the given key.
-// generator: internal_cluster_member ID
-func GetInternalClusterMemberID(ctx context.Context, tx *sql.Tx, name string) (int64, error) {
-	stmt, err := Stmt(tx, internalClusterMemberID)
+// GetCoreClusterMemberID return the ID of the core_cluster_member with the given key.
+// generator: core_cluster_member ID
+func GetCoreClusterMemberID(ctx context.Context, tx *sql.Tx, name string) (int64, error) {
+	stmt, err := Stmt(tx, coreClusterMemberID)
 	if err != nil {
-		return -1, fmt.Errorf("Failed to get \"internalClusterMemberID\" prepared statement: %w", err)
+		return -1, fmt.Errorf("Failed to get \"coreClusterMemberID\" prepared statement: %w", err)
 	}
 
 	row := stmt.QueryRowContext(ctx, name)
 	var id int64
 	err = row.Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
-		return -1, api.StatusErrorf(http.StatusNotFound, "InternalClusterMember not found")
+		return -1, api.StatusErrorf(http.StatusNotFound, "CoreClusterMember not found")
 	}
 
 	if err != nil {
-		return -1, fmt.Errorf("Failed to get \"internal_cluster_members\" ID: %w", err)
+		return -1, fmt.Errorf("Failed to get \"core_cluster_members\" ID: %w", err)
 	}
 
 	return id, nil
 }
 
-// InternalClusterMemberExists checks if a internal_cluster_member with the given key exists.
-// generator: internal_cluster_member Exists
-func InternalClusterMemberExists(ctx context.Context, tx *sql.Tx, name string) (bool, error) {
-	_, err := GetInternalClusterMemberID(ctx, tx, name)
+// CoreClusterMemberExists checks if a core_cluster_member with the given key exists.
+// generator: core_cluster_member Exists
+func CoreClusterMemberExists(ctx context.Context, tx *sql.Tx, name string) (bool, error) {
+	_, err := GetCoreClusterMemberID(ctx, tx, name)
 	if err != nil {
 		if api.StatusErrorCheck(err, http.StatusNotFound) {
 			return false, nil
@@ -259,17 +259,17 @@ func InternalClusterMemberExists(ctx context.Context, tx *sql.Tx, name string) (
 	return true, nil
 }
 
-// CreateInternalClusterMember adds a new internal_cluster_member to the database.
-// generator: internal_cluster_member Create
-func CreateInternalClusterMember(ctx context.Context, tx *sql.Tx, object InternalClusterMember) (int64, error) {
-	// Check if a internal_cluster_member with the same key exists.
-	exists, err := InternalClusterMemberExists(ctx, tx, object.Name)
+// CreateCoreClusterMember adds a new core_cluster_member to the database.
+// generator: core_cluster_member Create
+func CreateCoreClusterMember(ctx context.Context, tx *sql.Tx, object CoreClusterMember) (int64, error) {
+	// Check if a core_cluster_member with the same key exists.
+	exists, err := CoreClusterMemberExists(ctx, tx, object.Name)
 	if err != nil {
 		return -1, fmt.Errorf("Failed to check for duplicates: %w", err)
 	}
 
 	if exists {
-		return -1, api.StatusErrorf(http.StatusConflict, "This \"internal_cluster_members\" entry already exists")
+		return -1, api.StatusErrorf(http.StatusConflict, "This \"core_cluster_members\" entry already exists")
 	}
 
 	args := make([]any, 8)
@@ -285,36 +285,36 @@ func CreateInternalClusterMember(ctx context.Context, tx *sql.Tx, object Interna
 	args[7] = object.Role
 
 	// Prepared statement to use.
-	stmt, err := Stmt(tx, internalClusterMemberCreate)
+	stmt, err := Stmt(tx, coreClusterMemberCreate)
 	if err != nil {
-		return -1, fmt.Errorf("Failed to get \"internalClusterMemberCreate\" prepared statement: %w", err)
+		return -1, fmt.Errorf("Failed to get \"coreClusterMemberCreate\" prepared statement: %w", err)
 	}
 
 	// Execute the statement.
 	result, err := stmt.Exec(args...)
 	if err != nil {
-		return -1, fmt.Errorf("Failed to create \"internal_cluster_members\" entry: %w", err)
+		return -1, fmt.Errorf("Failed to create \"core_cluster_members\" entry: %w", err)
 	}
 
 	id, err := result.LastInsertId()
 	if err != nil {
-		return -1, fmt.Errorf("Failed to fetch \"internal_cluster_members\" entry ID: %w", err)
+		return -1, fmt.Errorf("Failed to fetch \"core_cluster_members\" entry ID: %w", err)
 	}
 
 	return id, nil
 }
 
-// DeleteInternalClusterMember deletes the internal_cluster_member matching the given key parameters.
-// generator: internal_cluster_member DeleteOne-by-Address
-func DeleteInternalClusterMember(ctx context.Context, tx *sql.Tx, address string) error {
-	stmt, err := Stmt(tx, internalClusterMemberDeleteByAddress)
+// DeleteCoreClusterMember deletes the core_cluster_member matching the given key parameters.
+// generator: core_cluster_member DeleteOne-by-Address
+func DeleteCoreClusterMember(ctx context.Context, tx *sql.Tx, address string) error {
+	stmt, err := Stmt(tx, coreClusterMemberDeleteByAddress)
 	if err != nil {
-		return fmt.Errorf("Failed to get \"internalClusterMemberDeleteByAddress\" prepared statement: %w", err)
+		return fmt.Errorf("Failed to get \"coreClusterMemberDeleteByAddress\" prepared statement: %w", err)
 	}
 
 	result, err := stmt.Exec(address)
 	if err != nil {
-		return fmt.Errorf("Delete \"internal_cluster_members\": %w", err)
+		return fmt.Errorf("Delete \"core_cluster_members\": %w", err)
 	}
 
 	n, err := result.RowsAffected()
@@ -323,30 +323,30 @@ func DeleteInternalClusterMember(ctx context.Context, tx *sql.Tx, address string
 	}
 
 	if n == 0 {
-		return api.StatusErrorf(http.StatusNotFound, "InternalClusterMember not found")
+		return api.StatusErrorf(http.StatusNotFound, "CoreClusterMember not found")
 	} else if n > 1 {
-		return fmt.Errorf("Query deleted %d InternalClusterMember rows instead of 1", n)
+		return fmt.Errorf("Query deleted %d CoreClusterMember rows instead of 1", n)
 	}
 
 	return nil
 }
 
-// UpdateInternalClusterMember updates the internal_cluster_member matching the given key parameters.
-// generator: internal_cluster_member Update
-func UpdateInternalClusterMember(ctx context.Context, tx *sql.Tx, name string, object InternalClusterMember) error {
-	id, err := GetInternalClusterMemberID(ctx, tx, name)
+// UpdateCoreClusterMember updates the core_cluster_member matching the given key parameters.
+// generator: core_cluster_member Update
+func UpdateCoreClusterMember(ctx context.Context, tx *sql.Tx, name string, object CoreClusterMember) error {
+	id, err := GetCoreClusterMemberID(ctx, tx, name)
 	if err != nil {
 		return err
 	}
 
-	stmt, err := Stmt(tx, internalClusterMemberUpdate)
+	stmt, err := Stmt(tx, coreClusterMemberUpdate)
 	if err != nil {
-		return fmt.Errorf("Failed to get \"internalClusterMemberUpdate\" prepared statement: %w", err)
+		return fmt.Errorf("Failed to get \"coreClusterMemberUpdate\" prepared statement: %w", err)
 	}
 
 	result, err := stmt.Exec(object.Name, object.Address, object.Certificate, object.SchemaInternal, object.SchemaExternal, object.APIExtensions, object.Heartbeat, object.Role, id)
 	if err != nil {
-		return fmt.Errorf("Update \"internal_cluster_members\" entry failed: %w", err)
+		return fmt.Errorf("Update \"core_cluster_members\" entry failed: %w", err)
 	}
 
 	n, err := result.RowsAffected()

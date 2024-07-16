@@ -15,9 +15,10 @@ import (
 	"github.com/canonical/microcluster/client"
 	"github.com/canonical/microcluster/cluster"
 	internalClient "github.com/canonical/microcluster/internal/rest/client"
-	"github.com/canonical/microcluster/internal/rest/types"
+	internalTypes "github.com/canonical/microcluster/internal/rest/types"
 	internalState "github.com/canonical/microcluster/internal/state"
 	"github.com/canonical/microcluster/rest"
+	"github.com/canonical/microcluster/rest/types"
 	"github.com/canonical/microcluster/state"
 )
 
@@ -28,7 +29,7 @@ var heartbeatCmd = rest.Endpoint{
 }
 
 func heartbeatPost(s state.State, r *http.Request) response.Response {
-	var hbInfo types.HeartbeatInfo
+	var hbInfo internalTypes.HeartbeatInfo
 	err := json.NewDecoder(r.Body).Decode(&hbInfo)
 	if err != nil {
 		return response.SmartError(err)
@@ -58,7 +59,7 @@ func heartbeatPost(s state.State, r *http.Request) response.Response {
 
 	var internalSchemaVersion, externalSchemaVersion uint64
 	err = s.Database().Transaction(r.Context(), func(ctx context.Context, tx *sql.Tx) error {
-		localClusterMember, err := cluster.GetInternalClusterMember(ctx, tx, s.Name())
+		localClusterMember, err := cluster.GetCoreClusterMember(ctx, tx, s.Name())
 		if err != nil {
 			return err
 		}
@@ -109,7 +110,7 @@ func beginHeartbeat(s state.State, r *http.Request) response.Response {
 	// Get the database record of cluster members.
 	var clusterMembers []types.ClusterMember
 	err = s.Database().Transaction(r.Context(), func(ctx context.Context, tx *sql.Tx) error {
-		dbClusterMembers, err := cluster.GetInternalClusterMembers(ctx, tx)
+		dbClusterMembers, err := cluster.GetCoreClusterMembers(ctx, tx)
 		if err != nil {
 			return err
 		}
@@ -199,7 +200,7 @@ func beginHeartbeat(s state.State, r *http.Request) response.Response {
 	clusterMap[s.Address().URL.Host] = leaderEntry
 
 	// Record the maximum schema version discovered.
-	hbInfo := types.HeartbeatInfo{ClusterMembers: clusterMap}
+	hbInfo := internalTypes.HeartbeatInfo{ClusterMembers: clusterMap}
 	for _, node := range clusterMembers {
 		if node.SchemaInternalVersion > hbInfo.MaxSchemaInternal {
 			hbInfo.MaxSchemaInternal = node.SchemaInternalVersion
@@ -256,7 +257,7 @@ func beginHeartbeat(s state.State, r *http.Request) response.Response {
 
 	// Having sent a heartbeat to each valid cluster member, update the database record of members.
 	err = s.Database().Transaction(r.Context(), func(ctx context.Context, tx *sql.Tx) error {
-		dbClusterMembers, err := cluster.GetInternalClusterMembers(ctx, tx)
+		dbClusterMembers, err := cluster.GetCoreClusterMembers(ctx, tx)
 		if err != nil {
 			return err
 		}
@@ -269,7 +270,7 @@ func beginHeartbeat(s state.State, r *http.Request) response.Response {
 
 			clusterMember.Heartbeat = heartbeatInfo.LastHeartbeat
 			clusterMember.Role = cluster.Role(heartbeatInfo.Role)
-			err = cluster.UpdateInternalClusterMember(ctx, tx, clusterMember.Name, clusterMember)
+			err = cluster.UpdateCoreClusterMember(ctx, tx, clusterMember.Name, clusterMember)
 			if err != nil {
 				return err
 			}

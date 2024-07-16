@@ -65,13 +65,13 @@ func hooksPost(s state.State, r *http.Request) response.Response {
 			return response.BadRequest(err)
 		}
 
-		if req.Name == "" {
+		if req.NewMember == (types.ClusterMemberLocal{}) {
 			return response.SmartError(fmt.Errorf("No new member name given for NewMember hook execution"))
 		}
 
-		err = intState.Hooks.OnNewMember(s)
+		err = intState.Hooks.OnNewMember(s, req.NewMember)
 		if err != nil {
-			return response.SmartError(fmt.Errorf("Failed to run hook after system %q has joined the cluster: %w", req.Name, err))
+			return response.SmartError(fmt.Errorf("Failed to run hook after system %q has joined the cluster: %w", req.NewMember.Name, err))
 		}
 	case internalTypes.OnDaemonConfigUpdate:
 		var req types.DaemonConfig

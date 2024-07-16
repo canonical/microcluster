@@ -18,7 +18,6 @@ import (
 
 	"github.com/canonical/microcluster/client"
 	internalClient "github.com/canonical/microcluster/internal/rest/client"
-	internalTypes "github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/rest/types"
 )
 
@@ -131,7 +130,7 @@ func (r *Remotes) Add(dir string, remotes ...Remote) error {
 }
 
 // Replace replaces the in-memory and locally stored remotes with the given list from the database.
-func (r *Remotes) Replace(dir string, newRemotes ...internalTypes.ClusterMember) error {
+func (r *Remotes) Replace(dir string, newRemotes ...types.ClusterMember) error {
 	r.updateMu.Lock()
 	defer r.updateMu.Unlock()
 

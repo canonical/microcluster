@@ -14,35 +14,35 @@ import (
 //go:generate -command mapper lxd-generate db mapper -t token_records.mapper.go
 //go:generate mapper reset
 //
-//go:generate mapper stmt -e internal_token_record objects table=internal_token_records
-//go:generate mapper stmt -e internal_token_record objects-by-Secret table=internal_token_records
-//go:generate mapper stmt -e internal_token_record id table=internal_token_records
-//go:generate mapper stmt -e internal_token_record create table=internal_token_records
-//go:generate mapper stmt -e internal_token_record delete-by-Name table=internal_token_records
+//go:generate mapper stmt -e core_token_record objects table=core_token_records
+//go:generate mapper stmt -e core_token_record objects-by-Secret table=core_token_records
+//go:generate mapper stmt -e core_token_record id table=core_token_records
+//go:generate mapper stmt -e core_token_record create table=core_token_records
+//go:generate mapper stmt -e core_token_record delete-by-Name table=core_token_records
 //
-//go:generate mapper method -e internal_token_record ID table=internal_token_records
-//go:generate mapper method -e internal_token_record Exists table=internal_token_records
-//go:generate mapper method -e internal_token_record GetOne table=internal_token_records
-//go:generate mapper method -e internal_token_record GetMany table=internal_token_records
-//go:generate mapper method -e internal_token_record Create table=internal_token_records
-//go:generate mapper method -e internal_token_record DeleteOne-by-Name table=internal_token_records
+//go:generate mapper method -e core_token_record ID table=core_token_records
+//go:generate mapper method -e core_token_record Exists table=core_token_records
+//go:generate mapper method -e core_token_record GetOne table=core_token_records
+//go:generate mapper method -e core_token_record GetMany table=core_token_records
+//go:generate mapper method -e core_token_record Create table=core_token_records
+//go:generate mapper method -e core_token_record DeleteOne-by-Name table=core_token_records
 
-// InternalTokenRecord is the database representation of a join token record.
-type InternalTokenRecord struct {
+// CoreTokenRecord is the database representation of a join token record.
+type CoreTokenRecord struct {
 	ID     int
 	Secret string `db:"primary=yes"`
 	Name   string
 }
 
-// InternalTokenRecordFilter is the filter struct for filtering results from generated methods.
-type InternalTokenRecordFilter struct {
+// CoreTokenRecordFilter is the filter struct for filtering results from generated methods.
+type CoreTokenRecordFilter struct {
 	ID     *int
 	Secret *string
 	Name   *string
 }
 
-// ToAPI converts the InternalTokenRecord to a full token and returns an API compatible struct.
-func (t *InternalTokenRecord) ToAPI(clusterCert *x509.Certificate, joinAddresses []types.AddrPort) (*internalTypes.TokenRecord, error) {
+// ToAPI converts the CoreTokenRecord to a full token and returns an API compatible struct.
+func (t *CoreTokenRecord) ToAPI(clusterCert *x509.Certificate, joinAddresses []types.AddrPort) (*internalTypes.TokenRecord, error) {
 	token := internalTypes.Token{
 		Secret:        t.Secret,
 		Fingerprint:   shared.CertFingerprint(clusterCert),

@@ -34,7 +34,7 @@ type Hooks struct {
 	OnHeartbeat func(s State) error
 
 	// OnNewMember is run on each peer after a new cluster member has joined and executed their 'PreJoin' hook.
-	OnNewMember func(s State) error
+	OnNewMember func(s State, newMember types.ClusterMemberLocal) error
 
 	// OnDaemonConfigUpdate is a post-action hook that is run on all cluster members when any cluster member receives a local configuration update.
 	OnDaemonConfigUpdate func(s State, config types.DaemonConfig) error

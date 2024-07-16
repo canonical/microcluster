@@ -36,6 +36,7 @@ func NewSchema() *SchemaUpdateManager {
 			updateFromV1,
 			updateFromV2,
 			mgr.updateFromV3,
+			updateFromV4,
 		},
 	}
 
@@ -73,7 +74,20 @@ func (s *SchemaUpdateManager) AppendSchema(schemaExtensions []schema.Update, api
 	s.apiExtensions = apiExtensions
 }
 
-// updateFromV3 auto-applies the initial set of API extensions to the internal_cluster_members table.
+// updateFromV4 renames the internal_ prefixed tables to core_ to signify that
+// they are accessible outside of the internal microcluster implementation.
+func updateFromV4(ctx context.Context, tx *sql.Tx) error {
+	stmt := `
+ALTER TABLE internal_cluster_members RENAME TO core_cluster_members;
+ALTER TABLE internal_token_records RENAME TO core_token_records;
+	`
+
+	_, err := tx.ExecContext(ctx, stmt)
+
+	return err
+}
+
+// updateFromV3 auto-applies the initial set of API extensions to the core_cluster_members table.
 // This is done so that the cluster won't have to be notified twice,
 // once for the schema update that introduces API extensions to be applied,
 // and another time for API extensions to be applied.

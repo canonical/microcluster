@@ -20,7 +20,7 @@ func TestUpdateSuite(t *testing.T) {
 	suite.Run(t, new(updateSuite))
 }
 
-// Ensures the internal_cluster_members table is properly updated by updateFromV1 if it already exists.
+// Ensures the core_cluster_members table is properly updated by updateFromV1 if it already exists.
 func (s *updateSuite) Test_updateFromV1ClusterMembers() {
 	db, err := sql.Open("sqlite3", ":memory:")
 	s.NoError(err)
@@ -60,10 +60,10 @@ func (s *updateSuite) Test_updateFromV1ClusterMembers() {
 
 	tx, err = db.BeginTx(ctx, nil)
 	s.NoError(err)
-	schemaInternal, err := query.SelectIntegers(ctx, tx, "SELECT schema_internal FROM internal_cluster_members")
+	schemaInternal, err := query.SelectIntegers(ctx, tx, "SELECT schema_internal FROM core_cluster_members")
 	s.NoError(err)
 
-	schemaExternal, err := query.SelectIntegers(ctx, tx, "SELECT schema_external FROM internal_cluster_members")
+	schemaExternal, err := query.SelectIntegers(ctx, tx, "SELECT schema_external FROM core_cluster_members")
 	s.NoError(err)
 
 	versionsInternal, err := query.SelectIntegers(ctx, tx, "SELECT version from schemas where type = 0")
@@ -73,7 +73,7 @@ func (s *updateSuite) Test_updateFromV1ClusterMembers() {
 	s.NoError(err)
 	s.NoError(tx.Commit())
 
-	// Ensure schema versions are split across internal and external updates in the internal_cluster_members table.
+	// Ensure schema versions are split across internal and external updates in the core_cluster_members table.
 	s.Equal(3, len(schemaInternal))
 	s.Equal(3, len(schemaExternal))
 

@@ -6,17 +6,17 @@ import (
 
 	"github.com/canonical/lxd/shared/api"
 
-	"github.com/canonical/microcluster/internal/rest/types"
-	apiTypes "github.com/canonical/microcluster/rest/types"
+	internalTypes "github.com/canonical/microcluster/internal/rest/types"
+	"github.com/canonical/microcluster/rest/types"
 )
 
 // AddClusterMember records a new cluster member in the trust store of each current cluster member.
-func (c *Client) AddClusterMember(ctx context.Context, args types.ClusterMember) (*types.TokenResponse, error) {
+func (c *Client) AddClusterMember(ctx context.Context, args types.ClusterMember) (*internalTypes.TokenResponse, error) {
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	tokenResponse := types.TokenResponse{}
-	err := c.QueryStruct(queryCtx, "POST", types.PublicEndpoint, api.NewURL().Path("cluster"), args, &tokenResponse)
+	tokenResponse := internalTypes.TokenResponse{}
+	err := c.QueryStruct(queryCtx, "POST", internalTypes.PublicEndpoint, api.NewURL().Path("cluster"), args, &tokenResponse)
 	if err != nil {
 		return nil, err
 	}
@@ -30,7 +30,7 @@ func (c *Client) GetClusterMembers(ctx context.Context) ([]types.ClusterMember, 
 	defer cancel()
 
 	clusterMembers := []types.ClusterMember{}
-	err := c.QueryStruct(queryCtx, "GET", types.PublicEndpoint, api.NewURL().Path("cluster"), nil, &clusterMembers)
+	err := c.QueryStruct(queryCtx, "GET", internalTypes.PublicEndpoint, api.NewURL().Path("cluster"), nil, &clusterMembers)
 
 	return clusterMembers, err
 }
@@ -45,7 +45,7 @@ func (c *Client) DeleteClusterMember(ctx context.Context, name string, force boo
 		endpoint = endpoint.WithQuery("force", "1")
 	}
 
-	return c.QueryStruct(queryCtx, "DELETE", types.PublicEndpoint, endpoint, nil, nil)
+	return c.QueryStruct(queryCtx, "DELETE", internalTypes.PublicEndpoint, endpoint, nil, nil)
 }
 
 // ResetClusterMember clears the state directory of the cluster member, and re-execs its daemon.
@@ -58,14 +58,14 @@ func (c *Client) ResetClusterMember(ctx context.Context, name string, force bool
 		endpoint = endpoint.WithQuery("force", "1")
 	}
 
-	return c.QueryStruct(queryCtx, "PUT", types.PublicEndpoint, endpoint, nil, nil)
+	return c.QueryStruct(queryCtx, "PUT", internalTypes.PublicEndpoint, endpoint, nil, nil)
 }
 
 // UpdateCertificate sets a new keypair and CA.
-func (c *Client) UpdateCertificate(ctx context.Context, name apiTypes.CertificateName, args apiTypes.KeyPair) error {
+func (c *Client) UpdateCertificate(ctx context.Context, name types.CertificateName, args types.KeyPair) error {
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	endpoint := api.NewURL().Path("cluster", "certificates", string(name))
-	return c.QueryStruct(queryCtx, "PUT", types.InternalEndpoint, endpoint, args, nil)
+	return c.QueryStruct(queryCtx, "PUT", internalTypes.InternalEndpoint, endpoint, args, nil)
 }

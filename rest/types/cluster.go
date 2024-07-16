@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/canonical/microcluster/internal/extensions"
-	"github.com/canonical/microcluster/rest/types"
 )
 
 // ClusterMember represents information about a dqlite cluster member.
@@ -21,9 +20,9 @@ type ClusterMember struct {
 
 // ClusterMemberLocal represents local information about a new cluster member.
 type ClusterMemberLocal struct {
-	Name        string                `json:"name" yaml:"name"`
-	Address     types.AddrPort        `json:"address" yaml:"address"`
-	Certificate types.X509Certificate `json:"certificate" yaml:"certificate"`
+	Name        string          `json:"name" yaml:"name"`
+	Address     AddrPort        `json:"address" yaml:"address"`
+	Certificate X509Certificate `json:"certificate" yaml:"certificate"`
 }
 
 // MemberStatus represents the online status of a cluster member.

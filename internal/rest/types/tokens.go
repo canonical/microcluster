@@ -23,7 +23,7 @@ type TokenResponse struct {
 
 	// ClusterMembers is the full list of cluster members that are currently present and available in the cluster.
 	// The joiner supplies this list to dqlite so that it can start its database.
-	ClusterMembers []ClusterMemberLocal `json:"cluster_members" yaml:"cluster_members"`
+	ClusterMembers []types.ClusterMemberLocal `json:"cluster_members" yaml:"cluster_members"`
 
 	// ClusterAdditionalCerts is the full list of certificates added for additional listeners.
 	ClusterAdditionalCerts map[string]types.KeyPair
@@ -33,7 +33,7 @@ type TokenResponse struct {
 	//
 	// The trusted member will have already recorded the joiner's information in
 	// its local truststore, and thus will trust requests from the joiner prior to fully joining.
-	TrustedMember ClusterMemberLocal `json:"trusted_member" yaml:"trusted_member"`
+	TrustedMember types.ClusterMemberLocal `json:"trusted_member" yaml:"trusted_member"`
 }
 
 // Token holds the information that is presented to the joining node when requesting a token.

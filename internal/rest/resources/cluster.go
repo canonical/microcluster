@@ -57,7 +57,7 @@ func clusterPost(s state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	req := internalTypes.ClusterMember{}
+	req := types.ClusterMember{}
 
 	// Parse the request.
 	err = json.NewDecoder(r.Body).Decode(&req)
@@ -116,7 +116,7 @@ func clusterPost(s state.State, r *http.Request) response.Response {
 	}
 
 	err = s.Database().Transaction(r.Context(), func(ctx context.Context, tx *sql.Tx) error {
-		dbClusterMember := cluster.InternalClusterMember{
+		dbClusterMember := cluster.CoreClusterMember{
 			Name:           req.Name,
 			Address:        req.Address.String(),
 			Certificate:    req.Certificate.String(),
@@ -127,26 +127,26 @@ func clusterPost(s state.State, r *http.Request) response.Response {
 			Role:           cluster.Pending,
 		}
 
-		record, err := cluster.GetInternalTokenRecord(ctx, tx, req.Secret)
+		record, err := cluster.GetCoreTokenRecord(ctx, tx, req.Secret)
 		if err != nil {
 			return err
 		}
 
-		_, err = cluster.CreateInternalClusterMember(ctx, tx, dbClusterMember)
+		_, err = cluster.CreateCoreClusterMember(ctx, tx, dbClusterMember)
 		if err != nil {
 			return err
 		}
 
-		return cluster.DeleteInternalTokenRecord(ctx, tx, record.Name)
+		return cluster.DeleteCoreTokenRecord(ctx, tx, record.Name)
 	})
 	if err != nil {
 		return response.SmartError(err)
 	}
 
 	remotes := s.Remotes()
-	clusterMembers := make([]internalTypes.ClusterMemberLocal, 0, remotes.Count())
+	clusterMembers := make([]types.ClusterMemberLocal, 0, remotes.Count())
 	for _, clusterMember := range remotes.RemotesByName() {
-		clusterMember := internalTypes.ClusterMemberLocal{
+		clusterMember := types.ClusterMemberLocal{
 			Name:        clusterMember.Name,
 			Address:     clusterMember.Address,
 			Certificate: clusterMember.Certificate,
@@ -165,7 +165,7 @@ func clusterPost(s state.State, r *http.Request) response.Response {
 		ClusterCert: types.X509Certificate{Certificate: clusterCert},
 		ClusterKey:  string(s.ClusterCert().PrivateKey()),
 
-		TrustedMember:  internalTypes.ClusterMemberLocal{Name: s.Name(), Address: localRemote.Address, Certificate: localRemote.Certificate},
+		TrustedMember:  types.ClusterMemberLocal{Name: s.Name(), Address: localRemote.Address, Certificate: localRemote.Certificate},
 		ClusterMembers: clusterMembers,
 	}
 
@@ -227,13 +227,13 @@ func clusterGet(s state.State, r *http.Request) response.Response {
 		return response.SmartError(api.StatusErrorf(http.StatusServiceUnavailable, string(status)))
 	}
 
-	var apiClusterMembers []internalTypes.ClusterMember
+	var apiClusterMembers []types.ClusterMember
 	err := s.Database().Transaction(r.Context(), func(ctx context.Context, tx *sql.Tx) error {
 		var err error
-		var clusterMembers []cluster.InternalClusterMember
+		var clusterMembers []cluster.CoreClusterMember
 		var awaitingUpgrade map[string]bool
 		if status == db.StatusReady {
-			clusterMembers, err = cluster.GetInternalClusterMembers(ctx, tx)
+			clusterMembers, err = cluster.GetCoreClusterMembers(ctx, tx)
 		} else {
 			schemaInternal, schemaExternal, apiExtensions := s.Database().Schema().Version()
 			clusterMembers, awaitingUpgrade, err = cluster.GetUpgradingClusterMembers(ctx, tx, schemaInternal, schemaExternal, apiExtensions)
@@ -243,7 +243,7 @@ func clusterGet(s state.State, r *http.Request) response.Response {
 			return err
 		}
 
-		apiClusterMembers = make([]internalTypes.ClusterMember, 0, len(clusterMembers))
+		apiClusterMembers = make([]types.ClusterMember, 0, len(clusterMembers))
 		for _, clusterMember := range clusterMembers {
 			apiClusterMember, err := clusterMember.ToAPI()
 			if err != nil {
@@ -253,9 +253,9 @@ func clusterGet(s state.State, r *http.Request) response.Response {
 			// Assign an upgrade status if the cluster member is awaiting an upgrade.
 			if awaitingUpgrade != nil {
 				if awaitingUpgrade[apiClusterMember.Name] {
-					apiClusterMember.Status = internalTypes.MemberNeedsUpgrade
+					apiClusterMember.Status = types.MemberNeedsUpgrade
 				} else {
-					apiClusterMember.Status = internalTypes.MemberUpgrading
+					apiClusterMember.Status = types.MemberUpgrading
 				}
 			}
 
@@ -284,7 +284,7 @@ func clusterGet(s state.State, r *http.Request) response.Response {
 
 			err = d.CheckReady(r.Context())
 			if err == nil {
-				apiClusterMembers[i].Status = internalTypes.MemberOnline
+				apiClusterMembers[i].Status = types.MemberOnline
 			} else {
 				logger.Warnf("Failed to get status of cluster member with address %q: %v", addr.String(), err)
 			}
@@ -463,10 +463,10 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 		logger.Errorf("No dqlite record exists for %q, deleting from internal record instead", remote.Name)
 	}
 
-	var clusterMembers []cluster.InternalClusterMember
+	var clusterMembers []cluster.CoreClusterMember
 	err = s.Database().Transaction(r.Context(), func(ctx context.Context, tx *sql.Tx) error {
 		var err error
-		clusterMembers, err = cluster.GetInternalClusterMembers(ctx, tx)
+		clusterMembers, err = cluster.GetCoreClusterMembers(ctx, tx)
 
 		return err
 	})
@@ -582,7 +582,7 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 
 	// Remove the cluster member from the database.
 	err = s.Database().Transaction(r.Context(), func(ctx context.Context, tx *sql.Tx) error {
-		return cluster.DeleteInternalClusterMember(ctx, tx, remote.Address.String())
+		return cluster.DeleteCoreClusterMember(ctx, tx, remote.Address.String())
 	})
 	if err != nil {
 		return response.SmartError(err)

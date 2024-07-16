@@ -10,28 +10,27 @@ import (
 	"github.com/canonical/lxd/shared/logger"
 
 	"github.com/canonical/microcluster/internal/extensions"
-	internalTypes "github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/rest/types"
 )
 
 //go:generate -command mapper lxd-generate db mapper -t cluster_members.mapper.go
 //go:generate mapper reset
 //
-//go:generate mapper stmt -e internal_cluster_member objects table=internal_cluster_members
-//go:generate mapper stmt -e internal_cluster_member objects-by-Address table=internal_cluster_members
-//go:generate mapper stmt -e internal_cluster_member objects-by-Name table=internal_cluster_members
-//go:generate mapper stmt -e internal_cluster_member id table=internal_cluster_members
-//go:generate mapper stmt -e internal_cluster_member create table=internal_cluster_members
-//go:generate mapper stmt -e internal_cluster_member delete-by-Address table=internal_cluster_members
-//go:generate mapper stmt -e internal_cluster_member update table=internal_cluster_members
+//go:generate mapper stmt -e core_cluster_member objects table=core_cluster_members
+//go:generate mapper stmt -e core_cluster_member objects-by-Address table=core_cluster_members
+//go:generate mapper stmt -e core_cluster_member objects-by-Name table=core_cluster_members
+//go:generate mapper stmt -e core_cluster_member id table=core_cluster_members
+//go:generate mapper stmt -e core_cluster_member create table=core_cluster_members
+//go:generate mapper stmt -e core_cluster_member delete-by-Address table=core_cluster_members
+//go:generate mapper stmt -e core_cluster_member update table=core_cluster_members
 //
-//go:generate mapper method -i -e internal_cluster_member GetMany table=internal_cluster_members
-//go:generate mapper method -i -e internal_cluster_member GetOne table=internal_cluster_members
-//go:generate mapper method -i -e internal_cluster_member ID table=internal_cluster_members
-//go:generate mapper method -i -e internal_cluster_member Exists table=internal_cluster_members
-//go:generate mapper method -i -e internal_cluster_member Create table=internal_cluster_members
-//go:generate mapper method -i -e internal_cluster_member DeleteOne-by-Address table=internal_cluster_members
-//go:generate mapper method -i -e internal_cluster_member Update table=internal_cluster_members
+//go:generate mapper method -i -e core_cluster_member GetMany table=core_cluster_members
+//go:generate mapper method -i -e core_cluster_member GetOne table=core_cluster_members
+//go:generate mapper method -i -e core_cluster_member ID table=core_cluster_members
+//go:generate mapper method -i -e core_cluster_member Exists table=core_cluster_members
+//go:generate mapper method -i -e core_cluster_member Create table=core_cluster_members
+//go:generate mapper method -i -e core_cluster_member DeleteOne-by-Address table=core_cluster_members
+//go:generate mapper method -i -e core_cluster_member Update table=core_cluster_members
 
 // Role is the role of the dqlite cluster member.
 type Role string
@@ -39,8 +38,8 @@ type Role string
 // Pending indicates that a node is about to be added or removed.
 const Pending Role = "PENDING"
 
-// InternalClusterMember represents the global database entry for a dqlite cluster member.
-type InternalClusterMember struct {
+// CoreClusterMember represents the global database entry for a dqlite cluster member.
+type CoreClusterMember struct {
 	ID             int
 	Name           string `db:"primary=yes"`
 	Address        string
@@ -52,15 +51,15 @@ type InternalClusterMember struct {
 	Role           Role
 }
 
-// InternalClusterMemberFilter is used for filtering queries using generated methods.
-type InternalClusterMemberFilter struct {
+// CoreClusterMemberFilter is used for filtering queries using generated methods.
+type CoreClusterMemberFilter struct {
 	Address *string
 	Name    *string
 }
 
 // ToAPI returns the api struct for a ClusterMember database entity.
 // The cluster member's status will be reported as unreachable by default.
-func (c InternalClusterMember) ToAPI() (*internalTypes.ClusterMember, error) {
+func (c CoreClusterMember) ToAPI() (*types.ClusterMember, error) {
 	address, err := types.ParseAddrPort(c.Address)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to parse address %q of database cluster member: %w", c.Address, err)
@@ -71,8 +70,8 @@ func (c InternalClusterMember) ToAPI() (*internalTypes.ClusterMember, error) {
 		return nil, fmt.Errorf("Failed to parse certificate of database cluster member with address %q: %w", c.Address, err)
 	}
 
-	return &internalTypes.ClusterMember{
-		ClusterMemberLocal: internalTypes.ClusterMemberLocal{
+	return &types.ClusterMember{
+		ClusterMemberLocal: types.ClusterMemberLocal{
 			Name:        c.Name,
 			Address:     address,
 			Certificate: *certificate,
@@ -81,7 +80,7 @@ func (c InternalClusterMember) ToAPI() (*internalTypes.ClusterMember, error) {
 		SchemaInternalVersion: c.SchemaInternal,
 		SchemaExternalVersion: c.SchemaExternal,
 		LastHeartbeat:         c.Heartbeat,
-		Status:                internalTypes.MemberUnreachable,
+		Status:                types.MemberUnreachable,
 		Extensions:            c.APIExtensions,
 	}, nil
 }
@@ -89,11 +88,11 @@ func (c InternalClusterMember) ToAPI() (*internalTypes.ClusterMember, error) {
 // prepareUpdateV1 creates the temporary table `internal_cluster_members_new` if we have not yet run `updateFromV1`.
 // To keep this table in sync with `internal_cluster_members`, a create & update trigger is created as well.
 // This table (and its triggers) will be deleted by `updateFromV1`.
-func prepareUpdateV1(tx *sql.Tx) (tableName string, err error) {
+func prepareUpdateV1(ctx context.Context, tx *sql.Tx) (tableName string, err error) {
 	// Check if we need a temporary table, if no `type` field exists in the schemas table.
 	stmt := "SELECT count(name) FROM pragma_table_info('schemas') WHERE name IN ('type');"
 	var count int
-	err = tx.QueryRow(stmt).Scan(&count)
+	err = tx.QueryRowContext(ctx, stmt).Scan(&count)
 	if err != nil {
 		return "", err
 	}
@@ -101,12 +100,12 @@ func prepareUpdateV1(tx *sql.Tx) (tableName string, err error) {
 	// If we have a `type` field, then the default database is valid, so we can just use that.
 	// TODO: Dynamically rename to "core_"
 	if count == 1 {
-		return "internal_cluster_members", nil
+		return getClusterTableName(ctx, tx)
 	}
 
 	// Check if another cluster member has already created the temporary table.
 	stmt = "SELECT name FROM sqlite_master WHERE name = 'internal_cluster_members_new';"
-	err = tx.QueryRow(stmt).Scan(&tableName)
+	err = tx.QueryRowContext(ctx, stmt).Scan(&tableName)
 	if err != nil && err != sql.ErrNoRows {
 		return "", err
 	}
@@ -150,7 +149,7 @@ BEGIN
 END;
 `
 
-	_, err = tx.Exec(stmt)
+	_, err = tx.ExecContext(ctx, stmt)
 	if err != nil {
 		return "", err
 	}
@@ -160,8 +159,8 @@ END;
 
 // UpdateClusterMemberSchemaVersion sets the schema version for the cluster member with the given address.
 // This helper is non-generated to work before generated statements are loaded, as we update the schema.
-func UpdateClusterMemberSchemaVersion(tx *sql.Tx, internalVersion uint64, externalVersion uint64, address string) error {
-	tableName, err := prepareUpdateV1(tx)
+func UpdateClusterMemberSchemaVersion(ctx context.Context, tx *sql.Tx, internalVersion uint64, externalVersion uint64, address string) error {
+	tableName, err := prepareUpdateV1(ctx, tx)
 	if err != nil {
 		return err
 	}
@@ -186,7 +185,7 @@ func UpdateClusterMemberSchemaVersion(tx *sql.Tx, internalVersion uint64, extern
 // GetClusterMemberSchemaVersions returns the schema versions from all cluster members that are not pending.
 // This helper is non-generated to work before generated statements are loaded, as we update the schema.
 func GetClusterMemberSchemaVersions(ctx context.Context, tx *sql.Tx) (internalSchema []uint64, externalSchema []uint64, err error) {
-	tableName, err := prepareUpdateV1(tx)
+	tableName, err := prepareUpdateV1(ctx, tx)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -218,9 +217,32 @@ func GetClusterMemberSchemaVersions(ctx context.Context, tx *sql.Tx) (internalSc
 
 // UpdateClusterMemberAPIExtensions sets the API extensions for the cluster member with the given address.
 // This helper is non-generated to work before generated statements are loaded, as we update the API extensions.
-func UpdateClusterMemberAPIExtensions(tx *sql.Tx, apiExtensions extensions.Extensions, address string) error {
-	stmt := "UPDATE internal_cluster_members SET api_extensions=? WHERE address=?"
-	result, err := tx.Exec(stmt, apiExtensions, address)
+func UpdateClusterMemberAPIExtensions(ctx context.Context, tx *sql.Tx, apiExtensions extensions.Extensions, address string) error {
+	table, err := getClusterTableName(ctx, tx)
+	if err != nil {
+		return err
+	}
+
+	// Check for the `api_extensions` column, which may not exist if we haven't actually run the update yet.
+	stmt := fmt.Sprintf(`
+SELECT count(name)
+FROM pragma_table_info('%s')
+WHERE name IN ('api_extensions');
+`, table)
+
+	var count int
+	err = tx.QueryRow(stmt).Scan(&count)
+	if err != nil {
+		return err
+	}
+
+	if count == 0 {
+		logger.Warn("Skipping API extension update, schema does not yet support it", logger.Ctx{"address": address})
+		return nil
+	}
+
+	stmt = fmt.Sprintf("UPDATE %s SET api_extensions=? WHERE address=?", table)
+	result, err := tx.ExecContext(ctx, stmt, apiExtensions, address)
 	if err != nil {
 		return err
 	}
@@ -239,7 +261,12 @@ func UpdateClusterMemberAPIExtensions(tx *sql.Tx, apiExtensions extensions.Exten
 // GetClusterMemberAPIExtensions returns the API extensions from all cluster members that are not pending.
 // This helper is non-generated to work before generated statements are loaded, as we update the API extensions.
 func GetClusterMemberAPIExtensions(ctx context.Context, tx *sql.Tx) ([]extensions.Extensions, error) {
-	query := "SELECT api_extensions FROM internal_cluster_members WHERE NOT role='pending'"
+	table, err := getClusterTableName(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+
+	query := fmt.Sprintf("SELECT api_extensions FROM %s WHERE NOT role='pending'", table)
 	rows, err := tx.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
@@ -274,8 +301,8 @@ func GetClusterMemberAPIExtensions(ctx context.Context, tx *sql.Tx) ([]extension
 // GetUpgradingClusterMembers returns the list of all cluster members during an upgrade, as well as a map of members who we consider to be in a waiting state.
 // This function can be used immediately after dqlite is ready, before we have loaded any prepared statements.
 // A cluster member will be in a waiting state if a different cluster member still exists with a smaller API extension count or schema version.
-func GetUpgradingClusterMembers(ctx context.Context, tx *sql.Tx, schemaInternal uint64, schemaExternal uint64, apiExtensions extensions.Extensions) (allMembers []InternalClusterMember, awaitingMembers map[string]bool, err error) {
-	tableName, err := prepareUpdateV1(tx)
+func GetUpgradingClusterMembers(ctx context.Context, tx *sql.Tx, schemaInternal uint64, schemaExternal uint64, apiExtensions extensions.Extensions) (allMembers []CoreClusterMember, awaitingMembers map[string]bool, err error) {
+	tableName, err := prepareUpdateV1(ctx, tx)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -307,7 +334,7 @@ WHERE name IN ('api_extensions');
 	}
 
 	stmt = fmt.Sprintf(stmt, apiField, tableName)
-	allMembers, err = getInternalClusterMembersRaw(ctx, tx, stmt)
+	allMembers, err = getCoreClusterMembersRaw(ctx, tx, stmt)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -323,4 +350,21 @@ WHERE name IN ('api_extensions');
 	}
 
 	return allMembers, awaitingMembers, nil
+}
+
+// getClusterTableName returns the name of the table that holds the record of cluster members from sqlite_master.
+// Prior to updateFromV4, this table was called `internal_cluster_members`, but now it is `core_cluster_members`.
+// Since we need to check this table to perform the update that renames it, we can use this function to dynamically determine its name.
+func getClusterTableName(ctx context.Context, tx *sql.Tx) (string, error) {
+	stmt := "SELECT name FROM sqlite_master WHERE name = 'internal_cluster_members' OR name = 'core_cluster_members'"
+	tables, err := query.SelectStrings(ctx, tx, stmt)
+	if err != nil {
+		return "", err
+	}
+
+	if len(tables) != 1 || tables[0] == "" {
+		return "", fmt.Errorf("No cluster members table found")
+	}
+
+	return tables[0], nil
 }

@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"path"
 	"time"
 
 	"github.com/canonical/lxd/lxd/db/query"
@@ -142,6 +143,8 @@ func (db *DB) waitUpgrade(bootstrap bool, ext extensions.Extensions) error {
 
 	otherNodesBehind := false
 	newSchema := db.Schema()
+	newSchema.File(path.Join(db.os.StateDir, "patch.global.sql"))
+
 	if !bootstrap {
 		checkVersions := func(ctx context.Context, current int, tx *sql.Tx) error {
 			schemaVersionInternal, schemaVersionExternal, _ := newSchema.Version()

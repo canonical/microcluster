@@ -42,6 +42,12 @@ func (s *SchemaUpdate) Fresh(statement string) {
 	s.fresh = statement
 }
 
+// File sets the schema update's path for extra queries to run before schema
+// updates are applied.
+func (s *SchemaUpdate) File(path string) {
+	s.path = path
+}
+
 // Check instructs the schema to invoke the given function whenever Ensure is
 // invoked, before applying any due update. It can be used for aborting the
 // operation.

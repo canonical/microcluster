@@ -142,6 +142,11 @@ func RecoverFromQuorumLoss(filesystem *sys.OS, members []cluster.DqliteMember) (
 		return "", fmt.Errorf("Dqlite recovery: %w", err)
 	}
 
+	err = writeDqliteClusterYaml(path.Join(filesystem.DatabaseDir, "cluster.yaml"), members)
+	if err != nil {
+		return "", err
+	}
+
 	// Tar up the m.FileSystem.DatabaseDir and write to `dbExportPath`
 	recoveryTarballPath, err := createRecoveryTarball(filesystem, members)
 	if err != nil {
@@ -187,6 +192,19 @@ func writeYaml(path string, v any) error {
 	}
 
 	return nil
+}
+
+func writeDqliteClusterYaml(path string, members []cluster.DqliteMember) error {
+	nodeInfo := make([]dqlite.NodeInfo, len(members))
+	for i, member := range members {
+		infoPtr, err := member.NodeInfo()
+		if err != nil {
+			return err
+		}
+		nodeInfo[i] = *infoPtr
+	}
+
+	return writeYaml(path, &nodeInfo)
 }
 
 // ReadTrustStore parses the trust store. This is not thread safe!

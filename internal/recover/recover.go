@@ -174,6 +174,11 @@ func RecoverFromQuorumLoss(filesystem *sys.OS, members []cluster.DqliteMember) (
 		return "", err
 	}
 
+	err = updateDaemonAddress(filesystem, localInfo.Address)
+	if err != nil {
+		return recoveryTarballPath, err
+	}
+
 	err = updateTrustStore(filesystem.TrustDir, members)
 	if err != nil {
 		return recoveryTarballPath, fmt.Errorf("Failed to update trust store: %w", err)
@@ -226,6 +231,27 @@ func writeDqliteClusterYaml(path string, members []cluster.DqliteMember) error {
 	}
 
 	return writeYaml(path, &nodeInfo)
+}
+
+func updateDaemonAddress(filesystem *sys.OS, address string) error {
+	newAddress, err := types.ParseAddrPort(address)
+	if err != nil {
+		return fmt.Errorf("Failed to update daemon.yaml: %w", err)
+	}
+
+	daemonConfig := config.NewDaemonConfig(path.Join(filesystem.StateDir, "daemon.yaml"))
+	err = daemonConfig.Load()
+	if err != nil {
+		return fmt.Errorf("Failed to load daemon.yaml: %w", err)
+	}
+
+	daemonConfig.SetAddress(newAddress)
+	err = daemonConfig.Write()
+	if err != nil {
+		return fmt.Errorf("Failed to update daemon.yaml: %w", err)
+	}
+
+	return nil
 }
 
 // ReadTrustStore parses the trust store. This is not thread safe!
@@ -441,21 +467,9 @@ func MaybeUnpackRecoveryTarball(filesystem *sys.OS) error {
 	}
 
 	// Update daemon.yaml
-	newAddress, err := types.ParseAddrPort(localInfo.Address)
+	err = updateDaemonAddress(filesystem, localInfo.Address)
 	if err != nil {
-		return fmt.Errorf("Failed to update daemon.yaml: %w", err)
-	}
-
-	daemonConfig := config.NewDaemonConfig(path.Join(filesystem.StateDir, "daemon.yaml"))
-	err = daemonConfig.Load()
-	if err != nil {
-		return fmt.Errorf("Failed to load daemon.yaml: %w", err)
-	}
-
-	daemonConfig.SetAddress(newAddress)
-	err = daemonConfig.Write()
-	if err != nil {
-		return fmt.Errorf("Failed to update daemon.yaml: %w", err)
+		return err
 	}
 
 	return nil

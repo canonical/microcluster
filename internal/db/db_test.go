@@ -16,6 +16,7 @@ import (
 	"github.com/canonical/microcluster/cluster"
 	"github.com/canonical/microcluster/internal/db/update"
 	"github.com/canonical/microcluster/internal/extensions"
+	"github.com/canonical/microcluster/internal/sys"
 )
 
 type dbSuite struct {
@@ -650,7 +651,12 @@ func (s *dbSuite) Test_waitUpgradeSchemaAndAPI() {
 // NewTedb returns a sqlite DB set up with the default microcluster schema.
 func NewTestDB(extensionsExternal []schema.Update) (*DB, error) {
 	var err error
-	db := &DB{ctx: context.Background(), listenAddr: *api.NewURL().Host("10.0.0.0:8443"), upgradeCh: make(chan struct{}, 1)}
+	db := &DB{
+		ctx:        context.Background(),
+		listenAddr: *api.NewURL().Host("10.0.0.0:8443"),
+		upgradeCh:  make(chan struct{}, 1),
+		os:         &sys.OS{},
+	}
 	db.db, err = sql.Open("sqlite3", ":memory:")
 	if err != nil {
 		return nil, err

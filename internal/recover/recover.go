@@ -142,6 +142,27 @@ func RecoverFromQuorumLoss(filesystem *sys.OS, members []cluster.DqliteMember) (
 		return "", fmt.Errorf("Dqlite recovery: %w", err)
 	}
 
+	// Update local info.yaml with our new address
+	localInfoYamlPath := path.Join(filesystem.DatabaseDir, "info.yaml")
+
+	var localInfo dqlite.NodeInfo
+	err = readYaml(localInfoYamlPath, &localInfo)
+	if err != nil {
+		return "", err
+	}
+
+	for _, member := range members {
+		if member.DqliteID == localInfo.ID {
+			localInfo.Address = member.Address
+			break
+		}
+	}
+
+	err = writeYaml(localInfoYamlPath, &localInfo)
+	if err != nil {
+		return "", err
+	}
+
 	err = writeDqliteClusterYaml(path.Join(filesystem.DatabaseDir, "cluster.yaml"), members)
 	if err != nil {
 		return "", err

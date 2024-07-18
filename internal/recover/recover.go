@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/canonical/go-dqlite"
-	dqliteClient "github.com/canonical/go-dqlite/client"
 	"github.com/canonical/lxd/shared/api"
 	"github.com/canonical/lxd/shared/logger"
 	"gopkg.in/yaml.v3"
@@ -35,7 +34,9 @@ import (
 // path.Join(filesystem.DatabaseDir, "cluster.yaml").
 func GetDqliteClusterMembers(filesystem *sys.OS) ([]cluster.DqliteMember, error) {
 	storePath := path.Join(filesystem.DatabaseDir, "cluster.yaml")
-	nodeInfo, err := dumpYamlNodeStore(storePath)
+
+	var nodeInfo []dqlite.NodeInfo
+	err := readYaml(storePath, &nodeInfo)
 	if err != nil {
 		return nil, err
 	}
@@ -62,20 +63,6 @@ func GetDqliteClusterMembers(filesystem *sys.OS) ([]cluster.DqliteMember, error)
 	}
 
 	return members, nil
-}
-
-func dumpYamlNodeStore(path string) ([]dqlite.NodeInfo, error) {
-	store, err := dqliteClient.NewYamlNodeStore(path)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to read %q: %w", path, err)
-	}
-
-	nodeInfo, err := store.Get(context.Background())
-	if err != nil {
-		return nil, fmt.Errorf("Failed to read from node store: %w", err)
-	}
-
-	return nodeInfo, nil
 }
 
 // RecoverFromQuorumLoss resets the dqlite raft log, rewrites the go-dqlite yaml

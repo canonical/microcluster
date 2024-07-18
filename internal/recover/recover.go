@@ -15,11 +15,15 @@ import (
 	"strings"
 	"time"
 
-	dqlite "github.com/canonical/go-dqlite/client"
+	"github.com/canonical/go-dqlite"
+	dqliteClient "github.com/canonical/go-dqlite/client"
+	"github.com/canonical/lxd/shared/api"
 	"github.com/canonical/lxd/shared/logger"
 	"gopkg.in/yaml.v3"
 
+	"github.com/canonical/microcluster/client"
 	"github.com/canonical/microcluster/cluster"
+	internalTypes "github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/internal/sys"
 	"github.com/canonical/microcluster/internal/trust"
 )
@@ -33,7 +37,7 @@ func GetDqliteClusterMembers(filesystem *sys.OS) ([]cluster.DqliteMember, error)
 		return nil, err
 	}
 
-	remotes, err := ReadTrustStore(filesystem.TrustDir)
+	remotes, err := readTrustStore(filesystem.TrustDir)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +62,7 @@ func GetDqliteClusterMembers(filesystem *sys.OS) ([]cluster.DqliteMember, error)
 }
 
 func dumpYamlNodeStore(path string) ([]dqlite.NodeInfo, error) {
-	store, err := dqlite.NewYamlNodeStore(path)
+	store, err := dqliteClient.NewYamlNodeStore(path)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to read %q: %w", path, err)
 	}
@@ -71,8 +75,94 @@ func dumpYamlNodeStore(path string) ([]dqlite.NodeInfo, error) {
 	return nodeInfo, nil
 }
 
+// RecoverFromQuorumLoss resets the dqlite raft log, rewrites the go-dqlite yaml
+// files, modifies the daemon and trust store, and writes a recovery tarball.
+// It does not check members to ensure that the new configuration is valid; use
+// ValidateMemberChanges to ensure that the inputs to this function are correct.
+func RecoverFromQuorumLoss(filesystem *sys.OS, members []cluster.DqliteMember) (string, error) {
+	// Set up our new cluster configuration
+	nodeInfo := make([]dqlite.NodeInfo, 0, len(members))
+	for _, member := range members {
+		info, err := member.NodeInfo()
+		if err != nil {
+			return "", err
+		}
+		nodeInfo = append(nodeInfo, *info)
+	}
+
+	// Ensure that the daemon is not running
+	isSocketPresent, err := filesystem.IsControlSocketPresent()
+	if err != nil {
+		return "", err
+	}
+
+	if isSocketPresent {
+		return "", fmt.Errorf("Daemon is running (socket path exists: %q)", filesystem.ControlSocketPath())
+	}
+
+	// Check each cluster member's /1.0 to ensure that they are unreachable.
+	// This is a sanity check to ensure that we're not reconfiguring a cluster
+	// that's still partially up.
+	remotes, err := readTrustStore(filesystem.TrustDir)
+	if err != nil {
+		return "", err
+	}
+
+	serverCert, err := filesystem.ServerCert()
+	if err != nil {
+		return "", err
+	}
+
+	clusterCert, err := filesystem.ClusterCert()
+	if err != nil {
+		return "", err
+	}
+
+	clusterKey, err := clusterCert.PublicKeyX509()
+	if err != nil {
+		return "", err
+	}
+
+	cluster, err := remotes.Cluster(false, serverCert, clusterKey)
+	if err != nil {
+		return "", err
+	}
+
+	cancelCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	err = cluster.Query(cancelCtx, true, func(ctx context.Context, client *client.Client) error {
+		var rslt internalTypes.Server
+		err := client.Query(ctx, "GET", "1.0", api.NewURL(), nil, &rslt)
+		if err == nil {
+			return fmt.Errorf("Contacted cluster member at %q; please shut down all cluster members", rslt.Name)
+		}
+		return nil
+	})
+	cancel()
+	if err != nil {
+		return "", err
+	}
+
+	err = CreateDatabaseBackup(filesystem)
+	if err != nil {
+		return "", err
+	}
+
+	err = dqlite.ReconfigureMembershipExt(filesystem.DatabaseDir, nodeInfo)
+	if err != nil {
+		return "", fmt.Errorf("Dqlite recovery: %w", err)
+	}
+
+	// Tar up the m.FileSystem.DatabaseDir and write to `dbExportPath`
+	recoveryTarballPath, err := createRecoveryTarball(filesystem)
+	if err != nil {
+		return "", err
+	}
+
+	return recoveryTarballPath, nil
+}
+
 // ReadTrustStore parses the trust store. This is not thread safe!
-func ReadTrustStore(dir string) (*trust.Remotes, error) {
+func readTrustStore(dir string) (*trust.Remotes, error) {
 	remotes := &trust.Remotes{}
 	err := remotes.Load(dir)
 
@@ -113,7 +203,7 @@ func ValidateMemberChanges(oldMembers []cluster.DqliteMember, newMembers []clust
 // filesystem.StateDir.
 // go-dqlite's info.yaml is excluded from the tarball.
 // This function returns the path to the tarball.
-func CreateRecoveryTarball(filesystem *sys.OS) (string, error) {
+func createRecoveryTarball(filesystem *sys.OS) (string, error) {
 	tarballPath := path.Join(filesystem.StateDir, "recovery_db.tar.gz")
 
 	// info.yaml is used by go-dqlite to keep track of the current cluster member's

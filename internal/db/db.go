@@ -44,13 +44,13 @@ func (db *DB) Open(ext extensions.Extensions, bootstrap bool, project string) er
 
 	err := db.dqlite.Ready(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("Ready dqlite: %w", err)
 	}
 
 	if db.db == nil {
 		db.db, err = db.dqlite.Open(db.ctx, db.dbName)
 		if err != nil {
-			return err
+			return fmt.Errorf("Open dqlite: %w", err)
 		}
 	}
 

@@ -250,14 +250,12 @@ func (m *MicroCluster) GetDqliteClusterMembers() ([]cluster.DqliteMember, error)
 // recovery operation.
 //
 // RecoverFromQuorumLoss should be invoked _exactly once_ for the entire cluster.
-// This function creates a gz-compressed tarball
-// path.Join(m.FileSystem.StateDir, "recovery_db.tar.gz"). This tarball should
-// be manually copied by the user to the state dir of all other cluster members.
+// This function creates a gz-compressed tarball and returns its path. This
+// tarball should be manually copied by the user to the state dir of all other
+// cluster members.
 //
 // On start, Microcluster will automatically check for & load the recovery
 // tarball. A database backup will be taken before the load.
-//
-// RecoverFromQuorumLoss returns the path to the recovery tarball.
 func (m *MicroCluster) RecoverFromQuorumLoss(members []cluster.DqliteMember) (string, error) {
 	// Double check to make sure the cluster configuration has actually changed
 	oldMembers, err := m.GetDqliteClusterMembers()

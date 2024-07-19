@@ -296,11 +296,11 @@ func (d *Daemon) init(listenAddress string, schemaExtensions []schema.Update, ap
 
 func (d *Daemon) applyHooks(hooks *state.Hooks) {
 	// Apply a no-op hooks for any missing hooks.
-	noOpHook := func(s state.State) error { return nil }
-	noOpRemoveHook := func(s state.State, force bool) error { return nil }
-	noOpInitHook := func(s state.State, initConfig map[string]string) error { return nil }
-	noOpConfigHook := func(s state.State, config types.DaemonConfig) error { return nil }
-	noOpNewMemberHook := func(s state.State, newMember types.ClusterMemberLocal) error { return nil }
+	noOpHook := func(ctx context.Context, s state.State) error { return nil }
+	noOpRemoveHook := func(ctx context.Context, s state.State, force bool) error { return nil }
+	noOpInitHook := func(ctx context.Context, s state.State, initConfig map[string]string) error { return nil }
+	noOpConfigHook := func(ctx context.Context, s state.State, config types.DaemonConfig) error { return nil }
+	noOpNewMemberHook := func(ctx context.Context, s state.State, newMember types.ClusterMemberLocal) error { return nil }
 
 	if hooks == nil {
 		d.hooks = state.Hooks{}

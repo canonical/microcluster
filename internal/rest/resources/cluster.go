@@ -627,7 +627,9 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 	}
 
 	// Run the PostRemove hook locally.
-	err = intState.Hooks.PostRemove(s, force)
+	hookCtx, hookCancel := context.WithCancel(r.Context())
+	err = intState.Hooks.PostRemove(hookCtx, s, force)
+	hookCancel()
 	if err != nil {
 		return response.SmartError(err)
 	}

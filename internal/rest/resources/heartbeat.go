@@ -287,7 +287,9 @@ func beginHeartbeat(s state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	err = intState.Hooks.OnHeartbeat(s)
+	hookCtx, hookCancel := context.WithCancel(r.Context())
+	err = intState.Hooks.OnHeartbeat(hookCtx, s)
+	hookCancel()
 	if err != nil {
 		return response.SmartError(err)
 	}

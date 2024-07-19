@@ -171,7 +171,7 @@ func (d *Daemon) Run(ctx context.Context, listenAddress string, stateDir string,
 		return fmt.Errorf("Daemon failed to start: %w", err)
 	}
 
-	err = d.hooks.OnStart(d.State())
+	err = d.hooks.OnStart(d.shutdownCtx, d.State())
 	if err != nil {
 		return fmt.Errorf("Failed to run post-start hook: %w", err)
 	}

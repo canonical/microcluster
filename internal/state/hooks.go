@@ -15,7 +15,7 @@ type Hooks struct {
 	// PostBootstrap is run after the daemon is initialized and bootstrapped.
 	PostBootstrap func(ctx context.Context, s State, initConfig map[string]string) error
 
-	// OnStart is run after the daemon is started.
+	// OnStart is run after the daemon is started. Its context will not be cancelled until the daemon is shutting down.
 	OnStart func(ctx context.Context, s State) error
 
 	// PostJoin is run after the daemon is initialized, joined the cluster and existing members triggered

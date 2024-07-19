@@ -2,6 +2,7 @@
 package main
 
 import (
+	"context"
 	"os"
 
 	"github.com/canonical/lxd/shared/logger"
@@ -76,7 +77,7 @@ func (c *cmdDaemon) run(cmd *cobra.Command, args []string) error {
 	// exampleHooks are some example post-action hooks that can be run by MicroCluster.
 	exampleHooks := &state.Hooks{
 		// PostBootstrap is run after the daemon is initialized and bootstrapped.
-		PostBootstrap: func(s state.State, initConfig map[string]string) error {
+		PostBootstrap: func(ctx context.Context, s state.State, initConfig map[string]string) error {
 			logCtx := logger.Ctx{}
 			for k, v := range initConfig {
 				logCtx[k] = v
@@ -101,7 +102,7 @@ func (c *cmdDaemon) run(cmd *cobra.Command, args []string) error {
 			return nil
 		},
 
-		PreBootstrap: func(s state.State, initConfig map[string]string) error {
+		PreBootstrap: func(ctx context.Context, s state.State, initConfig map[string]string) error {
 			logCtx := logger.Ctx{}
 			for k, v := range initConfig {
 				logCtx[k] = v
@@ -114,14 +115,14 @@ func (c *cmdDaemon) run(cmd *cobra.Command, args []string) error {
 		},
 
 		// OnStart is run after the daemon is started.
-		OnStart: func(s state.State) error {
+		OnStart: func(ctx context.Context, s state.State) error {
 			logger.Info("This is a hook that runs after the daemon first starts")
 
 			return nil
 		},
 
 		// PostJoin is run after the daemon is initialized and joins a cluster.
-		PostJoin: func(s state.State, initConfig map[string]string) error {
+		PostJoin: func(ctx context.Context, s state.State, initConfig map[string]string) error {
 			logCtx := logger.Ctx{}
 			for k, v := range initConfig {
 				logCtx[k] = v
@@ -134,7 +135,7 @@ func (c *cmdDaemon) run(cmd *cobra.Command, args []string) error {
 		},
 
 		// PreJoin is run after the daemon is initialized and joins a cluster.
-		PreJoin: func(s state.State, initConfig map[string]string) error {
+		PreJoin: func(ctx context.Context, s state.State, initConfig map[string]string) error {
 			logCtx := logger.Ctx{}
 			for k, v := range initConfig {
 				logCtx[k] = v
@@ -147,35 +148,35 @@ func (c *cmdDaemon) run(cmd *cobra.Command, args []string) error {
 		},
 
 		// PostRemove is run after the daemon is removed from a cluster.
-		PostRemove: func(s state.State, force bool) error {
+		PostRemove: func(ctx context.Context, s state.State, force bool) error {
 			logger.Infof("This is a hook that is run on peer %q after a cluster member is removed, with the force flag set to %v", s.Name(), force)
 
 			return nil
 		},
 
 		// PreRemove is run before the daemon is removed from the cluster.
-		PreRemove: func(s state.State, force bool) error {
+		PreRemove: func(ctx context.Context, s state.State, force bool) error {
 			logger.Infof("This is a hook that is run on peer %q just before it is removed, with the force flag set to %v", s.Name(), force)
 
 			return nil
 		},
 
 		// OnHeartbeat is run after a successful heartbeat round.
-		OnHeartbeat: func(s state.State) error {
+		OnHeartbeat: func(ctx context.Context, s state.State) error {
 			logger.Info("This is a hook that is run on the dqlite leader after a successful heartbeat")
 
 			return nil
 		},
 
 		// OnNewMember is run after a new member has joined.
-		OnNewMember: func(s state.State, newMember types.ClusterMemberLocal) error {
+		OnNewMember: func(ctx context.Context, s state.State, newMember types.ClusterMemberLocal) error {
 			logger.Infof("This is a hook that is run on peer %q when the new cluster member %q has joined", s.Name(), newMember.Name)
 
 			return nil
 		},
 
 		// OnDaemonConfigUpdate is run after the local daemon config of a cluster member got modified.
-		OnDaemonConfigUpdate: func(s state.State, config types.DaemonConfig) error {
+		OnDaemonConfigUpdate: func(ctx context.Context, s state.State, config types.DaemonConfig) error {
 			logger.Infof("Running OnDaemonConfigUpdate triggered by %q", config.Name)
 
 			return nil

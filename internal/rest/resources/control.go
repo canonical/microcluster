@@ -15,6 +15,7 @@ import (
 	"github.com/canonical/lxd/shared/revert"
 	"github.com/canonical/lxd/shared/validate"
 
+	"github.com/canonical/microcluster/internal/db"
 	"github.com/canonical/microcluster/internal/rest/client"
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
 	internalState "github.com/canonical/microcluster/internal/state"
@@ -50,6 +51,11 @@ func validateFQDN(name string) error {
 }
 
 func controlPost(state state.State, r *http.Request) response.Response {
+	status := state.Database().Status()
+	if status != db.StatusNotReady {
+		return response.SmartError(fmt.Errorf("Unable to initialize cluster: %s", status))
+	}
+
 	req := &internalTypes.Control{}
 	// Parse the request.
 	err := json.NewDecoder(r.Body).Decode(&req)

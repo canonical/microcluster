@@ -14,7 +14,7 @@ import (
 	"github.com/canonical/lxd/shared/api"
 	"github.com/canonical/lxd/shared/logger"
 	"github.com/google/renameio"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 
 	"github.com/canonical/microcluster/client"
 	internalClient "github.com/canonical/microcluster/internal/rest/client"

@@ -15,7 +15,7 @@ import (
 	"github.com/canonical/lxd/shared/termios"
 	"github.com/spf13/cobra"
 	"golang.org/x/sys/unix"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 
 	"github.com/canonical/microcluster/client"
 	"github.com/canonical/microcluster/cluster"

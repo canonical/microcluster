@@ -78,6 +78,7 @@ func App(args Args) (*MicroCluster, error) {
 // Start starts up a brand new MicroCluster daemon. Only the local control socket will be available at this stage, no
 // database exists yet. Any api or schema extensions can be applied here.
 // - `extensionsSchema` is a list of schema updates in the order that they should be applied.
+// - `apiExtensions` is a list of extensions supported by the endpoints of the core/default cluster API.
 // - `hooks` are a set of functions that trigger at certain points during cluster communication.
 func (m *MicroCluster) Start(ctx context.Context, extensionsSchema []schema.Update, apiExtensions []string, hooks *state.Hooks) error {
 	// Initialize the logger.

@@ -171,7 +171,7 @@ func (d *Daemon) Run(ctx context.Context, listenAddress string, stateDir string,
 		return fmt.Errorf("Daemon failed to start: %w", err)
 	}
 
-	err = d.hooks.OnStart(d.State())
+	err = d.hooks.OnStart(d.shutdownCtx, d.State())
 	if err != nil {
 		return fmt.Errorf("Failed to run post-start hook: %w", err)
 	}
@@ -296,11 +296,11 @@ func (d *Daemon) init(listenAddress string, schemaExtensions []schema.Update, ap
 
 func (d *Daemon) applyHooks(hooks *state.Hooks) {
 	// Apply a no-op hooks for any missing hooks.
-	noOpHook := func(s state.State) error { return nil }
-	noOpRemoveHook := func(s state.State, force bool) error { return nil }
-	noOpInitHook := func(s state.State, initConfig map[string]string) error { return nil }
-	noOpConfigHook := func(s state.State, config types.DaemonConfig) error { return nil }
-	noOpNewMemberHook := func(s state.State, newMember types.ClusterMemberLocal) error { return nil }
+	noOpHook := func(ctx context.Context, s state.State) error { return nil }
+	noOpRemoveHook := func(ctx context.Context, s state.State, force bool) error { return nil }
+	noOpInitHook := func(ctx context.Context, s state.State, initConfig map[string]string) error { return nil }
+	noOpConfigHook := func(ctx context.Context, s state.State, config types.DaemonConfig) error { return nil }
+	noOpNewMemberHook := func(ctx context.Context, s state.State, newMember types.ClusterMemberLocal) error { return nil }
 
 	if hooks == nil {
 		d.hooks = state.Hooks{}
@@ -375,7 +375,7 @@ func (d *Daemon) reloadIfBootstrapped() error {
 		return fmt.Errorf("Failed to retrieve daemon configuration yaml: %w", err)
 	}
 
-	err = d.StartAPI(false, nil, nil)
+	err = d.StartAPI(d.shutdownCtx, false, nil, nil)
 	if err != nil {
 		return err
 	}
@@ -445,7 +445,7 @@ func (d *Daemon) initServer(resources ...rest.Resources) *http.Server {
 
 // StartAPI starts up the admin and consumer APIs, and generates a cluster cert
 // if we are bootstrapping the first node.
-func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfig *trust.Location, joinAddresses ...string) error {
+func (d *Daemon) StartAPI(ctx context.Context, bootstrap bool, initConfig map[string]string, newConfig *trust.Location, joinAddresses ...string) error {
 	if newConfig != nil {
 		d.config.SetAddress(newConfig.Address)
 		d.config.SetName(newConfig.Name)
@@ -463,7 +463,9 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 	}
 
 	if bootstrap {
-		err := d.hooks.PreBootstrap(d.State(), initConfig)
+		ctx, cancel := context.WithCancel(ctx)
+		err := d.hooks.PreBootstrap(ctx, d.State(), initConfig)
+		cancel()
 		if err != nil {
 			return fmt.Errorf("Failed to run pre-bootstrap hook before starting the API: %w", err)
 		}
@@ -548,7 +550,9 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 			return err
 		}
 
-		err = d.hooks.PostBootstrap(d.State(), initConfig)
+		ctx, cancel := context.WithCancel(ctx)
+		err = d.hooks.PostBootstrap(ctx, d.State(), initConfig)
+		cancel()
 		if err != nil {
 			return fmt.Errorf("Failed to run post-bootstrap actions: %w", err)
 		}
@@ -587,7 +591,9 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 
 	localMemberInfo := types.ClusterMemberLocal{Name: localNode.Name, Address: localNode.Address, Certificate: localNode.Certificate}
 	if len(joinAddresses) > 0 {
-		err = d.hooks.PreJoin(d.State(), initConfig)
+		ctx, cancel := context.WithCancel(ctx)
+		err = d.hooks.PreJoin(ctx, d.State(), initConfig)
+		cancel()
 		if err != nil {
 			return err
 		}
@@ -666,7 +672,10 @@ func (d *Daemon) StartAPI(bootstrap bool, initConfig map[string]string, newConfi
 	}
 
 	if len(joinAddresses) > 0 {
-		return d.hooks.PostJoin(d.State(), initConfig)
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
+		return d.hooks.PostJoin(ctx, d.State(), initConfig)
 	}
 
 	return nil

@@ -1,6 +1,7 @@
 package resources
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -34,6 +35,9 @@ func hooksPost(s state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+
 	switch internalTypes.HookType(hookTypeStr) {
 	case internalTypes.PreRemove:
 		var req internalTypes.HookRemoveMemberOptions
@@ -42,7 +46,7 @@ func hooksPost(s state.State, r *http.Request) response.Response {
 			return response.BadRequest(err)
 		}
 
-		err = intState.Hooks.PreRemove(s, req.Force)
+		err = intState.Hooks.PreRemove(ctx, s, req.Force)
 		if err != nil {
 			return response.SmartError(fmt.Errorf("Failed to execute pre-remove hook on cluster member %q: %w", s.Name(), err))
 		}
@@ -53,7 +57,7 @@ func hooksPost(s state.State, r *http.Request) response.Response {
 			return response.BadRequest(err)
 		}
 
-		err = intState.Hooks.PostRemove(s, req.Force)
+		err = intState.Hooks.PostRemove(ctx, s, req.Force)
 		if err != nil {
 			return response.SmartError(fmt.Errorf("Failed to execute post-remove hook on cluster member %q: %w", s.Name(), err))
 		}
@@ -69,7 +73,7 @@ func hooksPost(s state.State, r *http.Request) response.Response {
 			return response.SmartError(fmt.Errorf("No new member name given for NewMember hook execution"))
 		}
 
-		err = intState.Hooks.OnNewMember(s, req.NewMember)
+		err = intState.Hooks.OnNewMember(ctx, s, req.NewMember)
 		if err != nil {
 			return response.SmartError(fmt.Errorf("Failed to run hook after system %q has joined the cluster: %w", req.NewMember.Name, err))
 		}
@@ -80,7 +84,7 @@ func hooksPost(s state.State, r *http.Request) response.Response {
 			return response.BadRequest(err)
 		}
 
-		err = intState.Hooks.OnDaemonConfigUpdate(s, req)
+		err = intState.Hooks.OnDaemonConfigUpdate(ctx, s, req)
 		if err != nil {
 			return response.SmartError(fmt.Errorf("Failed to run hook on %q after daemon received local config update: %w", s.Name(), err))
 		}

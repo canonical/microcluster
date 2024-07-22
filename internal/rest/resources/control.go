@@ -129,12 +129,14 @@ func joinWithToken(state state.State, r *http.Request, req *internalTypes.Contro
 
 		cert, err := shared.GetRemoteCertificate(url.String(), "")
 		if err != nil {
-			return response.SmartError(fmt.Errorf("Failed to get certificate of cluster member %q: %w", url.URL.Host, err))
+			logger.Warn("Failed to get certificate of cluster member", logger.Ctx{"address": url.String(), "error": err})
+			continue
 		}
 
 		fingerprint := shared.CertFingerprint(cert)
 		if fingerprint != token.Fingerprint {
-			return response.SmartError(fmt.Errorf("Cluster certificate token does not match that of cluster member %q", url.URL.Host))
+			logger.Warn("Cluster certificate token does not match that of cluster member", logger.Ctx{"address": url.String(), "fingerprint": fingerprint, "expected": token.Fingerprint})
+			continue
 		}
 
 		d, err := client.New(*url, state.ServerCert(), cert, false)

@@ -75,11 +75,25 @@ func controlPost(state state.State, r *http.Request) response.Response {
 		return joinWithToken(state, r, req)
 	}
 
+	reverter := revert.New()
+	defer reverter.Fail()
+	reverter.Add(func() {
+		reExec, err := resetClusterMember(r.Context(), state, true)
+		if err != nil {
+			return
+		}
+
+		// Re-exec the daemon to clear any remaining state.
+		go reExec()
+	})
+
 	daemonConfig := &trust.Location{Address: req.Address, Name: req.Name}
 	err = intState.StartAPI(r.Context(), req.Bootstrap, req.InitConfig, daemonConfig)
 	if err != nil {
 		return response.SmartError(err)
 	}
+
+	reverter.Success()
 
 	return response.EmptySyncResponse
 }

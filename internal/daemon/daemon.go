@@ -463,9 +463,7 @@ func (d *Daemon) StartAPI(ctx context.Context, bootstrap bool, initConfig map[st
 	}
 
 	if bootstrap {
-		ctx, cancel := context.WithCancel(ctx)
-		err := d.hooks.PreBootstrap(ctx, d.State(), initConfig)
-		cancel()
+		err := d.hooks.PreBootstrap(d.shutdownCtx, d.State(), initConfig)
 		if err != nil {
 			return fmt.Errorf("Failed to run pre-bootstrap hook before starting the API: %w", err)
 		}
@@ -550,9 +548,7 @@ func (d *Daemon) StartAPI(ctx context.Context, bootstrap bool, initConfig map[st
 			return err
 		}
 
-		ctx, cancel := context.WithCancel(ctx)
-		err = d.hooks.PostBootstrap(ctx, d.State(), initConfig)
-		cancel()
+		err = d.hooks.PostBootstrap(d.shutdownCtx, d.State(), initConfig)
 		if err != nil {
 			return fmt.Errorf("Failed to run post-bootstrap actions: %w", err)
 		}

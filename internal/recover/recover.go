@@ -17,7 +17,7 @@ import (
 
 	dqlite "github.com/canonical/go-dqlite/client"
 	"github.com/canonical/lxd/shared/logger"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 
 	"github.com/canonical/microcluster/cluster"
 	"github.com/canonical/microcluster/internal/sys"

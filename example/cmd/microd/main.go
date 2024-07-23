@@ -83,11 +83,14 @@ func (c *cmdDaemon) run(cmd *cobra.Command, args []string) error {
 				logCtx[k] = v
 			}
 
-			// You can check your app extensions using the state.State object.
-			hasMissingExt := s.HasExtension("missing_extension")
-			if !hasMissingExt {
-				logger.Warn("The 'missing_extension' is not registered")
-			}
+			/*
+				You can check your app extensions using the state.State object.
+
+				hasMissingExt := s.HasExtension("missing_extension")
+				if !hasMissingExt {
+					logger.Warn("The 'missing_extension' is not registered")
+				}
+			*/
 
 			// You can also check the internal extensions. (starting with "internal:" prefix)
 			// These are read-only and defined at the MicroCluster level and cannot be added at runtime

@@ -40,15 +40,26 @@ var clusterCmd = rest.Endpoint{
 	Path:              "cluster",
 	AllowedBeforeInit: true,
 
+	Get: rest.EndpointAction{Handler: clusterGet, AccessHandler: access.AllowAuthenticated},
+}
+
+var clusterInternalCmd = rest.Endpoint{
+	Path:              "cluster",
+	AllowedBeforeInit: true,
+
 	Post: rest.EndpointAction{Handler: clusterPost, AllowUntrusted: true},
-	Get:  rest.EndpointAction{Handler: clusterGet, AccessHandler: access.AllowAuthenticated},
 }
 
 var clusterMemberCmd = rest.Endpoint{
 	Path: "cluster/{name}",
 
-	Put:    rest.EndpointAction{Handler: clusterMemberPut, AccessHandler: access.AllowAuthenticated},
 	Delete: rest.EndpointAction{Handler: clusterMemberDelete, AccessHandler: access.AllowAuthenticated},
+}
+
+var clusterMemberInternalCmd = rest.Endpoint{
+	Path: "cluster/{name}",
+
+	Put: rest.EndpointAction{Handler: clusterMemberPut, AccessHandler: access.AllowAuthenticated},
 }
 
 func clusterPost(s state.State, r *http.Request) response.Response {

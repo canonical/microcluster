@@ -16,7 +16,7 @@ func (c *Client) AddClusterMember(ctx context.Context, args types.ClusterMember)
 	defer cancel()
 
 	tokenResponse := internalTypes.TokenResponse{}
-	err := c.QueryStruct(queryCtx, "POST", internalTypes.PublicEndpoint, api.NewURL().Path("cluster"), args, &tokenResponse)
+	err := c.QueryStruct(queryCtx, "POST", internalTypes.InternalEndpoint, api.NewURL().Path("cluster"), args, &tokenResponse)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +58,7 @@ func (c *Client) ResetClusterMember(ctx context.Context, name string, force bool
 		endpoint = endpoint.WithQuery("force", "1")
 	}
 
-	return c.QueryStruct(queryCtx, "PUT", internalTypes.PublicEndpoint, endpoint, nil, nil)
+	return c.QueryStruct(queryCtx, "PUT", internalTypes.InternalEndpoint, endpoint, nil, nil)
 }
 
 // UpdateCertificate sets a new keypair and CA.

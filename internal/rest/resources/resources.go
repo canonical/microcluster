@@ -26,6 +26,9 @@ var PublicEndpoints = rest.Resources{
 		api10Cmd,
 		clusterCmd,
 		clusterMemberCmd,
+		clusterCertificatesCmd,
+		daemonCmd,
+		tokenCmd,
 		tokensCmd,
 		readyCmd,
 	},
@@ -36,14 +39,11 @@ var InternalEndpoints = rest.Resources{
 	PathPrefix: internalTypes.InternalEndpoint,
 	Endpoints: []rest.Endpoint{
 		databaseCmd,
-		clusterCertificatesCmd,
 		sqlCmd,
-		tokenCmd,
 		heartbeatCmd,
 		trustCmd,
 		trustEntryCmd,
 		hooksCmd,
-		daemonCmd,
 	},
 }
 

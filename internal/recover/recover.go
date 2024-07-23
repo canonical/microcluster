@@ -298,20 +298,40 @@ func updateTrustStore(dir string, members []cluster.DqliteMember) error {
 
 // ValidateMemberChanges compares two arrays of members to ensure:
 // - Their lengths are the same.
-// - Members with the same name also use the same ID and address.
+// - Members with the same name also use the same ID.
+// - There is at least one voter in newMembers.
+// - All the newMembers addresses can be parsed to a netip.AddrPort.
+// - There are no duplicate addresses.
 func ValidateMemberChanges(oldMembers []cluster.DqliteMember, newMembers []cluster.DqliteMember) error {
 	if len(newMembers) != len(oldMembers) {
 		return fmt.Errorf("members cannot be added or removed")
 	}
 
+	countVoters := 0
+	addrs := make(map[netip.AddrPort]bool)
+
 	for _, newMember := range newMembers {
+		if newMember.Role == "voter" {
+			countVoters += 1
+		}
+
+		addr, err := netip.ParseAddrPort(newMember.Address)
+		if err != nil {
+			return fmt.Errorf("Invalid address %q: %w", newMember.Address, err)
+		}
+
+		if addrs[addr] {
+			return fmt.Errorf("Duplicate address %q", addr)
+		}
+
+		addrs[addr] = true
+
 		memberValid := false
 		for _, oldMember := range oldMembers {
-			membersMatch := newMember.DqliteID == oldMember.DqliteID &&
+			memberValid = newMember.DqliteID == oldMember.DqliteID &&
 				newMember.Name == oldMember.Name
 
-			if membersMatch {
-				memberValid = true
+			if memberValid {
 				break
 			}
 		}
@@ -319,6 +339,10 @@ func ValidateMemberChanges(oldMembers []cluster.DqliteMember, newMembers []clust
 		if !memberValid {
 			return fmt.Errorf("ID or name changed for member %s", newMember.Name)
 		}
+	}
+
+	if countVoters < 1 {
+		return fmt.Errorf("At least one voter is required")
 	}
 
 	return nil

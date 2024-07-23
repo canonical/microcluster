@@ -19,7 +19,7 @@ var UnixEndpoints = rest.Resources{
 	},
 }
 
-// PublicEndpoints are the /cluster/1.0 API endpoints available without authentication.
+// PublicEndpoints are the /core/1.0 API endpoints available at the listen address.
 var PublicEndpoints = rest.Resources{
 	PathPrefix: internalTypes.PublicEndpoint,
 	Endpoints: []rest.Endpoint{
@@ -31,7 +31,7 @@ var PublicEndpoints = rest.Resources{
 	},
 }
 
-// InternalEndpoints are the /cluster/internal API endpoints available at the listen address.
+// InternalEndpoints are the /core/internal API endpoints available at the listen address.
 var InternalEndpoints = rest.Resources{
 	PathPrefix: internalTypes.InternalEndpoint,
 	Endpoints: []rest.Endpoint{

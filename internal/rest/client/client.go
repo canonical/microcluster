@@ -26,23 +26,6 @@ import (
 	"github.com/canonical/microcluster/rest/types"
 )
 
-// EndpointType is a type specifying the endpoint on with the resource exists.
-type EndpointType string
-
-const (
-	// ExtendedEndpoint - All endpoints added managed by external usage of MicroCluster.
-	ExtendedEndpoint EndpointType = "1.0"
-
-	// PublicEndpoint - Internally managed APIs available without authentication.
-	PublicEndpoint EndpointType = "core/1.0"
-
-	// InternalEndpoint - all endpoints restricted to trusted servers.
-	InternalEndpoint EndpointType = "core/internal"
-
-	// ControlEndpoint - all endpoints available on the local unix socket.
-	ControlEndpoint EndpointType = "core/control"
-)
-
 // Client is a rest client for the daemon.
 type Client struct {
 	*http.Client

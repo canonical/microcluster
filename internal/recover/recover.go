@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"net/netip"
 	"os"
 	"path"
 	"path/filepath"
@@ -15,25 +16,32 @@ import (
 	"strings"
 	"time"
 
-	dqlite "github.com/canonical/go-dqlite/client"
+	"github.com/canonical/go-dqlite"
+	"github.com/canonical/lxd/shared/api"
 	"github.com/canonical/lxd/shared/logger"
 	"gopkg.in/yaml.v3"
 
+	"github.com/canonical/microcluster/client"
 	"github.com/canonical/microcluster/cluster"
+	"github.com/canonical/microcluster/internal/config"
+	internalTypes "github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/internal/sys"
 	"github.com/canonical/microcluster/internal/trust"
+	"github.com/canonical/microcluster/rest/types"
 )
 
 // GetDqliteClusterMembers parses the trust store and
 // path.Join(filesystem.DatabaseDir, "cluster.yaml").
 func GetDqliteClusterMembers(filesystem *sys.OS) ([]cluster.DqliteMember, error) {
 	storePath := path.Join(filesystem.DatabaseDir, "cluster.yaml")
-	nodeInfo, err := dumpYamlNodeStore(storePath)
+
+	var nodeInfo []dqlite.NodeInfo
+	err := readYaml(storePath, &nodeInfo)
 	if err != nil {
 		return nil, err
 	}
 
-	remotes, err := ReadTrustStore(filesystem.TrustDir)
+	remotes, err := readTrustStore(filesystem.TrustDir)
 	if err != nil {
 		return nil, err
 	}
@@ -57,52 +65,312 @@ func GetDqliteClusterMembers(filesystem *sys.OS) ([]cluster.DqliteMember, error)
 	return members, nil
 }
 
-func dumpYamlNodeStore(path string) ([]dqlite.NodeInfo, error) {
-	store, err := dqlite.NewYamlNodeStore(path)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to read %q: %w", path, err)
+// RecoverFromQuorumLoss resets the dqlite raft log, rewrites the go-dqlite yaml
+// files, modifies the daemon and trust store, and writes a recovery tarball.
+// It does not check members to ensure that the new configuration is valid; use
+// ValidateMemberChanges to ensure that the inputs to this function are correct.
+func RecoverFromQuorumLoss(filesystem *sys.OS, members []cluster.DqliteMember) (string, error) {
+	// Set up our new cluster configuration
+	nodeInfo := make([]dqlite.NodeInfo, 0, len(members))
+	for _, member := range members {
+		info, err := member.NodeInfo()
+		if err != nil {
+			return "", err
+		}
+		nodeInfo = append(nodeInfo, *info)
 	}
 
-	nodeInfo, err := store.Get(context.Background())
+	// Ensure that the daemon is not running
+	isSocketPresent, err := filesystem.IsControlSocketPresent()
 	if err != nil {
-		return nil, fmt.Errorf("Failed to read from node store: %w", err)
+		return "", err
 	}
 
-	return nodeInfo, nil
+	if isSocketPresent {
+		return "", fmt.Errorf("Daemon is running (socket path exists: %q)", filesystem.ControlSocketPath())
+	}
+
+	// Check each cluster member's /1.0 to ensure that they are unreachable.
+	// This is a sanity check to ensure that we're not reconfiguring a cluster
+	// that's still partially up.
+	remotes, err := readTrustStore(filesystem.TrustDir)
+	if err != nil {
+		return "", err
+	}
+
+	serverCert, err := filesystem.ServerCert()
+	if err != nil {
+		return "", err
+	}
+
+	clusterCert, err := filesystem.ClusterCert()
+	if err != nil {
+		return "", err
+	}
+
+	clusterKey, err := clusterCert.PublicKeyX509()
+	if err != nil {
+		return "", err
+	}
+
+	cluster, err := remotes.Cluster(false, serverCert, clusterKey)
+	if err != nil {
+		return "", err
+	}
+
+	cancelCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	err = cluster.Query(cancelCtx, true, func(ctx context.Context, client *client.Client) error {
+		var rslt internalTypes.Server
+		err := client.Query(ctx, "GET", "1.0", api.NewURL(), nil, &rslt)
+		if err == nil {
+			return fmt.Errorf("Contacted cluster member at %q; please shut down all cluster members", rslt.Name)
+		}
+		return nil
+	})
+	cancel()
+	if err != nil {
+		return "", err
+	}
+
+	err = CreateDatabaseBackup(filesystem)
+	if err != nil {
+		return "", err
+	}
+
+	err = dqlite.ReconfigureMembershipExt(filesystem.DatabaseDir, nodeInfo)
+	if err != nil {
+		return "", fmt.Errorf("Dqlite recovery: %w", err)
+	}
+
+	// Update local info.yaml with our new address
+	localInfoYamlPath := path.Join(filesystem.DatabaseDir, "info.yaml")
+
+	var localInfo dqlite.NodeInfo
+	err = readYaml(localInfoYamlPath, &localInfo)
+	if err != nil {
+		return "", err
+	}
+
+	for _, member := range members {
+		if member.DqliteID == localInfo.ID {
+			localInfo.Address = member.Address
+			break
+		}
+	}
+
+	err = writeYaml(localInfoYamlPath, &localInfo)
+	if err != nil {
+		return "", err
+	}
+
+	err = writeDqliteClusterYaml(path.Join(filesystem.DatabaseDir, "cluster.yaml"), members)
+	if err != nil {
+		return "", err
+	}
+
+	// Tar up the m.FileSystem.DatabaseDir and write to `dbExportPath`
+	recoveryTarballPath, err := createRecoveryTarball(filesystem, members)
+	if err != nil {
+		return "", err
+	}
+
+	err = updateDaemonAddress(filesystem, localInfo.Address)
+	if err != nil {
+		return recoveryTarballPath, err
+	}
+
+	err = updateTrustStore(filesystem.TrustDir, members)
+	if err != nil {
+		return recoveryTarballPath, fmt.Errorf("Failed to update trust store: %w", err)
+	}
+
+	err = writeGlobalMembersPatch(filesystem, members)
+	if err != nil {
+		return recoveryTarballPath, fmt.Errorf("Failed to write global DB update: %w", err)
+	}
+
+	return recoveryTarballPath, nil
+}
+
+func readYaml(path string, v any) error {
+	yml, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+
+	err = yaml.Unmarshal(yml, v)
+	if err != nil {
+		return fmt.Errorf("Unmarshal %q: %w", path, err)
+	}
+
+	return nil
+}
+
+func writeYaml(path string, v any) error {
+	yml, err := yaml.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	err = os.WriteFile(path, yml, os.FileMode(0o644))
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func writeDqliteClusterYaml(path string, members []cluster.DqliteMember) error {
+	nodeInfo := make([]dqlite.NodeInfo, len(members))
+	for i, member := range members {
+		infoPtr, err := member.NodeInfo()
+		if err != nil {
+			return err
+		}
+		nodeInfo[i] = *infoPtr
+	}
+
+	return writeYaml(path, &nodeInfo)
+}
+
+func updateDaemonAddress(filesystem *sys.OS, address string) error {
+	newAddress, err := types.ParseAddrPort(address)
+	if err != nil {
+		return fmt.Errorf("Failed to update daemon.yaml: %w", err)
+	}
+
+	daemonConfig := config.NewDaemonConfig(path.Join(filesystem.StateDir, "daemon.yaml"))
+	err = daemonConfig.Load()
+	if err != nil {
+		return fmt.Errorf("Failed to load daemon.yaml: %w", err)
+	}
+
+	daemonConfig.SetAddress(newAddress)
+	err = daemonConfig.Write()
+	if err != nil {
+		return fmt.Errorf("Failed to update daemon.yaml: %w", err)
+	}
+
+	return nil
 }
 
 // ReadTrustStore parses the trust store. This is not thread safe!
-func ReadTrustStore(dir string) (*trust.Remotes, error) {
+func readTrustStore(dir string) (*trust.Remotes, error) {
 	remotes := &trust.Remotes{}
 	err := remotes.Load(dir)
 
 	return remotes, err
 }
 
+// Update the trust store with the new member addresses.
+func updateTrustStore(dir string, members []cluster.DqliteMember) error {
+	remotes, err := readTrustStore(dir)
+	if err != nil {
+		return err
+	}
+
+	remotesByName := remotes.RemotesByName()
+
+	trustMembers := make([]types.ClusterMember, 0, len(members))
+	for _, member := range members {
+		cert := remotesByName[member.Name].Certificate
+		addr, err := netip.ParseAddrPort(member.Address)
+		if err != nil {
+			return fmt.Errorf("Invalid address %q: %w", member.Address, err)
+		}
+
+		trustMembers = append(trustMembers, types.ClusterMember{
+			ClusterMemberLocal: types.ClusterMemberLocal{
+				Name:        member.Name,
+				Address:     types.AddrPort{AddrPort: addr},
+				Certificate: cert,
+			},
+		})
+	}
+
+	err = remotes.Replace(dir, trustMembers...)
+	if err != nil {
+		return fmt.Errorf("Update trust store at %q: %w", dir, err)
+	}
+
+	return nil
+}
+
 // ValidateMemberChanges compares two arrays of members to ensure:
 // - Their lengths are the same.
-// - Members with the same name also use the same ID and address.
+// - Members with the same name also use the same ID.
+// - There is at least one voter in newMembers.
+// - All the newMembers addresses can be parsed to a netip.AddrPort.
+// - There are no duplicate addresses.
 func ValidateMemberChanges(oldMembers []cluster.DqliteMember, newMembers []cluster.DqliteMember) error {
 	if len(newMembers) != len(oldMembers) {
 		return fmt.Errorf("members cannot be added or removed")
 	}
 
+	countVoters := 0
+	addrs := make(map[netip.AddrPort]bool)
+
 	for _, newMember := range newMembers {
+		if newMember.Role == "voter" {
+			countVoters += 1
+		}
+
+		addr, err := netip.ParseAddrPort(newMember.Address)
+		if err != nil {
+			return fmt.Errorf("Invalid address %q: %w", newMember.Address, err)
+		}
+
+		if addrs[addr] {
+			return fmt.Errorf("Duplicate address %q", addr)
+		}
+
+		addrs[addr] = true
+
 		memberValid := false
 		for _, oldMember := range oldMembers {
-			// FIXME: Allow changing member addresses as part of cluster recovery
-			membersMatch := newMember.DqliteID == oldMember.DqliteID &&
-				newMember.Name == oldMember.Name &&
-				newMember.Address == oldMember.Address
+			memberValid = newMember.DqliteID == oldMember.DqliteID &&
+				newMember.Name == oldMember.Name
 
-			if membersMatch {
-				memberValid = true
+			if memberValid {
 				break
 			}
 		}
 
 		if !memberValid {
-			return fmt.Errorf("ID or address changed for member %s", newMember.Name)
+			return fmt.Errorf("ID or name changed for member %s", newMember.Name)
+		}
+	}
+
+	if countVoters < 1 {
+		return fmt.Errorf("At least one voter is required")
+	}
+
+	return nil
+}
+
+func writeGlobalMembersPatch(filesystem *sys.OS, members []cluster.DqliteMember) error {
+	sql := ""
+	for _, member := range members {
+		sql += fmt.Sprintf("UPDATE core_cluster_members SET address = %q WHERE name = %q;\n", member.Address, member.Name)
+	}
+
+	if len(sql) > 0 {
+		patchPath := path.Join(filesystem.StateDir, "patch.global.sql")
+		patchFile, err := os.OpenFile(patchPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			return err
+		}
+
+		defer func() { _ = patchFile.Close() }()
+
+		count, err := patchFile.Write([]byte(sql))
+		if err != nil || len(sql) != count {
+			return err
+		}
+
+		err = patchFile.Close()
+		if err != nil {
+			return err
 		}
 	}
 
@@ -112,14 +380,21 @@ func ValidateMemberChanges(oldMembers []cluster.DqliteMember, newMembers []clust
 // CreateRecoveryTarball writes a tarball of filesystem.DatabaseDir to
 // filesystem.StateDir.
 // go-dqlite's info.yaml is excluded from the tarball.
+// The new cluster configuration is included as `recovery.yaml`.
 // This function returns the path to the tarball.
-func CreateRecoveryTarball(filesystem *sys.OS) (string, error) {
+func createRecoveryTarball(filesystem *sys.OS, members []cluster.DqliteMember) (string, error) {
 	tarballPath := path.Join(filesystem.StateDir, "recovery_db.tar.gz")
+	recoveryYamlPath := path.Join(filesystem.DatabaseDir, "recovery.yaml")
+
+	err := writeYaml(recoveryYamlPath, members)
+	if err != nil {
+		return "", err
+	}
 
 	// info.yaml is used by go-dqlite to keep track of the current cluster member's
 	// ID and address. We shouldn't replicate the recovery member's info.yaml
 	// to all other members, so exclude it from the tarball:
-	err := createTarball(tarballPath, filesystem.DatabaseDir, ".", []string{"info.yaml"})
+	err = createTarball(tarballPath, filesystem.DatabaseDir, ".", []string{"info.yaml"})
 
 	return tarballPath, err
 }
@@ -131,6 +406,7 @@ func CreateRecoveryTarball(filesystem *sys.OS) (string, error) {
 func MaybeUnpackRecoveryTarball(filesystem *sys.OS) error {
 	tarballPath := path.Join(filesystem.StateDir, "recovery_db.tar.gz")
 	unpackDir := path.Join(filesystem.StateDir, "recovery_db")
+	recoveryYamlPath := path.Join(unpackDir, "recovery.yaml")
 
 	// Determine if the recovery tarball exists
 	if _, err := os.Stat(tarballPath); errors.Is(err, os.ErrNotExist) {
@@ -144,43 +420,44 @@ func MaybeUnpackRecoveryTarball(filesystem *sys.OS) error {
 		return err
 	}
 
-	// sanity check: valid cluster.yaml in the incoming DB dir
-	clusterYamlPath := path.Join(unpackDir, "cluster.yaml")
-	incomingNodeInfo, err := dumpYamlNodeStore(clusterYamlPath)
-	if err != nil {
-		return err
-	}
-
-	// use the local info.yaml so that the dqlite ID is preserved on each
-	// cluster member
+	// We need to set the local info.yaml address with the (possibly changed)
+	// incoming address for this member.
 	localInfoYamlPath := path.Join(filesystem.DatabaseDir, "info.yaml")
 	recoveryInfoYamlPath := path.Join(unpackDir, "info.yaml")
 
-	localInfoYaml, err := os.ReadFile(localInfoYamlPath)
+	var localInfo dqlite.NodeInfo
+	err = readYaml(localInfoYamlPath, &localInfo)
 	if err != nil {
 		return err
 	}
 
-	var localInfo dqlite.NodeInfo
-	err = yaml.Unmarshal(localInfoYaml, &localInfo)
+	var incomingMembers []cluster.DqliteMember
+	err = readYaml(recoveryYamlPath, &incomingMembers)
 	if err != nil {
-		return fmt.Errorf("invalid %q", localInfoYamlPath)
+		return nil
 	}
 
 	found := false
-	for _, incomingInfo := range incomingNodeInfo {
-		found = localInfo.ID == incomingInfo.ID
+	for _, incomingInfo := range incomingMembers {
+		found = localInfo.ID == incomingInfo.DqliteID
 
 		if found {
+			localInfo.Address = incomingInfo.Address
 			break
 		}
 	}
 
 	if !found {
-		return fmt.Errorf("missing local cluster member in incoming cluster.yaml")
+		return fmt.Errorf("Missing local cluster member in incoming recovery.yaml")
 	}
 
-	err = os.WriteFile(recoveryInfoYamlPath, localInfoYaml, 0o664)
+	err = writeYaml(recoveryInfoYamlPath, localInfo)
+	if err != nil {
+		return err
+	}
+
+	// Update the local trust store with the incoming cluster configuration
+	err = updateTrustStore(filesystem.TrustDir, incomingMembers)
 	if err != nil {
 		return err
 	}
@@ -197,6 +474,11 @@ func MaybeUnpackRecoveryTarball(filesystem *sys.OS) error {
 		return err
 	}
 
+	err = os.Remove(recoveryYamlPath)
+	if err != nil {
+		return err
+	}
+
 	err = os.Rename(unpackDir, filesystem.DatabaseDir)
 	if err != nil {
 		return err
@@ -204,6 +486,12 @@ func MaybeUnpackRecoveryTarball(filesystem *sys.OS) error {
 
 	// Prevent the database being restored again after subsequent restarts
 	err = os.Remove(tarballPath)
+	if err != nil {
+		return err
+	}
+
+	// Update daemon.yaml
+	err = updateDaemonAddress(filesystem, localInfo.Address)
 	if err != nil {
 		return err
 	}

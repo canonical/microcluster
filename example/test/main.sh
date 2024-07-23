@@ -58,12 +58,6 @@ done
 
 microctl --state-dir "${test_dir}/c1" cluster list
 
-# Clean up
-if [ -n "${CLUSTER_INSPECT:-}" ]; then
-  echo "Pausing to inspect... press enter when done"
-  read -r
-fi
-
 for member in "${members[@]}"; do
   microctl --state-dir "${test_dir}/${member}" shutdown
 done
@@ -82,9 +76,14 @@ microctl --state-dir "${test_dir}/c1" cluster list --local --format yaml |
     .[2].role = "spare" |
     .[3].role = "spare" |
     .[4].role = "spare"' |
+  sed 's/:900/:800/' |
   microctl --state-dir "${test_dir}/c1" cluster edit
 
-cp "${test_dir}/c1/recovery_db.tar.gz" "${test_dir}/c2/"
+# While it is perfectly fine to load the recovery tarball on the member where it
+# was generated, the tests should make sure that both codepaths work, i.e. we
+# should make sure that recovery leaves the database ready to start with the
+# new configuration without needing to load the recovery tarball.
+mv "${test_dir}/c1/recovery_db.tar.gz" "${test_dir}/c2/"
 
 for member in c1 c2; do
   state_dir="${test_dir}/${member}"
@@ -104,4 +103,13 @@ microctl --state-dir "${test_dir}/c1" cluster list
 
 echo "Tests passed"
 
-kill 0
+# Clean up
+if [ -n "${CLUSTER_INSPECT:-}" ]; then
+  echo "Pausing to inspect... press enter when done"
+  read -r
+fi
+
+for member in c1 c2; do
+  microctl --state-dir "${test_dir}/${member}" shutdown
+done
+

@@ -92,6 +92,7 @@ func controlPost(state state.State, r *http.Request) response.Response {
 
 		reExec, err := resetClusterMember(r.Context(), state, true)
 		if err != nil {
+			logger.Error("Failed to reset cluster member on bootstrap error", logger.Ctx{"error": err})
 			return
 		}
 

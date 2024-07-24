@@ -28,7 +28,7 @@ import (
 	"github.com/canonical/microcluster/cluster"
 	"github.com/canonical/microcluster/internal/db/update"
 	"github.com/canonical/microcluster/internal/extensions"
-	"github.com/canonical/microcluster/internal/rest/client"
+	internalClient "github.com/canonical/microcluster/internal/rest/client"
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/internal/sys"
 	"github.com/canonical/microcluster/rest/types"
@@ -310,14 +310,14 @@ func (db *DB) heartbeat(ctx context.Context) {
 	db.heartbeatLock.Lock()
 	defer db.heartbeatLock.Unlock()
 
-	client, err := client.New(db.os.ControlSocket(), nil, nil, false)
+	client, err := internalClient.New(db.os.ControlSocket(), nil, nil, false)
 	if err != nil {
 		logger.Error("Failed to get local client", logger.Ctx{"address": db.listenAddr.String(), "error": err})
 		return
 	}
 
 	// Initiate a heartbeat from this node.
-	err = client.Heartbeat(ctx, internalTypes.HeartbeatInfo{BeginRound: true})
+	err = internalClient.Heartbeat(ctx, client, internalTypes.HeartbeatInfo{BeginRound: true})
 	if err != nil && err.Error() != "Attempt to initiate heartbeat from non-leader" {
 		logger.Error("Failed to initiate heartbeat round", logger.Ctx{"address": db.dqlite.Address(), "error": err})
 		return
@@ -331,7 +331,7 @@ func dqliteNetworkDial(ctx context.Context, addr string, db *DB) (net.Conn, erro
 		return nil, err
 	}
 
-	config, err := client.TLSClientConfig(db.serverCert, peerCert)
+	config, err := internalClient.TLSClientConfig(db.serverCert, peerCert)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to parse TLS config: %w", err)
 	}

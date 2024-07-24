@@ -15,6 +15,7 @@ import (
 	"github.com/canonical/lxd/shared/revert"
 	"github.com/canonical/lxd/shared/validate"
 
+	"github.com/canonical/microcluster/internal/db"
 	"github.com/canonical/microcluster/internal/rest/client"
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
 	internalState "github.com/canonical/microcluster/internal/state"
@@ -50,6 +51,11 @@ func validateFQDN(name string) error {
 }
 
 func controlPost(state state.State, r *http.Request) response.Response {
+	status := state.Database().Status()
+	if status != db.StatusNotReady {
+		return response.SmartError(fmt.Errorf("Unable to initialize cluster: %s", status))
+	}
+
 	req := &internalTypes.Control{}
 	// Parse the request.
 	err := json.NewDecoder(r.Body).Decode(&req)
@@ -75,11 +81,33 @@ func controlPost(state state.State, r *http.Request) response.Response {
 		return joinWithToken(state, r, req)
 	}
 
+	reverter := revert.New()
+	defer reverter.Fail()
+	reverter.Add(func() {
+		reExec, err := resetClusterMember(r.Context(), state, true)
+		if err != nil {
+			return
+		}
+
+		// Re-exec the daemon to clear any remaining state.
+		go reExec()
+
+		// Run the pre-remove hook like we do for cluster node removals.
+		err = intState.Hooks.PreRemove(r.Context(), state, true)
+		if err != nil {
+			logger.Error("Failed to run pre-remove hook on bootstrap error", logger.Ctx{"error": err})
+
+			return
+		}
+	})
+
 	daemonConfig := &trust.Location{Address: req.Address, Name: req.Name}
 	err = intState.StartAPI(r.Context(), req.Bootstrap, req.InitConfig, daemonConfig)
 	if err != nil {
 		return response.SmartError(err)
 	}
+
+	reverter.Success()
 
 	return response.EmptySyncResponse
 }

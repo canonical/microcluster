@@ -84,21 +84,20 @@ func controlPost(state state.State, r *http.Request) response.Response {
 	reverter := revert.New()
 	defer reverter.Fail()
 	reverter.Add(func() {
+		// Run the pre-remove hook like we do for cluster node removals.
+		err := intState.Hooks.PreRemove(r.Context(), state, true)
+		if err != nil {
+			logger.Error("Failed to run pre-remove hook on bootstrap error", logger.Ctx{"error": err})
+		}
+
 		reExec, err := resetClusterMember(r.Context(), state, true)
 		if err != nil {
+			logger.Error("Failed to reset cluster member on bootstrap error", logger.Ctx{"error": err})
 			return
 		}
 
 		// Re-exec the daemon to clear any remaining state.
 		go reExec()
-
-		// Run the pre-remove hook like we do for cluster node removals.
-		err = intState.Hooks.PreRemove(r.Context(), state, true)
-		if err != nil {
-			logger.Error("Failed to run pre-remove hook on bootstrap error", logger.Ctx{"error": err})
-
-			return
-		}
 	})
 
 	daemonConfig := &trust.Location{Address: req.Address, Name: req.Name}

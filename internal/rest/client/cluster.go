@@ -11,7 +11,7 @@ import (
 )
 
 // AddClusterMember records a new cluster member in the trust store of each current cluster member.
-func (c *Client) AddClusterMember(ctx context.Context, args types.ClusterMember) (*internalTypes.TokenResponse, error) {
+func AddClusterMember(ctx context.Context, c *Client, args types.ClusterMember) (*internalTypes.TokenResponse, error) {
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
@@ -22,6 +22,19 @@ func (c *Client) AddClusterMember(ctx context.Context, args types.ClusterMember)
 	}
 
 	return &tokenResponse, nil
+}
+
+// ResetClusterMember clears the state directory of the cluster member, and re-execs its daemon.
+func ResetClusterMember(ctx context.Context, c *Client, name string, force bool) error {
+	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	endpoint := api.NewURL().Path("cluster", name)
+	if force {
+		endpoint = endpoint.WithQuery("force", "1")
+	}
+
+	return c.QueryStruct(queryCtx, "PUT", internalTypes.InternalEndpoint, endpoint, nil, nil)
 }
 
 // GetClusterMembers returns the database record of cluster members.
@@ -46,19 +59,6 @@ func (c *Client) DeleteClusterMember(ctx context.Context, name string, force boo
 	}
 
 	return c.QueryStruct(queryCtx, "DELETE", internalTypes.PublicEndpoint, endpoint, nil, nil)
-}
-
-// ResetClusterMember clears the state directory of the cluster member, and re-execs its daemon.
-func (c *Client) ResetClusterMember(ctx context.Context, name string, force bool) error {
-	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-
-	endpoint := api.NewURL().Path("cluster", name)
-	if force {
-		endpoint = endpoint.WithQuery("force", "1")
-	}
-
-	return c.QueryStruct(queryCtx, "PUT", internalTypes.InternalEndpoint, endpoint, nil, nil)
 }
 
 // UpdateCertificate sets a new keypair and CA.

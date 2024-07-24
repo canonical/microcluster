@@ -190,6 +190,11 @@ func joinWithToken(state state.State, r *http.Request, req *internalTypes.Contro
 	// If at some point we fail to join the cluster, instruct whoever authorized us to remove us from the cluster.
 	// This should also reset our database and listeners.
 	reverter.Add(func() {
+		err := intState.Hooks.PreRemove(r.Context(), state, true)
+		if err != nil {
+			logger.Error("Failed to run pre-remove hook on bootstrap error", logger.Ctx{"error": err})
+		}
+
 		url := api.NewURL().Scheme("https").Host(joinInfo.TrustedMember.Address.String())
 		cert, err := shared.GetRemoteCertificate(url.String(), "")
 		if err != nil {

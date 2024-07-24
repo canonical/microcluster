@@ -402,7 +402,7 @@ func (m *MicroCluster) SQL(ctx context.Context, query string) (string, *internal
 	}
 
 	if query == ".dump" || query == ".schema" {
-		dump, err := c.GetSQL(ctx, query == ".schema")
+		dump, err := internalClient.GetSQL(ctx, &c.Client, query == ".schema")
 		if err != nil {
 			return "", nil, fmt.Errorf("failed to parse dump response: %w", err)
 		}
@@ -414,7 +414,7 @@ func (m *MicroCluster) SQL(ctx context.Context, query string) (string, *internal
 		Query: query,
 	}
 
-	batch, err := c.PostSQL(ctx, data)
+	batch, err := internalClient.PostSQL(ctx, &c.Client, data)
 
 	return "", batch, err
 }

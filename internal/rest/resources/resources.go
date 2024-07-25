@@ -16,6 +16,7 @@ var UnixEndpoints = rest.Resources{
 	Endpoints: []rest.Endpoint{
 		controlCmd,
 		shutdownCmd,
+		tokensCmd,
 	},
 }
 
@@ -29,7 +30,6 @@ var PublicEndpoints = rest.Resources{
 		clusterMemberCmd,
 		daemonCmd,
 		tokenCmd,
-		tokensCmd,
 		readyCmd,
 	},
 }

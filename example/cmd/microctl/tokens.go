@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"sort"
+	"time"
 
 	cli "github.com/canonical/lxd/shared/cmd"
 	"github.com/spf13/cobra"
@@ -39,6 +40,8 @@ func (c *cmdSecrets) run(cmd *cobra.Command, args []string) error {
 
 type cmdTokensAdd struct {
 	common *CmdControl
+
+	flagExpireAfter string
 }
 
 func (c *cmdTokensAdd) command() *cobra.Command {
@@ -47,6 +50,7 @@ func (c *cmdTokensAdd) command() *cobra.Command {
 		Short: "Add a new join token under the given name",
 		RunE:  c.run,
 	}
+	cmd.Flags().StringVarP(&c.flagExpireAfter, "expire-after", "e", "3h", "Set the lifetime for the token")
 
 	return cmd
 }
@@ -61,7 +65,12 @@ func (c *cmdTokensAdd) run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	token, err := m.NewJoinToken(cmd.Context(), args[0], 0)
+	expireAfter, err := time.ParseDuration(c.flagExpireAfter)
+	if err != nil {
+		return fmt.Errorf("Invalid value for expire-after: %w", err)
+	}
+
+	token, err := m.NewJoinToken(cmd.Context(), args[0], expireAfter)
 	if err != nil {
 		return err
 	}

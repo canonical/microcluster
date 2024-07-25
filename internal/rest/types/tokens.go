@@ -3,14 +3,22 @@ package types
 import (
 	"encoding/base64"
 	"encoding/json"
+	"time"
 
 	"github.com/canonical/microcluster/rest/types"
 )
 
-// TokenRecord holds information for requesting a join token.
+// TokenRequest holds information for requesting a join token.
+type TokenRequest struct {
+	Name        string        `json:"name" yaml:"name"`
+	ExpireAfter time.Duration `json:"expire_after" yaml:"expire_after"`
+}
+
+// TokenRecord represents the internal record of a join token.
 type TokenRecord struct {
-	Name  string `json:"name" yaml:"name"`
-	Token string `json:"token" yaml:"token"`
+	Name      string    `json:"name" yaml:"name"`
+	Token     string    `json:"token" yaml:"token"`
+	ExpiresAt time.Time `json:"expires_at" yaml:"expires_at"`
 }
 
 // TokenResponse holds the information for connecting to a cluster by a node with a valid join token.

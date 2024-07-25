@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/canonical/lxd/lxd/response"
 	"github.com/canonical/lxd/shared"
@@ -67,6 +68,13 @@ func tokensPost(state state.State, r *http.Request) response.Response {
 		}
 	}
 
+	expiryDate := sql.NullTime{
+		Valid: req.ExpireAfter != 0,
+	}
+	if expiryDate.Valid {
+		expiryDate.Time = time.Now().Add(req.ExpireAfter)
+	}
+
 	token := internalTypes.Token{
 		Secret:        tokenKey,
 		Fingerprint:   shared.CertFingerprint(clusterCert),
@@ -79,7 +87,11 @@ func tokensPost(state state.State, r *http.Request) response.Response {
 	}
 
 	err = state.Database().Transaction(r.Context(), func(ctx context.Context, tx *sql.Tx) error {
-		_, err = cluster.CreateCoreTokenRecord(ctx, tx, cluster.CoreTokenRecord{Name: req.Name, Secret: tokenKey})
+		_, err = cluster.CreateCoreTokenRecord(ctx, tx, cluster.CoreTokenRecord{
+			Name:       req.Name,
+			Secret:     tokenKey,
+			ExpiryDate: expiryDate,
+		})
 		return err
 	})
 	if err != nil {

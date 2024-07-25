@@ -17,13 +17,13 @@ import (
 var _ = api.ServerEnvironment{}
 
 var coreTokenRecordObjects = RegisterStmt(`
-SELECT core_token_records.id, core_token_records.secret, core_token_records.name
+SELECT core_token_records.id, core_token_records.secret, core_token_records.name, core_token_records.expiry_date
   FROM core_token_records
   ORDER BY core_token_records.secret
 `)
 
 var coreTokenRecordObjectsBySecret = RegisterStmt(`
-SELECT core_token_records.id, core_token_records.secret, core_token_records.name
+SELECT core_token_records.id, core_token_records.secret, core_token_records.name, core_token_records.expiry_date
   FROM core_token_records
   WHERE ( core_token_records.secret = ? )
   ORDER BY core_token_records.secret
@@ -35,8 +35,8 @@ SELECT core_token_records.id FROM core_token_records
 `)
 
 var coreTokenRecordCreate = RegisterStmt(`
-INSERT INTO core_token_records (secret, name)
-  VALUES (?, ?)
+INSERT INTO core_token_records (secret, name, expiry_date)
+  VALUES (?, ?, ?)
 `)
 
 var coreTokenRecordDeleteByName = RegisterStmt(`
@@ -104,7 +104,7 @@ func GetCoreTokenRecord(ctx context.Context, tx *sql.Tx, secret string) (*CoreTo
 // coreTokenRecordColumns returns a string of column names to be used with a SELECT statement for the entity.
 // Use this function when building statements to retrieve database entries matching the CoreTokenRecord entity.
 func coreTokenRecordColumns() string {
-	return "core_token_records.id, core_token_records.secret, core_token_records.name"
+	return "core_token_records.id, core_token_records.secret, core_token_records.name, core_token_records.expiry_date"
 }
 
 // getCoreTokenRecords can be used to run handwritten sql.Stmts to return a slice of objects.
@@ -113,7 +113,7 @@ func getCoreTokenRecords(ctx context.Context, stmt *sql.Stmt, args ...any) ([]Co
 
 	dest := func(scan func(dest ...any) error) error {
 		c := CoreTokenRecord{}
-		err := scan(&c.ID, &c.Secret, &c.Name)
+		err := scan(&c.ID, &c.Secret, &c.Name, &c.ExpiryDate)
 		if err != nil {
 			return err
 		}
@@ -137,7 +137,7 @@ func getCoreTokenRecordsRaw(ctx context.Context, tx *sql.Tx, sql string, args ..
 
 	dest := func(scan func(dest ...any) error) error {
 		c := CoreTokenRecord{}
-		err := scan(&c.ID, &c.Secret, &c.Name)
+		err := scan(&c.ID, &c.Secret, &c.Name, &c.ExpiryDate)
 		if err != nil {
 			return err
 		}
@@ -235,11 +235,12 @@ func CreateCoreTokenRecord(ctx context.Context, tx *sql.Tx, object CoreTokenReco
 		return -1, api.StatusErrorf(http.StatusConflict, "This \"core_token_records\" entry already exists")
 	}
 
-	args := make([]any, 2)
+	args := make([]any, 3)
 
 	// Populate the statement arguments.
 	args[0] = object.Secret
 	args[1] = object.Name
+	args[2] = object.ExpiryDate
 
 	// Prepared statement to use.
 	stmt, err := Stmt(tx, coreTokenRecordCreate)

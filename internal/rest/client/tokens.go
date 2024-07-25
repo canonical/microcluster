@@ -16,7 +16,7 @@ func (c *Client) RequestToken(ctx context.Context, name string) (string, error) 
 
 	var token string
 	tokenRecord := types.TokenRecord{Name: name}
-	err := c.QueryStruct(queryCtx, "POST", types.PublicEndpoint, api.NewURL().Path("tokens"), tokenRecord, &token)
+	err := c.QueryStruct(queryCtx, "POST", types.ControlEndpoint, api.NewURL().Path("tokens"), tokenRecord, &token)
 
 	return token, err
 }
@@ -37,7 +37,7 @@ func (c *Client) GetTokenRecords(ctx context.Context) ([]types.TokenRecord, erro
 	defer cancel()
 
 	tokenRecords := []types.TokenRecord{}
-	err := c.QueryStruct(queryCtx, "GET", types.PublicEndpoint, api.NewURL().Path("tokens"), nil, &tokenRecords)
+	err := c.QueryStruct(queryCtx, "GET", types.ControlEndpoint, api.NewURL().Path("tokens"), nil, &tokenRecords)
 
 	return tokenRecords, err
 }

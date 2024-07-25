@@ -3,7 +3,7 @@ module github.com/canonical/microcluster
 go 1.22.4
 
 require (
-	github.com/canonical/go-dqlite v1.21.0
+	github.com/canonical/go-dqlite v1.22.0
 	github.com/canonical/lxd v0.0.0-20240709081608-9df996e36bac
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/google/renameio v1.0.1

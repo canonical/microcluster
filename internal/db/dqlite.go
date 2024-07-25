@@ -51,13 +51,20 @@ type DB struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	heartbeatLock sync.Mutex
+	heartbeatLock     sync.Mutex
+	heartbeatInterval time.Duration
+	maxConns          int64
 
 	schema *update.SchemaUpdate
 
 	statusLock sync.RWMutex
 	status     Status
 }
+
+const (
+	// DefaultHeartbeatInterval is the default interval used for heartbeats and dqlite role probes.
+	DefaultHeartbeatInterval time.Duration = time.Second * 10
+)
 
 // Status is the current status of the database.
 type Status string
@@ -85,19 +92,25 @@ func (db *DB) Accept(conn net.Conn) {
 }
 
 // NewDB creates an empty db struct with no dqlite connection.
-func NewDB(ctx context.Context, serverCert *shared.CertInfo, clusterCert func() *shared.CertInfo, os *sys.OS) *DB {
+func NewDB(ctx context.Context, serverCert *shared.CertInfo, clusterCert func() *shared.CertInfo, os *sys.OS, heartbeatInterval time.Duration) *DB {
 	shutdownCtx, shutdownCancel := context.WithCancel(ctx)
 
+	if heartbeatInterval == 0 {
+		heartbeatInterval = DefaultHeartbeatInterval
+	}
+
 	return &DB{
-		serverCert:  serverCert,
-		clusterCert: clusterCert,
-		dbName:      filepath.Base(os.DatabasePath()),
-		os:          os,
-		acceptCh:    make(chan net.Conn),
-		upgradeCh:   make(chan struct{}),
-		ctx:         shutdownCtx,
-		cancel:      shutdownCancel,
-		status:      StatusNotReady,
+		serverCert:        serverCert,
+		clusterCert:       clusterCert,
+		dbName:            filepath.Base(os.DatabasePath()),
+		os:                os,
+		acceptCh:          make(chan net.Conn),
+		upgradeCh:         make(chan struct{}),
+		heartbeatInterval: heartbeatInterval,
+		ctx:               shutdownCtx,
+		cancel:            shutdownCancel,
+		status:            StatusNotReady,
+		maxConns:          1,
 	}
 }
 
@@ -119,6 +132,9 @@ func (db *DB) Bootstrap(extensions extensions.Extensions, project string, addr a
 	db.listenAddr = addr
 	db.dqlite, err = dqlite.New(db.os.DatabaseDir,
 		dqlite.WithAddress(db.listenAddr.URL.Host),
+		dqlite.WithRolesAdjustmentFrequency(db.heartbeatInterval),
+		dqlite.WithRolesAdjustmentHook(db.heartbeat),
+		dqlite.WithConcurrentLeaderConns(&db.maxConns),
 		dqlite.WithExternalConn(db.dialFunc(), db.acceptCh),
 		dqlite.WithUnixSocket(os.Getenv(sys.DqliteSocket)))
 	if err != nil {
@@ -141,8 +157,6 @@ func (db *DB) Bootstrap(extensions extensions.Extensions, project string, addr a
 		return err
 	}
 
-	go db.loopHeartbeat()
-
 	return nil
 }
 
@@ -152,7 +166,10 @@ func (db *DB) Join(extensions extensions.Extensions, project string, addr api.UR
 	db.listenAddr = addr
 	db.dqlite, err = dqlite.New(db.os.DatabaseDir,
 		dqlite.WithCluster(joinAddresses),
+		dqlite.WithRolesAdjustmentFrequency(db.heartbeatInterval),
+		dqlite.WithRolesAdjustmentHook(db.heartbeat),
 		dqlite.WithAddress(db.listenAddr.URL.Host),
+		dqlite.WithConcurrentLeaderConns(&db.maxConns),
 		dqlite.WithExternalConn(db.dialFunc(), db.acceptCh),
 		dqlite.WithUnixSocket(os.Getenv(sys.DqliteSocket)))
 	if err != nil {
@@ -175,8 +192,6 @@ func (db *DB) Join(extensions extensions.Extensions, project string, addr api.UR
 		return err
 	}
 
-	go db.loopHeartbeat()
-
 	return nil
 }
 
@@ -192,7 +207,8 @@ func (db *DB) StartWithCluster(extensions extensions.Extensions, project string,
 
 // Leader returns a client connected to the leader of the dqlite cluster.
 func (db *DB) Leader(ctx context.Context) (*dqliteClient.Client, error) {
-	return db.dqlite.Leader(ctx)
+	// Always only try one connection at a time when fetching the leader manually, as this can be an expensive call.
+	return db.dqlite.Leader(ctx, dqliteClient.WithConcurrentLeaderConns(1))
 }
 
 // Cluster returns information about dqlite cluster members.
@@ -292,36 +308,60 @@ func (db *DB) dialFunc() dqliteClient.DialFunc {
 	}
 }
 
-// loopHeartbeat runs the heartbeat command continuously every second.
-func (db *DB) loopHeartbeat() {
-	for {
-		db.heartbeat(db.ctx)
-		time.Sleep(10 * time.Second)
-	}
+// GetHeartbeatInterval returns the current database heartbeat interval.
+func (db *DB) GetHeartbeatInterval() time.Duration {
+	return db.heartbeatInterval
 }
 
-func (db *DB) heartbeat(ctx context.Context) {
-	if db.IsOpen(ctx) != nil {
-		logger.Debug("Database is not yet open, aborting heartbeat", logger.Ctx{"address": db.listenAddr.String()})
-		return
-	}
+// SendHeartbeat initiates a new heartbeat sequence if this is a leader node.
+func (db *DB) SendHeartbeat(ctx context.Context, c *internalClient.Client, hbInfo internalTypes.HeartbeatInfo) error {
+	// set the heartbeat timeout to twice the heartbeat interval.
+	heartbeatTimeout := db.heartbeatInterval * 2
+	queryCtx, cancel := context.WithTimeout(ctx, heartbeatTimeout)
+	defer cancel()
 
+	return c.QueryStruct(queryCtx, "POST", internalTypes.InternalEndpoint, api.NewURL().Path("heartbeat"), hbInfo, nil)
+}
+
+func (db *DB) heartbeat(leaderInfo dqliteClient.NodeInfo, servers []dqliteClient.NodeInfo) error {
 	// Use the heartbeat lock to prevent another heartbeat attempt if we are currently initiating one.
 	db.heartbeatLock.Lock()
 	defer db.heartbeatLock.Unlock()
 
+	if db.IsOpen(db.ctx) != nil {
+		logger.Debug("Database is not yet open, aborting heartbeat", logger.Ctx{"address": db.listenAddr.String()})
+		return nil
+	}
+
+	if leaderInfo.Address != db.listenAddr.URL.Host {
+		logger.Debug("Not performing heartbeat, this system is not the dqlite leader", logger.Ctx{"address": db.listenAddr.String()})
+		return nil
+	}
+
 	client, err := internalClient.New(db.os.ControlSocket(), nil, nil, false)
 	if err != nil {
 		logger.Error("Failed to get local client", logger.Ctx{"address": db.listenAddr.String(), "error": err})
-		return
+		return nil
 	}
 
 	// Initiate a heartbeat from this node.
-	err = internalClient.Heartbeat(ctx, client, internalTypes.HeartbeatInfo{BeginRound: true})
+	hbInfo := internalTypes.HeartbeatInfo{
+		BeginRound:    true,
+		LeaderAddress: leaderInfo.Address,
+		DqliteRoles:   make(map[string]string, len(servers)),
+	}
+
+	for _, server := range servers {
+		hbInfo.DqliteRoles[server.Address] = server.Role.String()
+	}
+
+	err = db.SendHeartbeat(db.ctx, client, hbInfo)
 	if err != nil && err.Error() != "Attempt to initiate heartbeat from non-leader" {
 		logger.Error("Failed to initiate heartbeat round", logger.Ctx{"address": db.dqlite.Address(), "error": err})
-		return
+		return nil
 	}
+
+	return nil
 }
 
 // dqliteNetworkDial creates a connection to the internal database endpoint.

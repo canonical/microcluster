@@ -115,7 +115,7 @@ func NewDaemon(project string, version string) *Daemon {
 // - `extensionsSchema` is a list of schema updates in the order that they should be applied.
 // - `extensionServers` is a list of rest.Server that will be initialized and managed by microcluster.
 // - `hooks` are a set of functions that trigger at certain points during cluster communication.
-func (d *Daemon) Run(ctx context.Context, listenAddress string, stateDir string, socketGroup string, extensionsSchema []schema.Update, apiExtensions []string, extensionServers map[string]rest.Server, hooks *state.Hooks) error {
+func (d *Daemon) Run(ctx context.Context, listenAddress string, heartbeatInterval time.Duration, stateDir string, socketGroup string, extensionsSchema []schema.Update, apiExtensions []string, extensionServers map[string]rest.Server, hooks *state.Hooks) error {
 	d.shutdownCtx, d.shutdownCancel = context.WithCancel(ctx)
 	if stateDir == "" {
 		stateDir = os.Getenv(sys.StateDir)
@@ -166,7 +166,7 @@ func (d *Daemon) Run(ctx context.Context, listenAddress string, stateDir string,
 
 	d.extensionServersMu.Unlock()
 
-	err = d.init(listenAddress, extensionsSchema, apiExtensions, hooks)
+	err = d.init(listenAddress, heartbeatInterval, extensionsSchema, apiExtensions, hooks)
 	if err != nil {
 		return fmt.Errorf("Daemon failed to start: %w", err)
 	}
@@ -190,7 +190,7 @@ func (d *Daemon) Run(ctx context.Context, listenAddress string, stateDir string,
 	}
 }
 
-func (d *Daemon) init(listenAddress string, schemaExtensions []schema.Update, apiExtensions []string, hooks *state.Hooks) error {
+func (d *Daemon) init(listenAddress string, heartbeatInterval time.Duration, schemaExtensions []schema.Update, apiExtensions []string, hooks *state.Hooks) error {
 	d.applyHooks(hooks)
 
 	var err error
@@ -223,7 +223,7 @@ func (d *Daemon) init(listenAddress string, schemaExtensions []schema.Update, ap
 		return fmt.Errorf("Failed to initialize trust store: %w", err)
 	}
 
-	d.db = db.NewDB(d.shutdownCtx, d.serverCert, d.ClusterCert, d.os)
+	d.db = db.NewDB(d.shutdownCtx, d.serverCert, d.ClusterCert, d.os, heartbeatInterval)
 
 	listenAddr := api.NewURL()
 	if listenAddress != "" {

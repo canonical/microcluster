@@ -48,8 +48,10 @@ type Args struct {
 	Version string
 
 	PreInitListenAddress string
-	Client               *client.Client
-	Proxy                func(*http.Request) (*url.URL, error)
+	HeartbeatInterval    time.Duration
+
+	Client *client.Client
+	Proxy  func(*http.Request) (*url.URL, error)
 
 	extensionServers map[string]rest.Server
 }
@@ -100,7 +102,7 @@ func (m *MicroCluster) Start(ctx context.Context, extensionsSchema []schema.Upda
 	ctx, cancel := signal.NotifyContext(ctx, unix.SIGPWR, unix.SIGTERM, unix.SIGINT, unix.SIGQUIT)
 	defer cancel()
 
-	err = d.Run(ctx, m.args.PreInitListenAddress, m.FileSystem.StateDir, m.FileSystem.SocketGroup, extensionsSchema, apiExtensions, m.args.extensionServers, hooks)
+	err = d.Run(ctx, m.args.PreInitListenAddress, m.args.HeartbeatInterval, m.FileSystem.StateDir, m.FileSystem.SocketGroup, extensionsSchema, apiExtensions, m.args.extensionServers, hooks)
 	if err != nil {
 		return fmt.Errorf("Daemon stopped with error: %w", err)
 	}

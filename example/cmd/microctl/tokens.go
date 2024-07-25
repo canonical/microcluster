@@ -102,10 +102,10 @@ func (c *cmdTokensList) run(cmd *cobra.Command, args []string) error {
 
 	data := make([][]string, len(records))
 	for i, record := range records {
-		data[i] = []string{record.Name, record.Token}
+		data[i] = []string{record.Name, record.Token, record.ExpiresAt.String()}
 	}
 
-	header := []string{"NAME", "TOKENS"}
+	header := []string{"NAME", "TOKENS", "EXPIRES AT"}
 	sort.Sort(cli.SortColumnsNaturally(data))
 
 	return cli.RenderTable(cli.TableFormatTable, header, data, records)

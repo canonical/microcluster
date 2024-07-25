@@ -40,15 +40,26 @@ var clusterCmd = rest.Endpoint{
 	Path:              "cluster",
 	AllowedBeforeInit: true,
 
+	Get: rest.EndpointAction{Handler: clusterGet, AccessHandler: access.AllowAuthenticated},
+}
+
+var clusterInternalCmd = rest.Endpoint{
+	Path:              "cluster",
+	AllowedBeforeInit: true,
+
 	Post: rest.EndpointAction{Handler: clusterPost, AllowUntrusted: true},
-	Get:  rest.EndpointAction{Handler: clusterGet, AccessHandler: access.AllowAuthenticated},
 }
 
 var clusterMemberCmd = rest.Endpoint{
 	Path: "cluster/{name}",
 
-	Put:    rest.EndpointAction{Handler: clusterMemberPut, AccessHandler: access.AllowAuthenticated},
 	Delete: rest.EndpointAction{Handler: clusterMemberDelete, AccessHandler: access.AllowAuthenticated},
+}
+
+var clusterMemberInternalCmd = rest.Endpoint{
+	Path: "cluster/{name}",
+
+	Put: rest.EndpointAction{Handler: clusterMemberPut, AccessHandler: access.AllowAuthenticated},
 }
 
 func clusterPost(s state.State, r *http.Request) response.Response {
@@ -96,7 +107,7 @@ func clusterPost(s state.State, r *http.Request) response.Response {
 			return response.SmartError(err)
 		}
 
-		tokenResponse, err := client.AddClusterMember(r.Context(), req)
+		tokenResponse, err := internalClient.AddClusterMember(r.Context(), &client.Client, req)
 		if err != nil {
 			return response.SmartError(err)
 		}
@@ -611,7 +622,7 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	err = c.ResetClusterMember(r.Context(), name, force)
+	err = internalClient.ResetClusterMember(r.Context(), c, name, force)
 	if err != nil && !force {
 		return response.SmartError(err)
 	}

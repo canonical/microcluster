@@ -15,12 +15,12 @@ type Server struct {
 }
 
 const (
-	// PublicEndpoint - Internally managed APIs available without authentication.
-	PublicEndpoint types.EndpointPrefix = "cluster/1.0"
+	// PublicEndpoint - Internally managed APIs.
+	PublicEndpoint types.EndpointPrefix = "core/1.0"
 
-	// InternalEndpoint - all endpoints restricted to trusted servers.
-	InternalEndpoint types.EndpointPrefix = "cluster/internal"
+	// InternalEndpoint - All internal endpoints restricted to trusted servers.
+	InternalEndpoint types.EndpointPrefix = "core/internal"
 
-	// ControlEndpoint - all endpoints available on the local unix socket.
-	ControlEndpoint types.EndpointPrefix = "cluster/control"
+	// ControlEndpoint - All internal endpoints available on the local unix socket.
+	ControlEndpoint types.EndpointPrefix = "core/control"
 )

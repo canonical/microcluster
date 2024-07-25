@@ -10,7 +10,7 @@ import (
 )
 
 // GetSQL gets a SQL dump of the database.
-func (c *Client) GetSQL(ctx context.Context, schema bool) (*types.SQLDump, error) {
+func GetSQL(ctx context.Context, c *Client, schema bool) (*types.SQLDump, error) {
 	reqCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
@@ -30,7 +30,7 @@ func (c *Client) GetSQL(ctx context.Context, schema bool) (*types.SQLDump, error
 }
 
 // PostSQL executes a SQL query against the database.
-func (c *Client) PostSQL(ctx context.Context, query types.SQLQuery) (*types.SQLBatch, error) {
+func PostSQL(ctx context.Context, c *Client, query types.SQLQuery) (*types.SQLBatch, error) {
 	reqCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 

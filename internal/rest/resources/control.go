@@ -16,7 +16,7 @@ import (
 	"github.com/canonical/lxd/shared/validate"
 
 	"github.com/canonical/microcluster/internal/db"
-	"github.com/canonical/microcluster/internal/rest/client"
+	internalClient "github.com/canonical/microcluster/internal/rest/client"
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
 	internalState "github.com/canonical/microcluster/internal/state"
 	"github.com/canonical/microcluster/internal/trust"
@@ -166,12 +166,12 @@ func joinWithToken(state state.State, r *http.Request, req *internalTypes.Contro
 			continue
 		}
 
-		d, err := client.New(*url, state.ServerCert(), cert, false)
+		d, err := internalClient.New(*url, state.ServerCert(), cert, false)
 		if err != nil {
 			return response.SmartError(err)
 		}
 
-		joinInfo, err = d.AddClusterMember(context.Background(), newClusterMember)
+		joinInfo, err = internalClient.AddClusterMember(context.Background(), d, newClusterMember)
 		if err == nil {
 			break
 		}
@@ -202,7 +202,7 @@ func joinWithToken(state state.State, r *http.Request, req *internalTypes.Contro
 			return
 		}
 
-		client, err := client.New(*url, state.ServerCert(), cert, false)
+		client, err := internalClient.New(*url, state.ServerCert(), cert, false)
 		if err != nil {
 			return
 		}

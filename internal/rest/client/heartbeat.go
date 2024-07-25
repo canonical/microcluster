@@ -13,9 +13,9 @@ import (
 const HeartbeatTimeout = 30
 
 // Heartbeat initiates a new heartbeat sequence if this is a leader node.
-func (c *Client) Heartbeat(ctx context.Context, hbInfo types.HeartbeatInfo) error {
+func Heartbeat(ctx context.Context, client *Client, hbInfo types.HeartbeatInfo) error {
 	queryCtx, cancel := context.WithTimeout(ctx, HeartbeatTimeout*time.Second)
 	defer cancel()
 
-	return c.QueryStruct(queryCtx, "POST", types.InternalEndpoint, api.NewURL().Path("heartbeat"), hbInfo, nil)
+	return client.QueryStruct(queryCtx, "POST", types.InternalEndpoint, api.NewURL().Path("heartbeat"), hbInfo, nil)
 }

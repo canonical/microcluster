@@ -266,13 +266,13 @@ func (m *MicroCluster) RecoverFromQuorumLoss(members []cluster.DqliteMember) (st
 // NewJoinToken creates and records a new join token containing all the necessary credentials for joining a cluster.
 // Join tokens are tied to the server certificate of the joining node, and will be deleted once the node has joined the
 // cluster.
-func (m *MicroCluster) NewJoinToken(ctx context.Context, name string) (string, error) {
+func (m *MicroCluster) NewJoinToken(ctx context.Context, name string, expireAfter time.Duration) (string, error) {
 	c, err := m.LocalClient()
 	if err != nil {
 		return "", err
 	}
 
-	secret, err := c.RequestToken(ctx, name)
+	secret, err := c.RequestToken(ctx, name, expireAfter)
 	if err != nil {
 		return "", err
 	}

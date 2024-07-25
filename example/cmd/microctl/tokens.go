@@ -61,7 +61,7 @@ func (c *cmdTokensAdd) run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	token, err := m.NewJoinToken(cmd.Context(), args[0])
+	token, err := m.NewJoinToken(cmd.Context(), args[0], 0)
 	if err != nil {
 		return err
 	}

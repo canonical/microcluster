@@ -57,7 +57,8 @@ func (t *CoreTokenRecord) ToAPI(clusterCert *x509.Certificate, joinAddresses []t
 	}
 
 	return &internalTypes.TokenRecord{
-		Token: tokenString,
-		Name:  t.Name,
+		Token:     tokenString,
+		Name:      t.Name,
+		ExpiresAt: t.ExpiryDate.Time,
 	}, nil
 }

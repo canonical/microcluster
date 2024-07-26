@@ -37,6 +37,7 @@ func NewSchema() *SchemaUpdateManager {
 			updateFromV2,
 			mgr.updateFromV3,
 			updateFromV4,
+			updateFromV5,
 		},
 	}
 
@@ -72,6 +73,27 @@ func (s *SchemaUpdateManager) Schema() *SchemaUpdate {
 func (s *SchemaUpdateManager) AppendSchema(schemaExtensions []schema.Update, apiExtensions extensions.Extensions) {
 	s.updates[updateExternal] = schemaExtensions
 	s.apiExtensions = apiExtensions
+}
+
+// updateFromV5 adds an expiration column for join tokens.
+func updateFromV5(ctx context.Context, tx *sql.Tx) error {
+	stmt := `CREATE TABLE core_token_records_new (
+  id           INTEGER         PRIMARY  KEY    AUTOINCREMENT  NOT  NULL,
+  name         TEXT            NOT      NULL,
+  secret       TEXT            NOT      NULL,
+	expiry_date  DATETIME,
+  UNIQUE       (name),
+  UNIQUE       (secret)
+);
+
+INSERT INTO core_token_records_new (id, name, secret, expiry_date) SELECT id,name,secret,NULL FROM core_token_records;
+DROP TABLE core_token_records;
+ALTER TABLE core_token_records_new RENAME TO core_token_records;
+`
+
+	_, err := tx.ExecContext(ctx, stmt)
+
+	return err
 }
 
 // updateFromV4 renames the internal_ prefixed tables to core_ to signify that

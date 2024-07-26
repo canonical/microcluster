@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"crypto/x509"
+	"database/sql"
 
 	"github.com/canonical/lxd/shared"
 
@@ -29,9 +30,10 @@ import (
 
 // CoreTokenRecord is the database representation of a join token record.
 type CoreTokenRecord struct {
-	ID     int
-	Secret string `db:"primary=yes"`
-	Name   string
+	ID         int
+	Secret     string `db:"primary=yes"`
+	Name       string
+	ExpiryDate sql.NullTime
 }
 
 // CoreTokenRecordFilter is the filter struct for filtering results from generated methods.
@@ -55,7 +57,8 @@ func (t *CoreTokenRecord) ToAPI(clusterCert *x509.Certificate, joinAddresses []t
 	}
 
 	return &internalTypes.TokenRecord{
-		Token: tokenString,
-		Name:  t.Name,
+		Token:     tokenString,
+		Name:      t.Name,
+		ExpiresAt: t.ExpiryDate.Time,
 	}, nil
 }

@@ -34,7 +34,7 @@ var tokenCmd = rest.Endpoint{
 }
 
 func tokensPost(state state.State, r *http.Request) response.Response {
-	req := internalTypes.TokenRecord{}
+	req := internalTypes.TokenRequest{}
 
 	// Parse the request.
 	err := json.NewDecoder(r.Body).Decode(&req)

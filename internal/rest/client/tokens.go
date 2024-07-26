@@ -10,12 +10,12 @@ import (
 )
 
 // RequestToken requests a join token with the given name.
-func (c *Client) RequestToken(ctx context.Context, name string) (string, error) {
+func (c *Client) RequestToken(ctx context.Context, name string, expireAfter time.Duration) (string, error) {
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	var token string
-	tokenRecord := types.TokenRecord{Name: name}
+	tokenRecord := types.TokenRequest{Name: name, ExpireAfter: expireAfter}
 	err := c.QueryStruct(queryCtx, "POST", types.ControlEndpoint, api.NewURL().Path("tokens"), tokenRecord, &token)
 
 	return token, err

@@ -93,6 +93,38 @@ test_misc() {
   shutdown_systems
 }
 
+test_tokens() {
+  new_systems 3
+  bootstrap_systems
+
+  microctl --state-dir "${test_dir}/c1" tokens add default_expiry
+
+  microctl --state-dir "${test_dir}/c1" tokens add short_expiry --expire-after 5s
+
+  microctl --state-dir "${test_dir}/c1" tokens add long_expiry --expire-after 400h
+
+  # Need at least one heartbeat (every 10s)
+  sleep 15
+
+  ! microctl --state-dir "${test_dir}/c1" tokens list --format csv | grep -q short_expiry || false
+  microctl --state-dir "${test_dir}/c1" tokens list --format csv | grep -q default_expiry
+  microctl --state-dir "${test_dir}/c1" tokens list --format csv | grep -q long_expiry
+
+  # Ensure expired tokens cannot be used to join the cluster
+  mkdir -p "${test_dir}/c4"
+  microd --state-dir "${test_dir}/c4" "${cluster_flags[@]}" &
+  microctl --state-dir "${test_dir}/c4" waitready
+
+  # Assumes that heartbeats are 10s apart
+  token=$(microctl --state-dir "${test_dir}/c1" tokens add "c4" --expire-after 12s)
+
+  sleep 12
+
+  ! microctl --state-dir "${test_dir}/c4" init "c4" "127.0.0.1:9005" --token "${token}" || false
+
+  shutdown_systems
+}
+
 test_recover() {
   new_systems 5
   bootstrap_systems
@@ -137,9 +169,12 @@ test_recover() {
 # allow for running a specific set of tests
 if [ "${1:-"all"}" = "all" ] || [ "${1}" = "" ]; then
   test_misc
+  test_tokens
   test_recover
 elif [ "${1}" = "recover" ]; then
   test_recover
+elif [ "${1}" = "tokens" ]; then
+  test_tokens
 elif [ "${1}" = "misc" ]; then
   test_misc
 else

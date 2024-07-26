@@ -110,6 +110,10 @@ func tokensGet(state state.State, r *http.Request) response.Response {
 
 		records = make([]internalTypes.TokenRecord, 0, len(tokens))
 		for _, token := range tokens {
+			if token.Expired() {
+				continue
+			}
+
 			apiToken, err := token.ToAPI(clusterCert, joinAddresses)
 			if err != nil {
 				return err

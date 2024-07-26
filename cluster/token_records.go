@@ -3,6 +3,7 @@ package cluster
 import (
 	"crypto/x509"
 	"database/sql"
+	"time"
 
 	"github.com/canonical/lxd/shared"
 
@@ -61,4 +62,9 @@ func (t *CoreTokenRecord) ToAPI(clusterCert *x509.Certificate, joinAddresses []t
 		Name:      t.Name,
 		ExpiresAt: t.ExpiryDate.Time,
 	}, nil
+}
+
+// Expired compares the token's expiry date with the current time.
+func (t *CoreTokenRecord) Expired() bool {
+	return t.ExpiryDate.Valid && t.ExpiryDate.Time.Before(time.Now())
 }

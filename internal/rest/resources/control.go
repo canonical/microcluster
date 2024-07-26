@@ -77,17 +77,21 @@ func controlPost(state state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	if req.JoinToken != "" {
-		return joinWithToken(state, r, req)
-	}
-
 	reverter := revert.New()
 	defer reverter.Fail()
+
+	var joinInfo *internalTypes.TokenResponse
 	reverter.Add(func() {
+		// When joining, don't attempt to reset the cluster member if we never received authorization from any cluster members.
+		// This is because we won't have changed any state yet, so resetting the cluster member won't help, and may have its own side-effects.
+		if joinInfo == nil && req.JoinToken != "" {
+			return
+		}
+
 		// Run the pre-remove hook like we do for cluster node removals.
 		err := intState.Hooks.PreRemove(r.Context(), state, true)
 		if err != nil {
-			logger.Error("Failed to run pre-remove hook on bootstrap error", logger.Ctx{"error": err})
+			logger.Error("Failed to run pre-remove hook on initialization error", logger.Ctx{"error": err})
 		}
 
 		reExec, err := resetClusterMember(r.Context(), state, true)
@@ -98,7 +102,40 @@ func controlPost(state state.State, r *http.Request) response.Response {
 
 		// Re-exec the daemon to clear any remaining state.
 		go reExec()
+
+		// Only send a request to delete the cluster member record if we are joining an existing cluster.
+		if joinInfo == nil || req.JoinToken == "" {
+			return
+		}
+
+		url := api.NewURL().Scheme("https").Host(joinInfo.TrustedMember.Address.String())
+		cert, err := shared.GetRemoteCertificate(url.String(), "")
+		if err != nil {
+			return
+		}
+
+		client, err := internalClient.New(*url, state.ServerCert(), cert, false)
+		if err != nil {
+			return
+		}
+
+		// Use `force=1` to ensure the node is fully removed, in case its listener hasn't been set up.
+		err = client.DeleteClusterMember(context.Background(), req.Name, true)
+		if err != nil {
+			logger.Error("Failed to clean up cluster state after join failure", logger.Ctx{"error": err})
+		}
 	})
+
+	if req.JoinToken != "" {
+		joinInfo, err = joinWithToken(state, r, req)
+		if err != nil {
+			return response.SmartError(err)
+		}
+
+		reverter.Success()
+
+		return response.EmptySyncResponse
+	}
 
 	daemonConfig := &trust.Location{Address: req.Address, Name: req.Name}
 	err = intState.StartAPI(r.Context(), req.Bootstrap, req.InitConfig, daemonConfig)
@@ -111,20 +148,20 @@ func controlPost(state state.State, r *http.Request) response.Response {
 	return response.EmptySyncResponse
 }
 
-func joinWithToken(state state.State, r *http.Request, req *internalTypes.Control) response.Response {
+func joinWithToken(state state.State, r *http.Request, req *internalTypes.Control) (*internalTypes.TokenResponse, error) {
 	token, err := internalTypes.DecodeToken(req.JoinToken)
 	if err != nil {
-		return response.SmartError(err)
+		return nil, err
 	}
 
 	serverCert, err := state.ServerCert().PublicKeyX509()
 	if err != nil {
-		return response.SmartError(fmt.Errorf("Failed to parse server certificate when bootstrapping API: %w", err))
+		return nil, fmt.Errorf("Failed to parse server certificate when bootstrapping API: %w", err)
 	}
 
 	intState, err := internalState.ToInternal(state)
 	if err != nil {
-		return response.SmartError(err)
+		return nil, err
 	}
 
 	// Add the local node to the list of clusterMembers.
@@ -168,7 +205,7 @@ func joinWithToken(state state.State, r *http.Request, req *internalTypes.Contro
 
 		d, err := internalClient.New(*url, state.ServerCert(), cert, false)
 		if err != nil {
-			return response.SmartError(err)
+			return nil, err
 		}
 
 		joinInfo, err = internalClient.AddClusterMember(context.Background(), d, newClusterMember)
@@ -181,51 +218,13 @@ func joinWithToken(state state.State, r *http.Request, req *internalTypes.Contro
 	}
 
 	if joinInfo == nil {
-		return response.SmartError(fmt.Errorf("%d join attempts were unsuccessful. Last error: %w", len(token.JoinAddresses), lastErr))
+		return nil, fmt.Errorf("%d join attempts were unsuccessful. Last error: %w", len(token.JoinAddresses), lastErr)
 	}
-
-	reverter := revert.New()
-	defer reverter.Fail()
-
-	// If at some point we fail to join the cluster, instruct whoever authorized us to remove us from the cluster.
-	// This should also reset our database and listeners.
-	reverter.Add(func() {
-		// Run the pre-remove hook like we do for cluster node removals.
-		err := intState.Hooks.PreRemove(r.Context(), state, true)
-		if err != nil {
-			logger.Error("Failed to run pre-remove hook on join error", logger.Ctx{"error": err})
-		}
-
-		url := api.NewURL().Scheme("https").Host(joinInfo.TrustedMember.Address.String())
-		cert, err := shared.GetRemoteCertificate(url.String(), "")
-		if err != nil {
-			return
-		}
-
-		client, err := internalClient.New(*url, state.ServerCert(), cert, false)
-		if err != nil {
-			return
-		}
-
-		reExec, err := resetClusterMember(r.Context(), state, true)
-		if err != nil {
-			return
-		}
-
-		// Re-exec the daemon to clear any remaining state.
-		go reExec()
-
-		// Use `force=1` to ensure the node is fully removed, in case its listener hasn't been set up.
-		err = client.DeleteClusterMember(context.Background(), req.Name, true)
-		if err != nil {
-			logger.Error("Failed to clean up cluster state after join failure", logger.Ctx{"error": err})
-		}
-	})
 
 	// Set up cluster certificate.
 	err = util.WriteCert(state.FileSystem().StateDir, string(types.ClusterCertificateName), []byte(joinInfo.ClusterCert.String()), []byte(joinInfo.ClusterKey), nil)
 	if err != nil {
-		return response.SmartError(err)
+		return nil, err
 	}
 
 	// Setup any additional certificates.
@@ -238,7 +237,7 @@ func joinWithToken(state state.State, r *http.Request, req *internalTypes.Contro
 
 		err := util.WriteCert(state.FileSystem().CertificatesDir, name, []byte(cert.Cert), []byte(cert.Key), ca)
 		if err != nil {
-			return response.SmartError(err)
+			return nil, err
 		}
 	}
 
@@ -257,16 +256,14 @@ func joinWithToken(state state.State, r *http.Request, req *internalTypes.Contro
 	clusterMembers = append(clusterMembers, localClusterMember)
 	err = state.Remotes().Add(state.FileSystem().TrustDir, clusterMembers...)
 	if err != nil {
-		return response.SmartError(err)
+		return nil, err
 	}
 
 	// Start the HTTPS listeners and join Dqlite.
 	err = intState.StartAPI(r.Context(), false, req.InitConfig, daemonConfig, joinAddrs.Strings()...)
 	if err != nil {
-		return response.SmartError(err)
+		return nil, err
 	}
 
-	reverter.Success()
-
-	return response.EmptySyncResponse
+	return joinInfo, nil
 }

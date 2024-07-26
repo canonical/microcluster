@@ -922,7 +922,7 @@ func (d *Daemon) ReloadCert(name types.CertificateName) error {
 	defer d.clusterMu.Unlock()
 
 	var dir string
-	if name == types.ClusterCertificateName {
+	if name == types.ClusterCertificateName || name == types.ServerCertificateName {
 		dir = d.os.StateDir
 	} else {
 		dir = d.os.CertificatesDir
@@ -936,7 +936,17 @@ func (d *Daemon) ReloadCert(name types.CertificateName) error {
 	// In case the cluster certificate gets reloaded also populate its value.
 	if name == types.ClusterCertificateName {
 		d.clusterCert = cert
+	}
 
+	if name == types.ServerCertificateName {
+		if d.db.Status() != db.StatusNotReady {
+			return fmt.Errorf("Cannot replace server certificate after initialization")
+		}
+
+		d.serverCert = cert
+	}
+
+	if name == types.ClusterCertificateName || name == types.ServerCertificateName {
 		// The core API endpoints are labeled with core.
 		// When the cluster certificate gets updated reload those.
 		d.endpoints.UpdateTLSByName(endpoints.EndpointsCore, cert)
@@ -964,7 +974,10 @@ func (d *Daemon) ReloadCert(name types.CertificateName) error {
 
 // ServerCert ensures both the daemon and state have the same server cert.
 func (d *Daemon) ServerCert() *shared.CertInfo {
-	return d.serverCert
+	d.clusterMu.RLock()
+	defer d.clusterMu.RUnlock()
+
+	return shared.NewCertInfo(d.serverCert.KeyPair(), d.serverCert.CA(), d.serverCert.CRL())
 }
 
 // Address is the listen address for the daemon.

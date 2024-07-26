@@ -16,100 +16,132 @@ fi
 
 test_dir="$(realpath -e "$(dirname -- "${BASH_SOURCE[0]}")")/system"
 
-if [ -d "${test_dir}" ]; then
-  rm -r "${test_dir}"
-fi
+trap shutdown_systems EXIT HUP INT TERM
 
-members=("c1" "c2" "c3" "c4" "c5")
+new_systems() {
+  if [ -d "${test_dir}" ]; then
+    rm -r "${test_dir}"
+  fi
 
-for member in "${members[@]}"; do
-  state_dir="${test_dir}/${member}"
-  mkdir -p "${state_dir}"
-  microd --state-dir "${state_dir}" "${cluster_flags[@]}" &
-  microctl --state-dir "${state_dir}" waitready
-done
+  for member in $(seq --format c%g "${1}"); do
+    state_dir="${test_dir}/${member}"
+    mkdir -p "${state_dir}"
+    microd --state-dir "${state_dir}" "${cluster_flags[@]}" &
+    microctl --state-dir "${state_dir}" waitready
+  done
+}
 
-# Ensure two daemons cannot start in the same state dir
-! microd --state-dir "${test_dir}/c1" "${cluster_flags[@]}"
+bootstrap_systems() {
+  microctl --state-dir "${test_dir}/c1" init "c1" 127.0.0.1:9001 --bootstrap
 
-# Ensure only valid member names are used for bootstrap
-! microctl --state-dir "${test_dir}/c1" init "c/1" 127.0.0.1:9001 --bootstrap
+  indx=2
+  for state_dir in "${test_dir}"/c?; do
+    member=$(basename "${state_dir}")
+    if [ "${member}" = "c1" ]; then
+      continue
+    fi
 
-microctl --state-dir "${test_dir}/c1" init "c1" 127.0.0.1:9001 --bootstrap
+    token=$(microctl --state-dir "${test_dir}/c1" tokens add "${member}")
 
-# Ensure only valid member names are used for join
-token_node2=$(microctl --state-dir "${test_dir}/c1" tokens add "c/2")
-! microctl --state-dir "${test_dir}/c1" init "c/2" 127.0.0.1:9002 --token "${token_node2}"
+    microctl --state-dir "${state_dir}" init "${member}" "127.0.0.1:900${indx}" --token "${token}"
 
-indx=2
-for member in "${members[@]:1}"; do
-  token=$(microctl --state-dir "${test_dir}/c1" tokens add "${member}")
+    indx=$((indx + 1))
+  done
 
-  microctl --state-dir "${test_dir}/${member}" init "${member}" "127.0.0.1:900${indx}" --token "${token}"
+  # dqlite takes a while to form the cluster and assign roles to each node, and
+  # microcluster takes a while to update the core_cluster_members table
+  while [[ -n "$(microctl --state-dir "${state_dir}" cluster list -f yaml | yq '.[] | select(.role == "PENDING")')" ]]; do
+    sleep 2
+  done
 
-  indx=$((indx + 1))
-done
+  microctl --state-dir "${test_dir}/c1" cluster list
+}
 
-# dqlite takes a while to form the cluster and assign roles to each node, and
-# microcluster takes a while to update the core_cluster_members table
-while [[ -n "$(microctl --state-dir "${test_dir}/c1" cluster list -f yaml | yq '.[] | select(.role == "PENDING")')" ]]; do
+shutdown_systems() {
+  if [ -n "${CLUSTER_INSPECT:-}" ]; then
+    echo "Pausing to inspect... press enter when done"
+    read -r
+  fi
+
+  for member in "${test_dir}"/c?; do
+    microctl --state-dir "${member}" shutdown || true
+  done
+
   sleep 2
-done
 
-microctl --state-dir "${test_dir}/c1" cluster list
+  # The cluster doesn't always shut down right away; we've given it a chance
+  for job_pid in $(jobs -p); do
+    kill -9 "${job_pid}"
+  done
+}
 
-for member in "${members[@]}"; do
-  microctl --state-dir "${test_dir}/${member}" shutdown
-done
+test_misc() {
+  new_systems 2
 
-# The cluster doesn't always shut down right away; this is fine since we're
-# doing recovery next
-for jobnum in {1..5}; do
-  kill -9 %"${jobnum}"
-done
+    # Ensure two daemons cannot start in the same state dir
+  ! microd --state-dir "${test_dir}/c1" "${cluster_flags[@]}" || false
 
-microctl --state-dir "${test_dir}/c1" cluster list --local --format yaml |
-  yq '
-    sort_by(.name) |
-    .[0].role = "voter" |
-    .[1].role = "voter" |
-    .[2].role = "spare" |
-    .[3].role = "spare" |
-    .[4].role = "spare"' |
-  sed 's/:900/:800/' |
-  microctl --state-dir "${test_dir}/c1" cluster edit
+  # Ensure only valid member names are used for bootstrap
+  ! microctl --state-dir "${test_dir}/c1" init "c/1" 127.0.0.1:9001 --bootstrap || false
 
-# While it is perfectly fine to load the recovery tarball on the member where it
-# was generated, the tests should make sure that both codepaths work, i.e. we
-# should make sure that recovery leaves the database ready to start with the
-# new configuration without needing to load the recovery tarball.
-mv "${test_dir}/c1/recovery_db.tar.gz" "${test_dir}/c2/"
+  microctl --state-dir "${test_dir}/c1" init "c1" 127.0.0.1:9001 --bootstrap
 
-for member in c1 c2; do
-  state_dir="${test_dir}/${member}"
-  microd --state-dir "${state_dir}" "${cluster_flags[@]}" > /dev/null 2>&1 &
-done
+  # Ensure only valid member names are used for join
+  token_node2=$(microctl --state-dir "${test_dir}/c1" tokens add "c/2")
+  ! microctl --state-dir "${test_dir}/c2" init "c/2" 127.0.0.1:9002 --token "${token_node2}" || false
 
-# microcluster takes a long time to update the member roles in the core_cluster_members table
-sleep 90
+  shutdown_systems
+}
 
-microctl --state-dir "${test_dir}/c1" cluster list
+test_recover() {
+  new_systems 5
+  bootstrap_systems
+  shutdown_systems
 
-[[ $(microctl --state-dir "${test_dir}/c1" cluster list -f yaml | yq '.[] | select(.clustermemberlocal.name == "c1").role') == "voter" ]]
-[[ $(microctl --state-dir "${test_dir}/c1" cluster list -f yaml | yq '.[] | select(.clustermemberlocal.name == "c2").role') == "voter" ]]
-[[ $(microctl --state-dir "${test_dir}/c1" cluster list -f yaml | yq '.[] | select(.clustermemberlocal.name == "c3").role') == "spare" ]]
-[[ $(microctl --state-dir "${test_dir}/c1" cluster list -f yaml | yq '.[] | select(.clustermemberlocal.name == "c4").role') == "spare" ]]
-[[ $(microctl --state-dir "${test_dir}/c1" cluster list -f yaml | yq '.[] | select(.clustermemberlocal.name == "c5").role') == "spare" ]]
+  microctl --state-dir "${test_dir}/c1" cluster list --local --format yaml |
+    yq '
+      sort_by(.name) |
+      .[0].role = "voter" |
+      .[1].role = "voter" |
+      .[2].role = "spare" |
+      .[3].role = "spare" |
+      .[4].role = "spare"' |
+    sed 's/:900/:800/' |
+    microctl --state-dir "${test_dir}/c1" cluster edit
 
-echo "Tests passed"
+  # While it is perfectly fine to load the recovery tarball on the member where it
+  # was generated, the tests should make sure that both codepaths work, i.e. we
+  # should make sure that recovery leaves the database ready to start with the
+  # new configuration without needing to load the recovery tarball.
+  mv "${test_dir}/c1/recovery_db.tar.gz" "${test_dir}/c2/"
 
-# Clean up
-if [ -n "${CLUSTER_INSPECT:-}" ]; then
-  echo "Pausing to inspect... press enter when done"
-  read -r
+  for member in c1 c2; do
+    state_dir="${test_dir}/${member}"
+    microd --state-dir "${state_dir}" "${cluster_flags[@]}" > /dev/null &
+  done
+
+  # microcluster takes a long time to update the member roles in the core_cluster_members table
+  sleep 90
+
+  microctl --state-dir "${test_dir}/c1" cluster list
+
+  [[ $(microctl --state-dir "${test_dir}/c1" cluster list -f yaml | yq '.[] | select(.clustermemberlocal.name == "c1").role') == "voter" ]]
+  [[ $(microctl --state-dir "${test_dir}/c1" cluster list -f yaml | yq '.[] | select(.clustermemberlocal.name == "c2").role') == "voter" ]]
+  [[ $(microctl --state-dir "${test_dir}/c1" cluster list -f yaml | yq '.[] | select(.clustermemberlocal.name == "c3").role') == "spare" ]]
+  [[ $(microctl --state-dir "${test_dir}/c1" cluster list -f yaml | yq '.[] | select(.clustermemberlocal.name == "c4").role') == "spare" ]]
+  [[ $(microctl --state-dir "${test_dir}/c1" cluster list -f yaml | yq '.[] | select(.clustermemberlocal.name == "c5").role') == "spare" ]]
+
+  shutdown_systems
+}
+
+# allow for running a specific set of tests
+if [ "${1:-"all"}" = "all" ] || [ "${1}" = "" ]; then
+  test_misc
+  test_recover
+elif [ "${1}" = "recover" ]; then
+  test_recover
+elif [ "${1}" = "misc" ]; then
+  test_misc
+else
+  echo "Unknown test ${1}"
 fi
-
-for member in c1 c2; do
-  microctl --state-dir "${test_dir}/${member}" shutdown
-done
-

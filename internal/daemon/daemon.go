@@ -853,7 +853,7 @@ func (d *Daemon) addExtensionServers(preInit bool, fallbackCert *shared.CertInfo
 		} else {
 			// Generate a dedicated certificate or load the custom one if it exists.
 			// When updating the additional listeners the dedicated certificate from before will be reused.
-			cert, err = shared.KeyPairAndCA(d.os.CertificatesDir, serverName, shared.CertServer, shared.CertOptions{AddHosts: true})
+			cert, err = shared.KeyPairAndCA(d.os.CertificatesDir, serverName, shared.CertServer, shared.CertOptions{AddHosts: true, SubjectName: d.Name()})
 			if err != nil {
 				return fmt.Errorf("Failed to setup dedicated certificate for additional server %q: %w", serverName, err)
 			}

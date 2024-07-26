@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/canonical/lxd/lxd/response"
@@ -80,11 +82,17 @@ func controlPost(state state.State, r *http.Request) response.Response {
 	reverter := revert.New()
 	defer reverter.Fail()
 
+	serverCert, err := state.ServerCert().PublicKeyX509()
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	certNameMatches := shared.ValueInSlice(req.Name, serverCert.DNSNames)
 	var joinInfo *internalTypes.TokenResponse
 	reverter.Add(func() {
 		// When joining, don't attempt to reset the cluster member if we never received authorization from any cluster members.
 		// This is because we won't have changed any state yet, so resetting the cluster member won't help, and may have its own side-effects.
-		if joinInfo == nil && req.JoinToken != "" {
+		if joinInfo == nil && req.JoinToken != "" && !certNameMatches {
 			return
 		}
 
@@ -125,6 +133,30 @@ func controlPost(state state.State, r *http.Request) response.Response {
 			logger.Error("Failed to clean up cluster state after join failure", logger.Ctx{"error": err})
 		}
 	})
+
+	// Replace the server keypair if the cluster member name has changed upon initialization.
+	if !certNameMatches {
+		err := os.Remove(filepath.Join(state.FileSystem().StateDir, "server.crt"))
+		if err != nil {
+			return response.SmartError(err)
+		}
+
+		err = os.Remove(filepath.Join(state.FileSystem().StateDir, "server.key"))
+		if err != nil {
+			return response.SmartError(err)
+		}
+
+		// Generate a new keypair with the new subject name.
+		_, err = shared.KeyPairAndCA(state.FileSystem().StateDir, string(types.ServerCertificateName), shared.CertServer, shared.CertOptions{AddHosts: true, SubjectName: req.Name})
+		if err != nil {
+			return response.SmartError(err)
+		}
+
+		err = intState.ReloadCert(types.ServerCertificateName)
+		if err != nil {
+			return response.SmartError(err)
+		}
+	}
 
 	if req.JoinToken != "" {
 		joinInfo, err = joinWithToken(state, r, req)

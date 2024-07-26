@@ -82,6 +82,8 @@ func (c *cmdTokensAdd) run(cmd *cobra.Command, args []string) error {
 
 type cmdTokensList struct {
 	common *CmdControl
+
+	flagFormat string
 }
 
 func (c *cmdTokensList) command() *cobra.Command {
@@ -90,6 +92,7 @@ func (c *cmdTokensList) command() *cobra.Command {
 		Short: "List join tokens available for use",
 		RunE:  c.run,
 	}
+	cmd.Flags().StringVarP(&c.flagFormat, "format", "f", cli.TableFormatTable, "Format (csv|json|table|yaml|compact)")
 
 	return cmd
 }
@@ -117,7 +120,7 @@ func (c *cmdTokensList) run(cmd *cobra.Command, args []string) error {
 	header := []string{"NAME", "TOKENS", "EXPIRES AT"}
 	sort.Sort(cli.SortColumnsNaturally(data))
 
-	return cli.RenderTable(cli.TableFormatTable, header, data, records)
+	return cli.RenderTable(c.flagFormat, header, data, records)
 }
 
 type cmdTokensRevoke struct {

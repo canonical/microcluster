@@ -13,6 +13,9 @@ type CertificateName string
 const (
 	// ClusterCertificateName represents the name of the cluster certificate used by the core API.
 	ClusterCertificateName CertificateName = "cluster"
+
+	// ServerCertificateName represents the name of the identifying certificate of a cluster member.
+	ServerCertificateName CertificateName = "server"
 )
 
 // KeyPair holds a certificate together with its private key and optional CA.

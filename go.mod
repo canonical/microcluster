@@ -1,10 +1,10 @@
 module github.com/canonical/microcluster
 
-go 1.22.4
+go 1.22.5
 
 require (
 	github.com/canonical/go-dqlite v1.22.0
-	github.com/canonical/lxd v0.0.0-20240709081608-9df996e36bac
+	github.com/canonical/lxd v0.0.0-20240725152227-dd8bcf029436
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/google/renameio v1.0.1
 	github.com/gorilla/mux v1.8.1
@@ -22,7 +22,7 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/flosch/pongo2 v0.0.0-20200913210552-0d938eb266f3 // indirect
 	github.com/fvbommel/sortorder v1.1.0 // indirect
-	github.com/go-jose/go-jose/v4 v4.0.2 // indirect
+	github.com/go-jose/go-jose/v4 v4.0.3 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
@@ -37,7 +37,7 @@ require (
 	github.com/muhlemmer/gu v0.3.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pkg/sftp v1.13.6 // indirect
-	github.com/pkg/xattr v0.4.9 // indirect
+	github.com/pkg/xattr v0.4.10 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect
@@ -45,7 +45,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/zitadel/logging v0.6.0 // indirect
-	github.com/zitadel/oidc/v3 v3.25.1 // indirect
+	github.com/zitadel/oidc/v3 v3.26.0 // indirect
 	github.com/zitadel/schema v1.3.0 // indirect
 	go.opentelemetry.io/otel v1.28.0 // indirect
 	go.opentelemetry.io/otel/metric v1.28.0 // indirect

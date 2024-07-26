@@ -143,6 +143,10 @@ func clusterPost(s state.State, r *http.Request) response.Response {
 			return err
 		}
 
+		if !shared.ValueInSlice(record.Name, req.Certificate.DNSNames) {
+			return fmt.Errorf("Joining server certificate SAN does not contain join token name")
+		}
+
 		_, err = cluster.CreateCoreClusterMember(ctx, tx, dbClusterMember)
 		if err != nil {
 			return err
@@ -204,7 +208,7 @@ func clusterPost(s state.State, r *http.Request) response.Response {
 		splittedPath := strings.Split(filepath.Base(path), ".")
 		if len(splittedPath) == 2 && splittedPath[1] == "crt" {
 			// Load the certificate
-			cert, err := shared.KeyPairAndCA(s.FileSystem().CertificatesDir, splittedPath[0], shared.CertServer, true)
+			cert, err := shared.KeyPairAndCA(s.FileSystem().CertificatesDir, splittedPath[0], shared.CertServer, shared.CertOptions{})
 			if err != nil {
 				return fmt.Errorf("Failed to load certificate for additional server %q: %w", splittedPath[0], err)
 			}

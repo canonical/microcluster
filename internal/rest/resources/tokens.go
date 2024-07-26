@@ -87,6 +87,11 @@ func tokensPost(state state.State, r *http.Request) response.Response {
 	}
 
 	err = state.Database().Transaction(r.Context(), func(ctx context.Context, tx *sql.Tx) error {
+		err = cluster.DeleteExpiredCoreTokenRecords(ctx, tx)
+		if err != nil {
+			return err
+		}
+
 		_, err = cluster.CreateCoreTokenRecord(ctx, tx, cluster.CoreTokenRecord{
 			Name:       req.Name,
 			Secret:     tokenKey,

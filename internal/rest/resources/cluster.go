@@ -143,6 +143,10 @@ func clusterPost(s state.State, r *http.Request) response.Response {
 			return err
 		}
 
+		if !shared.ValueInSlice(record.Name, req.Certificate.DNSNames) {
+			return fmt.Errorf("Joining server certificate SAN does not contain join token name")
+		}
+
 		_, err = cluster.CreateCoreClusterMember(ctx, tx, dbClusterMember)
 		if err != nil {
 			return err

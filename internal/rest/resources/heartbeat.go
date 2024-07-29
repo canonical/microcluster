@@ -239,7 +239,7 @@ func beginHeartbeat(ctx context.Context, s state.State, hbReq internalTypes.Hear
 			}
 		}
 
-		return nil
+		return cluster.DeleteExpiredCoreTokenRecords(ctx, tx)
 	})
 	if err != nil {
 		return response.SmartError(err)

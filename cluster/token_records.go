@@ -1,10 +1,13 @@
 package cluster
 
 import (
+	"context"
 	"crypto/x509"
 	"database/sql"
+	"time"
 
 	"github.com/canonical/lxd/shared"
+	"github.com/canonical/lxd/shared/logger"
 
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/rest/types"
@@ -61,4 +64,30 @@ func (t *CoreTokenRecord) ToAPI(clusterCert *x509.Certificate, joinAddresses []t
 		Name:      t.Name,
 		ExpiresAt: t.ExpiryDate.Time,
 	}, nil
+}
+
+// Expired compares the token's expiry date with the current time.
+func (t *CoreTokenRecord) Expired() bool {
+	return t.ExpiryDate.Valid && t.ExpiryDate.Time.Before(time.Now())
+}
+
+// DeleteExpiredCoreTokenRecords cleans up expired tokens.
+func DeleteExpiredCoreTokenRecords(ctx context.Context, tx *sql.Tx) error {
+	tokens, err := GetCoreTokenRecords(ctx, tx)
+	if err != nil {
+		return err
+	}
+
+	for _, token := range tokens {
+		if token.Expired() {
+			err = DeleteCoreTokenRecord(ctx, tx, token.Name)
+			if err != nil {
+				return err
+			}
+
+			logger.Info("Removed expired join token", logger.Ctx{"name": token.Name})
+		}
+	}
+
+	return nil
 }

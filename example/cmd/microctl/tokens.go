@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"sort"
+	"time"
 
 	cli "github.com/canonical/lxd/shared/cmd"
 	"github.com/spf13/cobra"
@@ -39,6 +40,8 @@ func (c *cmdSecrets) run(cmd *cobra.Command, args []string) error {
 
 type cmdTokensAdd struct {
 	common *CmdControl
+
+	flagExpireAfter string
 }
 
 func (c *cmdTokensAdd) command() *cobra.Command {
@@ -47,6 +50,7 @@ func (c *cmdTokensAdd) command() *cobra.Command {
 		Short: "Add a new join token under the given name",
 		RunE:  c.run,
 	}
+	cmd.Flags().StringVarP(&c.flagExpireAfter, "expire-after", "e", "3h", "Set the lifetime for the token")
 
 	return cmd
 }
@@ -61,7 +65,12 @@ func (c *cmdTokensAdd) run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	token, err := m.NewJoinToken(cmd.Context(), args[0], 0)
+	expireAfter, err := time.ParseDuration(c.flagExpireAfter)
+	if err != nil {
+		return fmt.Errorf("Invalid value for expire-after: %w", err)
+	}
+
+	token, err := m.NewJoinToken(cmd.Context(), args[0], expireAfter)
 	if err != nil {
 		return err
 	}
@@ -73,6 +82,8 @@ func (c *cmdTokensAdd) run(cmd *cobra.Command, args []string) error {
 
 type cmdTokensList struct {
 	common *CmdControl
+
+	flagFormat string
 }
 
 func (c *cmdTokensList) command() *cobra.Command {
@@ -81,6 +92,7 @@ func (c *cmdTokensList) command() *cobra.Command {
 		Short: "List join tokens available for use",
 		RunE:  c.run,
 	}
+	cmd.Flags().StringVarP(&c.flagFormat, "format", "f", cli.TableFormatTable, "Format (csv|json|table|yaml|compact)")
 
 	return cmd
 }
@@ -102,13 +114,13 @@ func (c *cmdTokensList) run(cmd *cobra.Command, args []string) error {
 
 	data := make([][]string, len(records))
 	for i, record := range records {
-		data[i] = []string{record.Name, record.Token}
+		data[i] = []string{record.Name, record.Token, record.ExpiresAt.String()}
 	}
 
-	header := []string{"NAME", "TOKENS"}
+	header := []string{"NAME", "TOKENS", "EXPIRES AT"}
 	sort.Sort(cli.SortColumnsNaturally(data))
 
-	return cli.RenderTable(cli.TableFormatTable, header, data, records)
+	return cli.RenderTable(c.flagFormat, header, data, records)
 }
 
 type cmdTokensRevoke struct {

@@ -496,6 +496,11 @@ func MaybeUnpackRecoveryTarball(filesystem *sys.OS) error {
 		return err
 	}
 
+	err = writeGlobalMembersPatch(filesystem, incomingMembers)
+	if err != nil {
+		return fmt.Errorf("Failed to write global DB update: %w", err)
+	}
+
 	return nil
 }
 

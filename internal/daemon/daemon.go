@@ -35,6 +35,7 @@ import (
 	internalState "github.com/canonical/microcluster/internal/state"
 	"github.com/canonical/microcluster/internal/sys"
 	"github.com/canonical/microcluster/internal/trust"
+	"github.com/canonical/microcluster/internal/utils"
 	"github.com/canonical/microcluster/rest"
 	"github.com/canonical/microcluster/rest/types"
 	"github.com/canonical/microcluster/state"
@@ -193,6 +194,12 @@ func (d *Daemon) Run(ctx context.Context, stateDir string, args Args) error {
 	d.extensionServersMu.Lock()
 	// Deep copy the supplied extension servers to prevent assigning the map by reference.
 	for k, v := range args.ExtensionServers {
+		// Check if the name is a valid FQDN as it might be used for the certificates SAN.
+		err := utils.ValidateFQDN(k)
+		if err != nil {
+			return fmt.Errorf("Invalid server name %q: %w", k, err)
+		}
+
 		// `core` and `unix` are reserved server names.
 		if shared.ValueInSlice(k, []string{endpoints.EndpointsCore, endpoints.EndpointsUnix}) {
 			return fmt.Errorf("Cannot use the reserved server name %q", k)

@@ -40,6 +40,33 @@ import (
 	"github.com/canonical/microcluster/state"
 )
 
+// Args are the data needed to start a MicroCluster daemon.
+type Args struct {
+	Verbose bool
+	Debug   bool
+
+	// Consumers of MicroCluster are required to provide a version to serve at /cluster/1.0.
+	Version string
+
+	// Address/port to offer the core API and extension servers over before initializing the daemon
+	PreInitListenAddress string
+
+	// How often heartbeats are attempted
+	HeartbeatInterval time.Duration
+
+	// List of schema updates in the order that they should be applied.
+	ExtensionsSchema []schema.Update
+
+	// List of extensions supported by the endpoints of the core/default cluster API.
+	APIExtensions []string
+
+	// Functions that trigger at various lifecycle events
+	Hooks *state.Hooks
+
+	// Each rest.Server will be initialized and managed by microcluster.
+	ExtensionServers map[string]rest.Server
+}
+
 // Daemon holds information for the microcluster daemon.
 type Daemon struct {
 	project string // The project refers to the name of the go-project that is calling MicroCluster.
@@ -76,13 +103,12 @@ type Daemon struct {
 }
 
 // NewDaemon initializes the Daemon context and channels.
-func NewDaemon(project string, version string) *Daemon {
+func NewDaemon(project string) *Daemon {
 	d := &Daemon{
 		shutdownDoneCh:   make(chan error),
 		ReadyChan:        make(chan struct{}),
 		extensionServers: make(map[string]rest.Server),
 		project:          project,
-		version:          version,
 	}
 
 	d.stop = sync.OnceValue(func() error {
@@ -111,11 +137,9 @@ func NewDaemon(project string, version string) *Daemon {
 	return d
 }
 
-// Run initializes the Daemon with the given configuration, starts the database, and blocks until the daemon is cancelled.
-// - `extensionsSchema` is a list of schema updates in the order that they should be applied.
-// - `extensionServers` is a list of rest.Server that will be initialized and managed by microcluster.
-// - `hooks` are a set of functions that trigger at certain points during cluster communication.
-func (d *Daemon) Run(ctx context.Context, listenAddress string, heartbeatInterval time.Duration, stateDir string, socketGroup string, extensionsSchema []schema.Update, apiExtensions []string, extensionServers map[string]rest.Server, hooks *state.Hooks) error {
+// Run initializes the Daemon with the given configuration, starts the database,
+// and blocks until the daemon is cancelled.
+func (d *Daemon) Run(ctx context.Context, stateDir string, socketGroup string, args Args) error {
 	d.shutdownCtx, d.shutdownCancel = context.WithCancel(ctx)
 	if stateDir == "" {
 		stateDir = os.Getenv(sys.StateDir)
@@ -134,6 +158,12 @@ func (d *Daemon) Run(ctx context.Context, listenAddress string, heartbeatInterva
 	if err != nil {
 		return fmt.Errorf("Failed to initialize directory structure: %w", err)
 	}
+
+	if args.Version == "" {
+		return fmt.Errorf("Version was missing at MicroCluster daemon start")
+	}
+
+	d.version = args.Version
 
 	// Setup the deamon's internal config.
 	d.config = internalConfig.NewDaemonConfig(filepath.Join(d.os.StateDir, "daemon.yaml"))
@@ -155,7 +185,7 @@ func (d *Daemon) Run(ctx context.Context, listenAddress string, heartbeatInterva
 
 	d.extensionServersMu.Lock()
 	// Deep copy the supplied extension servers to prevent assigning the map by reference.
-	for k, v := range extensionServers {
+	for k, v := range args.ExtensionServers {
 		// `core` and `unix` are reserved server names.
 		if shared.ValueInSlice(k, []string{endpoints.EndpointsCore, endpoints.EndpointsUnix}) {
 			return fmt.Errorf("Cannot use the reserved server name %q", k)
@@ -166,7 +196,7 @@ func (d *Daemon) Run(ctx context.Context, listenAddress string, heartbeatInterva
 
 	d.extensionServersMu.Unlock()
 
-	err = d.init(listenAddress, heartbeatInterval, extensionsSchema, apiExtensions, hooks)
+	err = d.init(args.PreInitListenAddress, args.HeartbeatInterval, args.ExtensionsSchema, args.APIExtensions, args.Hooks)
 	if err != nil {
 		return fmt.Errorf("Daemon failed to start: %w", err)
 	}

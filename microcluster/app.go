@@ -38,8 +38,7 @@ type MicroCluster struct {
 
 // Args contains options for configuring MicroCluster.
 type Args struct {
-	StateDir    string
-	SocketGroup string
+	StateDir string
 
 	Client *client.Client
 	Proxy  func(*http.Request) (*url.URL, error)
@@ -54,7 +53,7 @@ func App(args Args) (*MicroCluster, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Missing absolute state directory: %w", err)
 	}
-	os, err := sys.DefaultOS(stateDir, args.SocketGroup, true)
+	os, err := sys.DefaultOS(stateDir, true)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +83,7 @@ func (m *MicroCluster) Start(ctx context.Context, daemonArgs DaemonArgs) error {
 	ctx, cancel := signal.NotifyContext(ctx, unix.SIGPWR, unix.SIGTERM, unix.SIGINT, unix.SIGQUIT)
 	defer cancel()
 
-	err = d.Run(ctx, m.FileSystem.StateDir, m.args.SocketGroup, daemonArgs)
+	err = d.Run(ctx, m.FileSystem.StateDir, daemonArgs)
 	if err != nil {
 		return fmt.Errorf("Daemon stopped with error: %w", err)
 	}

@@ -40,6 +40,36 @@ import (
 	"github.com/canonical/microcluster/state"
 )
 
+// Args are the data needed to start a MicroCluster daemon.
+type Args struct {
+	Verbose bool
+	Debug   bool
+
+	// Consumers of MicroCluster are required to provide a version to serve at /cluster/1.0.
+	Version string
+
+	// Name of the Unix group of the control socket
+	SocketGroup string
+
+	// Address/port to offer the core API and extension servers over before initializing the daemon
+	PreInitListenAddress string
+
+	// How often heartbeats are attempted
+	HeartbeatInterval time.Duration
+
+	// List of schema updates in the order that they should be applied.
+	ExtensionsSchema []schema.Update
+
+	// List of extensions supported by the endpoints of the core/default cluster API.
+	APIExtensions []string
+
+	// Functions that trigger at various lifecycle events
+	Hooks *state.Hooks
+
+	// Each rest.Server will be initialized and managed by microcluster.
+	ExtensionServers map[string]rest.Server
+}
+
 // Daemon holds information for the microcluster daemon.
 type Daemon struct {
 	project string // The project refers to the name of the go-project that is calling MicroCluster.
@@ -76,13 +106,12 @@ type Daemon struct {
 }
 
 // NewDaemon initializes the Daemon context and channels.
-func NewDaemon(project string, version string) *Daemon {
+func NewDaemon(project string) *Daemon {
 	d := &Daemon{
 		shutdownDoneCh:   make(chan error),
 		ReadyChan:        make(chan struct{}),
 		extensionServers: make(map[string]rest.Server),
 		project:          project,
-		version:          version,
 	}
 
 	d.stop = sync.OnceValue(func() error {
@@ -111,11 +140,9 @@ func NewDaemon(project string, version string) *Daemon {
 	return d
 }
 
-// Run initializes the Daemon with the given configuration, starts the database, and blocks until the daemon is cancelled.
-// - `extensionsSchema` is a list of schema updates in the order that they should be applied.
-// - `extensionServers` is a list of rest.Server that will be initialized and managed by microcluster.
-// - `hooks` are a set of functions that trigger at certain points during cluster communication.
-func (d *Daemon) Run(ctx context.Context, listenAddress string, heartbeatInterval time.Duration, stateDir string, socketGroup string, extensionsSchema []schema.Update, apiExtensions []string, extensionServers map[string]rest.Server, hooks *state.Hooks) error {
+// Run initializes the Daemon with the given configuration, starts the database,
+// and blocks until the daemon is cancelled.
+func (d *Daemon) Run(ctx context.Context, stateDir string, args Args) error {
 	d.shutdownCtx, d.shutdownCancel = context.WithCancel(ctx)
 	if stateDir == "" {
 		stateDir = os.Getenv(sys.StateDir)
@@ -130,10 +157,20 @@ func (d *Daemon) Run(ctx context.Context, listenAddress string, heartbeatInterva
 		return fmt.Errorf("Failed to find state directory: %w", err)
 	}
 
-	d.os, err = sys.DefaultOS(stateDir, socketGroup, true)
+	d.os, err = sys.DefaultOS(stateDir, true)
 	if err != nil {
 		return fmt.Errorf("Failed to initialize directory structure: %w", err)
 	}
+
+	if args.SocketGroup == "" {
+		args.SocketGroup = os.Getenv(sys.SocketGroup)
+	}
+
+	if args.Version == "" {
+		return fmt.Errorf("Version was missing at MicroCluster daemon start")
+	}
+
+	d.version = args.Version
 
 	// Setup the deamon's internal config.
 	d.config = internalConfig.NewDaemonConfig(filepath.Join(d.os.StateDir, "daemon.yaml"))
@@ -155,7 +192,7 @@ func (d *Daemon) Run(ctx context.Context, listenAddress string, heartbeatInterva
 
 	d.extensionServersMu.Lock()
 	// Deep copy the supplied extension servers to prevent assigning the map by reference.
-	for k, v := range extensionServers {
+	for k, v := range args.ExtensionServers {
 		// `core` and `unix` are reserved server names.
 		if shared.ValueInSlice(k, []string{endpoints.EndpointsCore, endpoints.EndpointsUnix}) {
 			return fmt.Errorf("Cannot use the reserved server name %q", k)
@@ -166,7 +203,7 @@ func (d *Daemon) Run(ctx context.Context, listenAddress string, heartbeatInterva
 
 	d.extensionServersMu.Unlock()
 
-	err = d.init(listenAddress, heartbeatInterval, extensionsSchema, apiExtensions, hooks)
+	err = d.init(args.PreInitListenAddress, args.SocketGroup, args.HeartbeatInterval, args.ExtensionsSchema, args.APIExtensions, args.Hooks)
 	if err != nil {
 		return fmt.Errorf("Daemon failed to start: %w", err)
 	}
@@ -190,7 +227,7 @@ func (d *Daemon) Run(ctx context.Context, listenAddress string, heartbeatInterva
 	}
 }
 
-func (d *Daemon) init(listenAddress string, heartbeatInterval time.Duration, schemaExtensions []schema.Update, apiExtensions []string, hooks *state.Hooks) error {
+func (d *Daemon) init(listenAddress string, socketGroup string, heartbeatInterval time.Duration, schemaExtensions []schema.Update, apiExtensions []string, hooks *state.Hooks) error {
 	d.applyHooks(hooks)
 
 	var err error
@@ -260,7 +297,7 @@ func (d *Daemon) init(listenAddress string, heartbeatInterval time.Duration, sch
 
 	d.extensionServersMu.RUnlock()
 
-	err = d.startUnixServer(serverEndpoints)
+	err = d.startUnixServer(serverEndpoints, socketGroup)
 	if err != nil {
 		return err
 	}
@@ -759,9 +796,9 @@ func (d *Daemon) UpdateServers() error {
 }
 
 // startUnixServer starts up the core unix listener with the given resources.
-func (d *Daemon) startUnixServer(serverEndpoints []rest.Resources) error {
+func (d *Daemon) startUnixServer(serverEndpoints []rest.Resources, socketGroup string) error {
 	ctlServer := d.initServer(serverEndpoints...)
-	ctl := endpoints.NewSocket(d.shutdownCtx, ctlServer, d.os.ControlSocket(), d.os.SocketGroup)
+	ctl := endpoints.NewSocket(d.shutdownCtx, ctlServer, d.os.ControlSocket(), socketGroup)
 	d.endpoints = endpoints.NewEndpoints(d.shutdownCtx, map[string]endpoints.Endpoint{
 		endpoints.EndpointsUnix: ctl,
 	})

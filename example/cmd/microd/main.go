@@ -61,21 +61,26 @@ func (c *cmdDaemon) command() *cobra.Command {
 
 func (c *cmdDaemon) run(cmd *cobra.Command, args []string) error {
 	m, err := microcluster.App(microcluster.Args{
-		StateDir:    c.flagStateDir,
-		SocketGroup: c.flagSocketGroup,
-		Verbose:     c.global.flagLogVerbose,
-		Debug:       c.global.flagLogDebug,
-		Version:     version.Version(),
+		StateDir: c.flagStateDir,
 	})
-
 	if err != nil {
 		return err
 	}
 
-	m.AddServers(api.Servers)
+	dargs := microcluster.DaemonArgs{
+		Verbose: c.global.flagLogVerbose,
+		Debug:   c.global.flagLogDebug,
+		Version: version.Version(),
+
+		SocketGroup: c.flagSocketGroup,
+
+		ExtensionsSchema: database.SchemaExtensions,
+		APIExtensions:    api.Extensions(),
+		ExtensionServers: api.Servers,
+	}
 
 	// exampleHooks are some example post-action hooks that can be run by MicroCluster.
-	exampleHooks := &state.Hooks{
+	dargs.Hooks = &state.Hooks{
 		// PostBootstrap is run after the daemon is initialized and bootstrapped.
 		PostBootstrap: func(ctx context.Context, s state.State, initConfig map[string]string) error {
 			logCtx := logger.Ctx{}
@@ -183,7 +188,7 @@ func (c *cmdDaemon) run(cmd *cobra.Command, args []string) error {
 		},
 	}
 
-	return m.Start(cmd.Context(), database.SchemaExtensions, api.Extensions(), exampleHooks)
+	return m.Start(cmd.Context(), dargs)
 }
 
 func main() {

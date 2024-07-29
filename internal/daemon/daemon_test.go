@@ -189,14 +189,15 @@ func (t *daemonsSuite) Test_UpdateServers() {
 		var err error
 
 		// Create a new daemon and set some defaults.
-		daemon := NewDaemon("project", "1.0.0")
+		daemon := NewDaemon("project")
+		daemon.version = "1.0.0"
 		daemon.config = config.NewDaemonConfig(filepath.Join(t.T().TempDir(), "daemon.yaml"))
 		daemon.extensionServers = test.extensionServers
 		daemon.endpoints = endpoints.NewEndpoints(context.TODO(), map[string]endpoints.Endpoint{})
 		daemon.clusterCert = shared.TestingAltKeyPair()
 		daemon.shutdownCtx = context.TODO()
 
-		daemon.os, err = sys.DefaultOS(filepath.Join(t.T().TempDir()), "", false)
+		daemon.os, err = sys.DefaultOS(filepath.Join(t.T().TempDir()), false)
 		require.NoError(t.T(), err)
 
 		daemon.config.SetServers(test.extensionServerConfig)

@@ -19,17 +19,12 @@ type OS struct {
 	TrustDir        string
 	CertificatesDir string
 	LogFile         string
-	SocketGroup     string
 }
 
 // DefaultOS returns a fresh uninitialized OS instance with default values.
-func DefaultOS(stateDir string, socketGroup string, createDir bool) (*OS, error) {
+func DefaultOS(stateDir string, createDir bool) (*OS, error) {
 	if stateDir == "" {
 		stateDir = os.Getenv(StateDir)
-	}
-
-	if socketGroup == "" {
-		socketGroup = os.Getenv(SocketGroup)
 	}
 
 	// TODO: Configurable log file path.
@@ -40,7 +35,6 @@ func DefaultOS(stateDir string, socketGroup string, createDir bool) (*OS, error)
 		TrustDir:        filepath.Join(stateDir, "truststore"),
 		CertificatesDir: filepath.Join(stateDir, "certificates"),
 		LogFile:         "",
-		SocketGroup:     socketGroup,
 	}
 
 	err := os.init(createDir)

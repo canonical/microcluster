@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/canonical/lxd/lxd/db/schema"
 	"github.com/canonical/lxd/shared/api"
 	"github.com/canonical/lxd/shared/logger"
 	"golang.org/x/sys/unix"
@@ -24,10 +23,11 @@ import (
 	internalClient "github.com/canonical/microcluster/internal/rest/client"
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
 	"github.com/canonical/microcluster/internal/sys"
-	"github.com/canonical/microcluster/rest"
 	"github.com/canonical/microcluster/rest/types"
-	"github.com/canonical/microcluster/state"
 )
+
+// DaemonArgs are the data needed to start a MicroCluster daemon.
+type DaemonArgs = daemon.Args
 
 // MicroCluster contains some basic filesystem information for interacting with the MicroCluster daemon.
 type MicroCluster struct {
@@ -38,22 +38,11 @@ type MicroCluster struct {
 
 // Args contains options for configuring MicroCluster.
 type Args struct {
-	Verbose     bool
-	Debug       bool
 	StateDir    string
 	SocketGroup string
 
-	// Consumers of MicroCluster should provide a version to serve at /cluster/1.0
-	// This is required at daemon start.
-	Version string
-
-	PreInitListenAddress string
-	HeartbeatInterval    time.Duration
-
 	Client *client.Client
 	Proxy  func(*http.Request) (*url.URL, error)
-
-	extensionServers map[string]rest.Server
 }
 
 // App returns an instance of MicroCluster with a newly initialized filesystem if one does not exist.
@@ -78,23 +67,16 @@ func App(args Args) (*MicroCluster, error) {
 
 // Start starts up a brand new MicroCluster daemon. Only the local control socket will be available at this stage, no
 // database exists yet. Any api or schema extensions can be applied here.
-// - `extensionsSchema` is a list of schema updates in the order that they should be applied.
-// - `apiExtensions` is a list of extensions supported by the endpoints of the core/default cluster API.
-// - `hooks` are a set of functions that trigger at certain points during cluster communication.
-func (m *MicroCluster) Start(ctx context.Context, extensionsSchema []schema.Update, apiExtensions []string, hooks *state.Hooks) error {
+func (m *MicroCluster) Start(ctx context.Context, daemonArgs DaemonArgs) error {
 	// Initialize the logger.
-	err := logger.InitLogger(m.FileSystem.LogFile, "", m.args.Verbose, m.args.Debug, nil)
+	err := logger.InitLogger(m.FileSystem.LogFile, "", daemonArgs.Verbose, daemonArgs.Debug, nil)
 	if err != nil {
 		return err
 	}
 
-	if m.args.Version == "" {
-		return fmt.Errorf("Version was missing at MicroCluster daemon start")
-	}
-
 	// Start up a daemon with a basic control socket.
 	defer logger.Info("Daemon stopped")
-	d := daemon.NewDaemon(cluster.GetCallerProject(), m.args.Version)
+	d := daemon.NewDaemon(cluster.GetCallerProject())
 
 	chIgnore := make(chan os.Signal, 1)
 	signal.Notify(chIgnore, unix.SIGHUP)
@@ -102,17 +84,12 @@ func (m *MicroCluster) Start(ctx context.Context, extensionsSchema []schema.Upda
 	ctx, cancel := signal.NotifyContext(ctx, unix.SIGPWR, unix.SIGTERM, unix.SIGINT, unix.SIGQUIT)
 	defer cancel()
 
-	err = d.Run(ctx, m.args.PreInitListenAddress, m.args.HeartbeatInterval, m.FileSystem.StateDir, m.FileSystem.SocketGroup, extensionsSchema, apiExtensions, m.args.extensionServers, hooks)
+	err = d.Run(ctx, m.FileSystem.StateDir, m.args.SocketGroup, daemonArgs)
 	if err != nil {
 		return fmt.Errorf("Daemon stopped with error: %w", err)
 	}
 
 	return nil
-}
-
-// AddServers adds additional server configurations to microcluster.
-func (m *MicroCluster) AddServers(servers map[string]rest.Server) {
-	m.args.extensionServers = servers
 }
 
 // Status returns basic status information about the cluster.

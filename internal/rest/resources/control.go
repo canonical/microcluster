@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/canonical/lxd/lxd/response"
 	"github.com/canonical/lxd/lxd/util"
@@ -15,13 +14,13 @@ import (
 	"github.com/canonical/lxd/shared/api"
 	"github.com/canonical/lxd/shared/logger"
 	"github.com/canonical/lxd/shared/revert"
-	"github.com/canonical/lxd/shared/validate"
 
 	"github.com/canonical/microcluster/internal/db"
 	internalClient "github.com/canonical/microcluster/internal/rest/client"
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
 	internalState "github.com/canonical/microcluster/internal/state"
 	"github.com/canonical/microcluster/internal/trust"
+	"github.com/canonical/microcluster/internal/utils"
 	"github.com/canonical/microcluster/rest"
 	"github.com/canonical/microcluster/rest/access"
 	"github.com/canonical/microcluster/rest/types"
@@ -51,7 +50,7 @@ func controlPost(state state.State, r *http.Request) response.Response {
 		return response.SmartError(fmt.Errorf("Invalid options - received join token and bootstrap flag"))
 	}
 
-	err = validateFQDN(req.Name)
+	err = utils.ValidateFQDN(req.Name)
 	if err != nil {
 		return response.SmartError(fmt.Errorf("Invalid cluster member name %q: %w", req.Name, err))
 	}

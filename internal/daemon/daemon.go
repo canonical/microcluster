@@ -48,6 +48,9 @@ type Args struct {
 	// Consumers of MicroCluster are required to provide a version to serve at /cluster/1.0.
 	Version string
 
+	// Name of the Unix group of the control socket
+	SocketGroup string
+
 	// Address/port to offer the core API and extension servers over before initializing the daemon
 	PreInitListenAddress string
 
@@ -139,7 +142,7 @@ func NewDaemon(project string) *Daemon {
 
 // Run initializes the Daemon with the given configuration, starts the database,
 // and blocks until the daemon is cancelled.
-func (d *Daemon) Run(ctx context.Context, stateDir string, socketGroup string, args Args) error {
+func (d *Daemon) Run(ctx context.Context, stateDir string, args Args) error {
 	d.shutdownCtx, d.shutdownCancel = context.WithCancel(ctx)
 	if stateDir == "" {
 		stateDir = os.Getenv(sys.StateDir)
@@ -154,9 +157,13 @@ func (d *Daemon) Run(ctx context.Context, stateDir string, socketGroup string, a
 		return fmt.Errorf("Failed to find state directory: %w", err)
 	}
 
-	d.os, err = sys.DefaultOS(stateDir, socketGroup, true)
+	d.os, err = sys.DefaultOS(stateDir, true)
 	if err != nil {
 		return fmt.Errorf("Failed to initialize directory structure: %w", err)
+	}
+
+	if args.SocketGroup == "" {
+		args.SocketGroup = os.Getenv(sys.SocketGroup)
 	}
 
 	if args.Version == "" {
@@ -196,7 +203,7 @@ func (d *Daemon) Run(ctx context.Context, stateDir string, socketGroup string, a
 
 	d.extensionServersMu.Unlock()
 
-	err = d.init(args.PreInitListenAddress, args.HeartbeatInterval, args.ExtensionsSchema, args.APIExtensions, args.Hooks)
+	err = d.init(args.PreInitListenAddress, args.SocketGroup, args.HeartbeatInterval, args.ExtensionsSchema, args.APIExtensions, args.Hooks)
 	if err != nil {
 		return fmt.Errorf("Daemon failed to start: %w", err)
 	}
@@ -220,7 +227,7 @@ func (d *Daemon) Run(ctx context.Context, stateDir string, socketGroup string, a
 	}
 }
 
-func (d *Daemon) init(listenAddress string, heartbeatInterval time.Duration, schemaExtensions []schema.Update, apiExtensions []string, hooks *state.Hooks) error {
+func (d *Daemon) init(listenAddress string, socketGroup string, heartbeatInterval time.Duration, schemaExtensions []schema.Update, apiExtensions []string, hooks *state.Hooks) error {
 	d.applyHooks(hooks)
 
 	var err error
@@ -290,7 +297,7 @@ func (d *Daemon) init(listenAddress string, heartbeatInterval time.Duration, sch
 
 	d.extensionServersMu.RUnlock()
 
-	err = d.startUnixServer(serverEndpoints)
+	err = d.startUnixServer(serverEndpoints, socketGroup)
 	if err != nil {
 		return err
 	}
@@ -789,9 +796,9 @@ func (d *Daemon) UpdateServers() error {
 }
 
 // startUnixServer starts up the core unix listener with the given resources.
-func (d *Daemon) startUnixServer(serverEndpoints []rest.Resources) error {
+func (d *Daemon) startUnixServer(serverEndpoints []rest.Resources, socketGroup string) error {
 	ctlServer := d.initServer(serverEndpoints...)
-	ctl := endpoints.NewSocket(d.shutdownCtx, ctlServer, d.os.ControlSocket(), d.os.SocketGroup)
+	ctl := endpoints.NewSocket(d.shutdownCtx, ctlServer, d.os.ControlSocket(), socketGroup)
 	d.endpoints = endpoints.NewEndpoints(d.shutdownCtx, map[string]endpoints.Endpoint{
 		endpoints.EndpointsUnix: ctl,
 	})

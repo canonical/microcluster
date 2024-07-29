@@ -197,7 +197,7 @@ func (t *daemonsSuite) Test_UpdateServers() {
 		daemon.clusterCert = shared.TestingAltKeyPair()
 		daemon.shutdownCtx = context.TODO()
 
-		daemon.os, err = sys.DefaultOS(filepath.Join(t.T().TempDir()), "", false)
+		daemon.os, err = sys.DefaultOS(filepath.Join(t.T().TempDir()), false)
 		require.NoError(t.T(), err)
 
 		daemon.config.SetServers(test.extensionServerConfig)

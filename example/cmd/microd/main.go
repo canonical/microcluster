@@ -61,8 +61,7 @@ func (c *cmdDaemon) command() *cobra.Command {
 
 func (c *cmdDaemon) run(cmd *cobra.Command, args []string) error {
 	m, err := microcluster.App(microcluster.Args{
-		StateDir:    c.flagStateDir,
-		SocketGroup: c.flagSocketGroup,
+		StateDir: c.flagStateDir,
 	})
 	if err != nil {
 		return err
@@ -72,6 +71,8 @@ func (c *cmdDaemon) run(cmd *cobra.Command, args []string) error {
 		Verbose: c.global.flagLogVerbose,
 		Debug:   c.global.flagLogDebug,
 		Version: version.Version(),
+
+		SocketGroup: c.flagSocketGroup,
 
 		ExtensionsSchema: database.SchemaExtensions,
 		APIExtensions:    api.Extensions(),

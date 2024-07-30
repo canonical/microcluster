@@ -159,14 +159,14 @@ END;
 
 // UpdateClusterMemberSchemaVersion sets the schema version for the cluster member with the given address.
 // This helper is non-generated to work before generated statements are loaded, as we update the schema.
-func UpdateClusterMemberSchemaVersion(ctx context.Context, tx *sql.Tx, internalVersion uint64, externalVersion uint64, address string) error {
+func UpdateClusterMemberSchemaVersion(ctx context.Context, tx *sql.Tx, internalVersion uint64, externalVersion uint64, memberName string) error {
 	tableName, err := prepareUpdateV1(ctx, tx)
 	if err != nil {
 		return err
 	}
 
-	stmt := fmt.Sprintf("UPDATE %s SET schema_internal=?,schema_external=? WHERE address=?", tableName)
-	result, err := tx.Exec(stmt, internalVersion, externalVersion, address)
+	stmt := fmt.Sprintf("UPDATE %s SET schema_internal=?,schema_external=? WHERE name=?", tableName)
+	result, err := tx.Exec(stmt, internalVersion, externalVersion, memberName)
 	if err != nil {
 		return err
 	}
@@ -217,7 +217,7 @@ func GetClusterMemberSchemaVersions(ctx context.Context, tx *sql.Tx) (internalSc
 
 // UpdateClusterMemberAPIExtensions sets the API extensions for the cluster member with the given address.
 // This helper is non-generated to work before generated statements are loaded, as we update the API extensions.
-func UpdateClusterMemberAPIExtensions(ctx context.Context, tx *sql.Tx, apiExtensions extensions.Extensions, address string) error {
+func UpdateClusterMemberAPIExtensions(ctx context.Context, tx *sql.Tx, apiExtensions extensions.Extensions, memberName string) error {
 	table, err := getClusterTableName(ctx, tx)
 	if err != nil {
 		return err
@@ -237,12 +237,12 @@ WHERE name IN ('api_extensions');
 	}
 
 	if count == 0 {
-		logger.Warn("Skipping API extension update, schema does not yet support it", logger.Ctx{"address": address})
+		logger.Warn("Skipping API extension update, schema does not yet support it", logger.Ctx{"memberName": memberName})
 		return nil
 	}
 
-	stmt = fmt.Sprintf("UPDATE %s SET api_extensions=? WHERE address=?", table)
-	result, err := tx.ExecContext(ctx, stmt, apiExtensions, address)
+	stmt = fmt.Sprintf("UPDATE %s SET api_extensions=? WHERE name=?", table)
+	result, err := tx.ExecContext(ctx, stmt, apiExtensions, memberName)
 	if err != nil {
 		return err
 	}

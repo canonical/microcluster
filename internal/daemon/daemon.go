@@ -85,7 +85,7 @@ type Daemon struct {
 	clusterCert *shared.CertInfo
 
 	endpoints *endpoints.Endpoints
-	db        *db.DB
+	db        *db.DqliteDB
 
 	fsWatcher  *sys.Watcher
 	trustStore *trust.Store

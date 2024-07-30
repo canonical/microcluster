@@ -40,7 +40,7 @@ type State interface {
 	ClusterCert() *shared.CertInfo
 
 	// Database.
-	Database() *db.DB
+	Database() db.DB
 
 	// Local truststore access.
 	Remotes() *trust.Remotes
@@ -102,7 +102,7 @@ type InternalState struct {
 	InternalVersion          func() string
 	InternalServerCert       func() *shared.CertInfo
 	InternalClusterCert      func() *shared.CertInfo
-	InternalDatabase         *db.DB
+	InternalDatabase         *db.DqliteDB
 	InternalRemotes          func() *trust.Remotes
 	InternalExtensionServers func() []string
 }
@@ -139,7 +139,7 @@ func (s *InternalState) ClusterCert() *shared.CertInfo {
 }
 
 // Database allows access to the dqlite database.
-func (s *InternalState) Database() *db.DB {
+func (s *InternalState) Database() db.DB {
 	return s.InternalDatabase
 }
 

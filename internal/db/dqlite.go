@@ -59,32 +59,12 @@ type DqliteDB struct {
 	schema *update.SchemaUpdate
 
 	statusLock sync.RWMutex
-	status     Status
+	status     types.DatabaseStatus
 }
 
 const (
 	// DefaultHeartbeatInterval is the default interval used for heartbeats and dqlite role probes.
 	DefaultHeartbeatInterval time.Duration = time.Second * 10
-)
-
-// Status is the current status of the database.
-type Status string
-
-const (
-	// StatusReady indicates the database is open for use.
-	StatusReady Status = "Database is online"
-
-	// StatusWaiting indicates the database is blocked on a schema or API extension upgrade.
-	StatusWaiting Status = "Database is waiting for an upgrade"
-
-	// StatusStarting indicates the daemon is running, but dqlite is still in the process of starting up.
-	StatusStarting Status = "Database is still starting"
-
-	// StatusNotReady indicates the database is not yet ready for use.
-	StatusNotReady Status = "Database is not yet initialized"
-
-	// StatusOffline indicates that the database is offline.
-	StatusOffline Status = "Database is offline"
 )
 
 // Accept sends the outbound connection through the acceptCh channel to be received by dqlite.

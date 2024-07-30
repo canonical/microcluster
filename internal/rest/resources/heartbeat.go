@@ -72,8 +72,13 @@ func heartbeatPost(s state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
+	intState, err := internalState.ToInternal(s)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
 	if internalSchemaVersion != hbInfo.MaxSchemaInternal || externalSchemaVersion != hbInfo.MaxSchemaExternal {
-		err := s.Database().Update()
+		err := intState.InternalDatabase.Update()
 		if err != nil {
 			return response.SmartError(err)
 		}
@@ -141,8 +146,13 @@ func beginHeartbeat(ctx context.Context, s state.State, hbReq internalTypes.Hear
 		clusterMap[clusterMember.Address.String()] = clusterMember
 	}
 
+	intState, err := internalState.ToInternal(s)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
 	leaderEntry := clusterMap[s.Address().URL.Host]
-	heartbeatInterval := time.Duration(s.Database().GetHeartbeatInterval())
+	heartbeatInterval := time.Duration(intState.InternalDatabase.GetHeartbeatInterval())
 	timeSinceLast := time.Since(leaderEntry.LastHeartbeat)
 	if timeSinceLast < heartbeatInterval {
 		logger.Debugf("Heartbeat was already sent %q ago, skipping heartbeat round", timeSinceLast.String())
@@ -195,12 +205,12 @@ func beginHeartbeat(ctx context.Context, s state.State, hbReq internalTypes.Hear
 		}
 
 		timeSinceLast := time.Since(currentMember.LastHeartbeat)
-		if timeSinceLast < time.Duration(s.Database().GetHeartbeatInterval()) {
+		if timeSinceLast < time.Duration(intState.InternalDatabase.GetHeartbeatInterval()) {
 			logger.Warnf("Skipping heartbeat to %q, one was sent %q ago", currentMember.Name, timeSinceLast.String())
 			return nil
 		}
 
-		err := s.Database().SendHeartbeat(ctx, &c.Client, hbInfo)
+		err := intState.InternalDatabase.SendHeartbeat(ctx, &c.Client, hbInfo)
 		if err != nil {
 			logger.Error("Received error sending heartbeat to cluster member", logger.Ctx{"target": addr, "error": err})
 			return nil
@@ -241,11 +251,6 @@ func beginHeartbeat(ctx context.Context, s state.State, hbReq internalTypes.Hear
 
 		return cluster.DeleteExpiredCoreTokenRecords(ctx, tx)
 	})
-	if err != nil {
-		return response.SmartError(err)
-	}
-
-	intState, err := internalState.ToInternal(s)
 	if err != nil {
 		return response.SmartError(err)
 	}

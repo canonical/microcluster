@@ -19,18 +19,20 @@ import (
 	"github.com/canonical/lxd/shared/revert"
 
 	"github.com/canonical/microcluster/cluster"
+	"github.com/canonical/microcluster/internal/db/update"
 	"github.com/canonical/microcluster/internal/extensions"
 	"github.com/canonical/microcluster/internal/sys"
+	"github.com/canonical/microcluster/rest/types"
 )
 
 // Open opens the dqlite database and loads the schema.
 // Returns true if we need to wait for other nodes to catch up to our version.
-func (db *DB) Open(ext extensions.Extensions, bootstrap bool, project string) error {
+func (db *DqliteDB) Open(ext extensions.Extensions, bootstrap bool, project string) error {
 	ctx, cancel := context.WithTimeout(db.ctx, 30*time.Second)
 	defer cancel()
 
 	db.statusLock.Lock()
-	db.status = StatusStarting
+	db.status = types.DatabaseStarting
 	db.statusLock.Unlock()
 
 	reverter := revert.New()
@@ -38,7 +40,7 @@ func (db *DB) Open(ext extensions.Extensions, bootstrap bool, project string) er
 
 	reverter.Add(func() {
 		db.statusLock.Lock()
-		db.status = StatusOffline
+		db.status = types.DatabaseOffline
 		db.statusLock.Unlock()
 	})
 
@@ -75,7 +77,7 @@ func (db *DB) Open(ext extensions.Extensions, bootstrap bool, project string) er
 	}
 
 	db.statusLock.Lock()
-	db.status = StatusReady
+	db.status = types.DatabaseReady
 	db.statusLock.Unlock()
 
 	reverter.Success()
@@ -86,7 +88,7 @@ func (db *DB) Open(ext extensions.Extensions, bootstrap bool, project string) er
 // waitUpgrade compares the version information of all cluster members in the database to the local version.
 // If this node's version is ahead of others, then it will block on the `db.upgradeCh` or up to a minute.
 // If this node's version is behind others, then it returns an error.
-func (db *DB) waitUpgrade(bootstrap bool, ext extensions.Extensions) error {
+func (db *DqliteDB) waitUpgrade(bootstrap bool, ext extensions.Extensions) error {
 	checkSchemaVersion := func(schemaVersion uint64, clusterMemberVersions []uint64) (otherNodesBehind bool, err error) {
 		nodeIsBehind := false
 		for _, version := range clusterMemberVersions {
@@ -148,19 +150,19 @@ func (db *DB) waitUpgrade(bootstrap bool, ext extensions.Extensions) error {
 	if !bootstrap {
 		checkVersions := func(ctx context.Context, current int, tx *sql.Tx) error {
 			schemaVersionInternal, schemaVersionExternal, _ := newSchema.Version()
-			err := cluster.UpdateClusterMemberSchemaVersion(ctx, tx, schemaVersionInternal, schemaVersionExternal, db.memberName())
+			err := update.UpdateClusterMemberSchemaVersion(ctx, tx, schemaVersionInternal, schemaVersionExternal, db.memberName())
 			if err != nil {
 				return fmt.Errorf("Failed to update schema version when joining cluster: %w", err)
 			}
 
 			// Attempt to update the API extensions right away in case the daemon already supports it.
 			// This means we won't need to wait longer after the final member commits all schema updates.
-			err = cluster.UpdateClusterMemberAPIExtensions(ctx, tx, ext, db.memberName())
+			err = update.UpdateClusterMemberAPIExtensions(ctx, tx, ext, db.memberName())
 			if err != nil {
 				return fmt.Errorf("Failed to update API extensions when joining cluster: %w", err)
 			}
 
-			versionsInternal, versionsExternal, err := cluster.GetClusterMemberSchemaVersions(ctx, tx)
+			versionsInternal, versionsExternal, err := update.GetClusterMemberSchemaVersions(ctx, tx)
 			if err != nil {
 				return fmt.Errorf("Failed to get other members' schema versions: %w", err)
 			}
@@ -199,12 +201,12 @@ func (db *DB) waitUpgrade(bootstrap bool, ext extensions.Extensions) error {
 			otherNodesBehindAPI := false
 			// Perform the API extensions check.
 			err = query.Transaction(context.TODO(), db.db, func(ctx context.Context, tx *sql.Tx) error {
-				err := cluster.UpdateClusterMemberAPIExtensions(ctx, tx, ext, db.memberName())
+				err := update.UpdateClusterMemberAPIExtensions(ctx, tx, ext, db.memberName())
 				if err != nil {
 					return fmt.Errorf("Failed to update API extensions when joining cluster: %w", err)
 				}
 
-				clusterMembersAPIExtensions, err := cluster.GetClusterMemberAPIExtensions(ctx, tx)
+				clusterMembersAPIExtensions, err := update.GetClusterMemberAPIExtensions(ctx, tx)
 				if err != nil {
 					return fmt.Errorf("Failed to get other members' API extensions: %w", err)
 				}
@@ -232,7 +234,7 @@ func (db *DB) waitUpgrade(bootstrap bool, ext extensions.Extensions) error {
 	// If we are not bootstrapping, wait for an upgrade notification, or wait a minute before checking again.
 	if otherNodesBehind && !bootstrap {
 		db.statusLock.Lock()
-		db.status = StatusWaiting
+		db.status = types.DatabaseWaiting
 		db.statusLock.Unlock()
 
 		logger.Warn("Waiting for other cluster members to upgrade their versions", logger.Ctx{"address": db.listenAddr.String()})
@@ -246,9 +248,9 @@ func (db *DB) waitUpgrade(bootstrap bool, ext extensions.Extensions) error {
 }
 
 // Transaction handles performing a transaction on the dqlite database.
-func (db *DB) Transaction(outerCtx context.Context, f func(context.Context, *sql.Tx) error) error {
+func (db *DqliteDB) Transaction(outerCtx context.Context, f func(context.Context, *sql.Tx) error) error {
 	status := db.Status()
-	if status != StatusWaiting && status != StatusReady {
+	if status != types.DatabaseWaiting && status != types.DatabaseReady {
 		return api.StatusErrorf(http.StatusServiceUnavailable, "Database is not ready yet: %v", status)
 	}
 
@@ -266,7 +268,7 @@ func (db *DB) Transaction(outerCtx context.Context, f func(context.Context, *sql
 	})
 }
 
-func (db *DB) retry(ctx context.Context, f func(context.Context) error) error {
+func (db *DqliteDB) retry(ctx context.Context, f func(context.Context) error) error {
 	if db.ctx.Err() != nil {
 		return f(ctx)
 	}
@@ -275,7 +277,7 @@ func (db *DB) retry(ctx context.Context, f func(context.Context) error) error {
 }
 
 // Update attempts to update the database with the executable at the path specified by the SCHEMA_UPDATE variable.
-func (db *DB) Update() error {
+func (db *DqliteDB) Update() error {
 	err := db.IsOpen(context.Background())
 	if err != nil {
 		return fmt.Errorf("Failed to update, database is not yet open: %w", err)

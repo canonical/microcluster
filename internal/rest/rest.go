@@ -157,7 +157,12 @@ func handleDatabaseRequest(action rest.EndpointAction, state state.State, w http
 			return response.InternalError(fmt.Errorf("Failed to hijack connection: %w", err))
 		}
 
-		state.Database().Accept(conn)
+		intState, err := internalState.ToInternal(state)
+		if err != nil {
+			return response.InternalError(fmt.Errorf("Failed to parse internal state: %w", err))
+		}
+
+		intState.InternalDatabase.Accept(conn)
 	}
 
 	return action.Handler(state, r)

@@ -85,7 +85,7 @@ type Daemon struct {
 	clusterCert *shared.CertInfo
 
 	endpoints *endpoints.Endpoints
-	db        *db.DB
+	db        *db.DqliteDB
 
 	fsWatcher  *sys.Watcher
 	trustStore *trust.Store
@@ -983,7 +983,7 @@ func (d *Daemon) ReloadCert(name types.CertificateName) error {
 	}
 
 	if name == types.ServerCertificateName {
-		if d.db.Status() != db.StatusNotReady {
+		if d.db.Status() != types.DatabaseNotReady {
 			return fmt.Errorf("Cannot replace server certificate after initialization")
 		}
 

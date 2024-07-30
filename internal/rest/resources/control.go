@@ -185,7 +185,7 @@ func joinWithToken(state state.State, r *http.Request, req *internalTypes.Contro
 	}
 
 	// Prepare the cluster for the incoming dqlite request by creating a database entry.
-	internalVersion, externalVersion, _ := state.Database().Schema().Version()
+	internalVersion, externalVersion, _ := state.Database().SchemaVersion()
 	newClusterMember := types.ClusterMember{
 		ClusterMemberLocal: types.ClusterMemberLocal{
 			Name:        localClusterMember.Name,

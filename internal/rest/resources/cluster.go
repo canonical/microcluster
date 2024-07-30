@@ -255,7 +255,7 @@ func clusterGet(s state.State, r *http.Request) response.Response {
 		if status == db.StatusReady {
 			clusterMembers, err = cluster.GetCoreClusterMembers(ctx, tx)
 		} else {
-			schemaInternal, schemaExternal, apiExtensions := s.Database().Schema().Version()
+			schemaInternal, schemaExternal, apiExtensions := s.Database().SchemaVersion()
 			clusterMembers, awaitingUpgrade, err = cluster.GetUpgradingClusterMembers(ctx, tx, schemaInternal, schemaExternal, apiExtensions)
 		}
 

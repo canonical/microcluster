@@ -36,6 +36,7 @@ import (
 
 // DB holds all information internal to the dqlite database.
 type DB struct {
+	memberName  func() string           // Local cluster member name
 	clusterCert func() *shared.CertInfo // Cluster certificate for dqlite authentication.
 	serverCert  func() *shared.CertInfo // Server certificate for dqlite authentication.
 	listenAddr  api.URL                 // Listen address for this dqlite node.
@@ -92,7 +93,7 @@ func (db *DB) Accept(conn net.Conn) {
 }
 
 // NewDB creates an empty db struct with no dqlite connection.
-func NewDB(ctx context.Context, serverCert func() *shared.CertInfo, clusterCert func() *shared.CertInfo, os *sys.OS, heartbeatInterval time.Duration) *DB {
+func NewDB(ctx context.Context, serverCert func() *shared.CertInfo, clusterCert func() *shared.CertInfo, memberName func() string, os *sys.OS, heartbeatInterval time.Duration) *DB {
 	shutdownCtx, shutdownCancel := context.WithCancel(ctx)
 
 	if heartbeatInterval == 0 {
@@ -100,6 +101,7 @@ func NewDB(ctx context.Context, serverCert func() *shared.CertInfo, clusterCert 
 	}
 
 	return &DB{
+		memberName:        memberName,
 		serverCert:        serverCert,
 		clusterCert:       clusterCert,
 		dbName:            filepath.Base(os.DatabasePath()),

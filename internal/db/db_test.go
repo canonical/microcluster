@@ -653,6 +653,7 @@ func NewTestDB(extensionsExternal []schema.Update) (*DB, error) {
 	var err error
 	db := &DB{
 		ctx:        context.Background(),
+		memberName: func() string { return fmt.Sprintf("cluster-member-%d", 0) },
 		listenAddr: *api.NewURL().Host("10.0.0.0:8443"),
 		upgradeCh:  make(chan struct{}, 1),
 		os:         &sys.OS{},

@@ -25,7 +25,7 @@ import (
 
 // Open opens the dqlite database and loads the schema.
 // Returns true if we need to wait for other nodes to catch up to our version.
-func (db *DB) Open(ext extensions.Extensions, bootstrap bool, project string) error {
+func (db *DqliteDB) Open(ext extensions.Extensions, bootstrap bool, project string) error {
 	ctx, cancel := context.WithTimeout(db.ctx, 30*time.Second)
 	defer cancel()
 
@@ -86,7 +86,7 @@ func (db *DB) Open(ext extensions.Extensions, bootstrap bool, project string) er
 // waitUpgrade compares the version information of all cluster members in the database to the local version.
 // If this node's version is ahead of others, then it will block on the `db.upgradeCh` or up to a minute.
 // If this node's version is behind others, then it returns an error.
-func (db *DB) waitUpgrade(bootstrap bool, ext extensions.Extensions) error {
+func (db *DqliteDB) waitUpgrade(bootstrap bool, ext extensions.Extensions) error {
 	checkSchemaVersion := func(schemaVersion uint64, clusterMemberVersions []uint64) (otherNodesBehind bool, err error) {
 		nodeIsBehind := false
 		for _, version := range clusterMemberVersions {
@@ -246,7 +246,7 @@ func (db *DB) waitUpgrade(bootstrap bool, ext extensions.Extensions) error {
 }
 
 // Transaction handles performing a transaction on the dqlite database.
-func (db *DB) Transaction(outerCtx context.Context, f func(context.Context, *sql.Tx) error) error {
+func (db *DqliteDB) Transaction(outerCtx context.Context, f func(context.Context, *sql.Tx) error) error {
 	status := db.Status()
 	if status != StatusWaiting && status != StatusReady {
 		return api.StatusErrorf(http.StatusServiceUnavailable, "Database is not ready yet: %v", status)
@@ -266,7 +266,7 @@ func (db *DB) Transaction(outerCtx context.Context, f func(context.Context, *sql
 	})
 }
 
-func (db *DB) retry(ctx context.Context, f func(context.Context) error) error {
+func (db *DqliteDB) retry(ctx context.Context, f func(context.Context) error) error {
 	if db.ctx.Err() != nil {
 		return f(ctx)
 	}
@@ -275,7 +275,7 @@ func (db *DB) retry(ctx context.Context, f func(context.Context) error) error {
 }
 
 // Update attempts to update the database with the executable at the path specified by the SCHEMA_UPDATE variable.
-func (db *DB) Update() error {
+func (db *DqliteDB) Update() error {
 	err := db.IsOpen(context.Background())
 	if err != nil {
 		return fmt.Errorf("Failed to update, database is not yet open: %w", err)

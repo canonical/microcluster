@@ -34,8 +34,8 @@ import (
 	"github.com/canonical/microcluster/rest/types"
 )
 
-// DB holds all information internal to the dqlite database.
-type DB struct {
+// DqliteDB holds all information internal to the dqlite database.
+type DqliteDB struct {
 	memberName  func() string           // Local cluster member name
 	clusterCert func() *shared.CertInfo // Cluster certificate for dqlite authentication.
 	serverCert  func() *shared.CertInfo // Server certificate for dqlite authentication.
@@ -88,19 +88,19 @@ const (
 )
 
 // Accept sends the outbound connection through the acceptCh channel to be received by dqlite.
-func (db *DB) Accept(conn net.Conn) {
+func (db *DqliteDB) Accept(conn net.Conn) {
 	db.acceptCh <- conn
 }
 
 // NewDB creates an empty db struct with no dqlite connection.
-func NewDB(ctx context.Context, serverCert func() *shared.CertInfo, clusterCert func() *shared.CertInfo, memberName func() string, os *sys.OS, heartbeatInterval time.Duration) *DB {
+func NewDB(ctx context.Context, serverCert func() *shared.CertInfo, clusterCert func() *shared.CertInfo, memberName func() string, os *sys.OS, heartbeatInterval time.Duration) *DqliteDB {
 	shutdownCtx, shutdownCancel := context.WithCancel(ctx)
 
 	if heartbeatInterval == 0 {
 		heartbeatInterval = DefaultHeartbeatInterval
 	}
 
-	return &DB{
+	return &DqliteDB{
 		memberName:        memberName,
 		serverCert:        serverCert,
 		clusterCert:       clusterCert,
@@ -117,14 +117,14 @@ func NewDB(ctx context.Context, serverCert func() *shared.CertInfo, clusterCert 
 }
 
 // SetSchema sets schema and API extensions on the DB.
-func (db *DB) SetSchema(schemaExtensions []schema.Update, apiExtensions extensions.Extensions) {
+func (db *DqliteDB) SetSchema(schemaExtensions []schema.Update, apiExtensions extensions.Extensions) {
 	s := update.NewSchema()
 	s.AppendSchema(schemaExtensions, apiExtensions)
 	db.schema = s.Schema()
 }
 
 // Schema returns the update.SchemaUpdate for the DB.
-func (db *DB) Schema() *update.SchemaUpdate {
+func (db *DqliteDB) Schema() *update.SchemaUpdate {
 	return db.schema
 }
 
@@ -134,7 +134,7 @@ func (db *DqliteDB) SchemaVersion() (versionInternal uint64, versionExternal uin
 }
 
 // Bootstrap dqlite.
-func (db *DB) Bootstrap(extensions extensions.Extensions, project string, addr api.URL, clusterRecord cluster.CoreClusterMember) error {
+func (db *DqliteDB) Bootstrap(extensions extensions.Extensions, project string, addr api.URL, clusterRecord cluster.CoreClusterMember) error {
 	var err error
 	db.listenAddr = addr
 	db.dqlite, err = dqlite.New(db.os.DatabaseDir,
@@ -168,7 +168,7 @@ func (db *DB) Bootstrap(extensions extensions.Extensions, project string, addr a
 }
 
 // Join a dqlite cluster with the address of a member.
-func (db *DB) Join(extensions extensions.Extensions, project string, addr api.URL, joinAddresses ...string) error {
+func (db *DqliteDB) Join(extensions extensions.Extensions, project string, addr api.URL, joinAddresses ...string) error {
 	var err error
 	db.listenAddr = addr
 	db.dqlite, err = dqlite.New(db.os.DatabaseDir,
@@ -203,7 +203,7 @@ func (db *DB) Join(extensions extensions.Extensions, project string, addr api.UR
 }
 
 // StartWithCluster starts up dqlite and joins the cluster.
-func (db *DB) StartWithCluster(extensions extensions.Extensions, project string, addr api.URL, clusterMembers map[string]types.AddrPort) error {
+func (db *DqliteDB) StartWithCluster(extensions extensions.Extensions, project string, addr api.URL, clusterMembers map[string]types.AddrPort) error {
 	allClusterAddrs := []string{}
 	for _, clusterMemberAddrs := range clusterMembers {
 		allClusterAddrs = append(allClusterAddrs, clusterMemberAddrs.String())
@@ -213,13 +213,13 @@ func (db *DB) StartWithCluster(extensions extensions.Extensions, project string,
 }
 
 // Leader returns a client connected to the leader of the dqlite cluster.
-func (db *DB) Leader(ctx context.Context) (*dqliteClient.Client, error) {
+func (db *DqliteDB) Leader(ctx context.Context) (*dqliteClient.Client, error) {
 	// Always only try one connection at a time when fetching the leader manually, as this can be an expensive call.
 	return db.dqlite.Leader(ctx, dqliteClient.WithConcurrentLeaderConns(1))
 }
 
 // Cluster returns information about dqlite cluster members.
-func (db *DB) Cluster(ctx context.Context, client *dqliteClient.Client) ([]dqliteClient.NodeInfo, error) {
+func (db *DqliteDB) Cluster(ctx context.Context, client *dqliteClient.Client) ([]dqliteClient.NodeInfo, error) {
 	members, err := client.Cluster(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get dqlite cluster information: %w", err)
@@ -229,7 +229,7 @@ func (db *DB) Cluster(ctx context.Context, client *dqliteClient.Client) ([]dqlit
 }
 
 // Status returns the current status of the database.
-func (db *DB) Status() Status {
+func (db *DqliteDB) Status() Status {
 	if db == nil {
 		return StatusNotReady
 	}
@@ -244,7 +244,7 @@ func (db *DB) Status() Status {
 // IsOpen returns nil  only if the DB has been opened and the schema loaded.
 // Otherwise, it returns an error describing why the database is offline.
 // The returned error may have the http status 503, indicating that the database is in a valid but unavailable state.
-func (db *DB) IsOpen(ctx context.Context) error {
+func (db *DqliteDB) IsOpen(ctx context.Context) error {
 	if db == nil {
 		return api.StatusErrorf(http.StatusServiceUnavailable, string(StatusNotReady))
 	}
@@ -296,7 +296,7 @@ func (db *DB) IsOpen(ctx context.Context) error {
 }
 
 // NotifyUpgraded sends a notification that we can stop waiting for a cluster member to be upgraded.
-func (db *DB) NotifyUpgraded() {
+func (db *DqliteDB) NotifyUpgraded() {
 	select {
 	case db.upgradeCh <- struct{}{}:
 	default:
@@ -304,7 +304,7 @@ func (db *DB) NotifyUpgraded() {
 }
 
 // dialFunc to be passed to dqlite.
-func (db *DB) dialFunc() dqliteClient.DialFunc {
+func (db *DqliteDB) dialFunc() dqliteClient.DialFunc {
 	return func(ctx context.Context, address string) (net.Conn, error) {
 		conn, err := dqliteNetworkDial(ctx, address, db)
 		if err != nil {
@@ -316,12 +316,12 @@ func (db *DB) dialFunc() dqliteClient.DialFunc {
 }
 
 // GetHeartbeatInterval returns the current database heartbeat interval.
-func (db *DB) GetHeartbeatInterval() time.Duration {
+func (db *DqliteDB) GetHeartbeatInterval() time.Duration {
 	return db.heartbeatInterval
 }
 
 // SendHeartbeat initiates a new heartbeat sequence if this is a leader node.
-func (db *DB) SendHeartbeat(ctx context.Context, c *internalClient.Client, hbInfo internalTypes.HeartbeatInfo) error {
+func (db *DqliteDB) SendHeartbeat(ctx context.Context, c *internalClient.Client, hbInfo internalTypes.HeartbeatInfo) error {
 	// set the heartbeat timeout to twice the heartbeat interval.
 	heartbeatTimeout := db.heartbeatInterval * 2
 	queryCtx, cancel := context.WithTimeout(ctx, heartbeatTimeout)
@@ -330,7 +330,7 @@ func (db *DB) SendHeartbeat(ctx context.Context, c *internalClient.Client, hbInf
 	return c.QueryStruct(queryCtx, "POST", internalTypes.InternalEndpoint, api.NewURL().Path("heartbeat"), hbInfo, nil)
 }
 
-func (db *DB) heartbeat(leaderInfo dqliteClient.NodeInfo, servers []dqliteClient.NodeInfo) error {
+func (db *DqliteDB) heartbeat(leaderInfo dqliteClient.NodeInfo, servers []dqliteClient.NodeInfo) error {
 	// Use the heartbeat lock to prevent another heartbeat attempt if we are currently initiating one.
 	db.heartbeatLock.Lock()
 	defer db.heartbeatLock.Unlock()
@@ -372,7 +372,7 @@ func (db *DB) heartbeat(leaderInfo dqliteClient.NodeInfo, servers []dqliteClient
 }
 
 // dqliteNetworkDial creates a connection to the internal database endpoint.
-func dqliteNetworkDial(ctx context.Context, addr string, db *DB) (net.Conn, error) {
+func dqliteNetworkDial(ctx context.Context, addr string, db *DqliteDB) (net.Conn, error) {
 	peerCert, err := db.clusterCert().PublicKeyX509()
 	if err != nil {
 		return nil, err
@@ -470,7 +470,7 @@ func dqliteNetworkDial(ctx context.Context, addr string, db *DB) (net.Conn, erro
 }
 
 // Stop closes the database and dqlite connection.
-func (db *DB) Stop() error {
+func (db *DqliteDB) Stop() error {
 	db.statusLock.Lock()
 	db.cancel()
 	db.status = StatusOffline

@@ -128,6 +128,11 @@ func (db *DB) Schema() *update.SchemaUpdate {
 	return db.schema
 }
 
+// SchemaVersion returns the current internal and external schema version, as well as all API extensions in memory.
+func (db *DqliteDB) SchemaVersion() (versionInternal uint64, versionExternal uint64, apiExtensions extensions.Extensions) {
+	return db.schema.Version()
+}
+
 // Bootstrap dqlite.
 func (db *DB) Bootstrap(extensions extensions.Extensions, project string, addr api.URL, clusterRecord cluster.CoreClusterMember) error {
 	var err error

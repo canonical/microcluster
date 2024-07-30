@@ -30,6 +30,7 @@ import (
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
 	internalState "github.com/canonical/microcluster/internal/state"
 	"github.com/canonical/microcluster/internal/trust"
+	"github.com/canonical/microcluster/internal/utils"
 	"github.com/canonical/microcluster/rest"
 	"github.com/canonical/microcluster/rest/access"
 	"github.com/canonical/microcluster/rest/types"
@@ -89,7 +90,7 @@ func clusterPost(s state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	err = validateFQDN(req.Name)
+	err = utils.ValidateFQDN(req.Name)
 	if err != nil {
 		return response.SmartError(fmt.Errorf("Invalid cluster member name %q: %w", req.Name, err))
 	}

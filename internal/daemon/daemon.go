@@ -260,7 +260,7 @@ func (d *Daemon) init(listenAddress string, socketGroup string, heartbeatInterva
 		return fmt.Errorf("Failed to initialize trust store: %w", err)
 	}
 
-	d.db = db.NewDB(d.shutdownCtx, d.ServerCert, d.ClusterCert, d.os, heartbeatInterval)
+	d.db = db.NewDB(d.shutdownCtx, d.ServerCert, d.ClusterCert, d.Name, d.os, heartbeatInterval)
 
 	listenAddr := api.NewURL()
 	if listenAddress != "" {

@@ -19,6 +19,7 @@ import (
 	"github.com/canonical/lxd/shared/revert"
 
 	"github.com/canonical/microcluster/cluster"
+	"github.com/canonical/microcluster/internal/db/update"
 	"github.com/canonical/microcluster/internal/extensions"
 	"github.com/canonical/microcluster/internal/sys"
 )
@@ -148,19 +149,19 @@ func (db *DqliteDB) waitUpgrade(bootstrap bool, ext extensions.Extensions) error
 	if !bootstrap {
 		checkVersions := func(ctx context.Context, current int, tx *sql.Tx) error {
 			schemaVersionInternal, schemaVersionExternal, _ := newSchema.Version()
-			err := cluster.UpdateClusterMemberSchemaVersion(ctx, tx, schemaVersionInternal, schemaVersionExternal, db.memberName())
+			err := update.UpdateClusterMemberSchemaVersion(ctx, tx, schemaVersionInternal, schemaVersionExternal, db.memberName())
 			if err != nil {
 				return fmt.Errorf("Failed to update schema version when joining cluster: %w", err)
 			}
 
 			// Attempt to update the API extensions right away in case the daemon already supports it.
 			// This means we won't need to wait longer after the final member commits all schema updates.
-			err = cluster.UpdateClusterMemberAPIExtensions(ctx, tx, ext, db.memberName())
+			err = update.UpdateClusterMemberAPIExtensions(ctx, tx, ext, db.memberName())
 			if err != nil {
 				return fmt.Errorf("Failed to update API extensions when joining cluster: %w", err)
 			}
 
-			versionsInternal, versionsExternal, err := cluster.GetClusterMemberSchemaVersions(ctx, tx)
+			versionsInternal, versionsExternal, err := update.GetClusterMemberSchemaVersions(ctx, tx)
 			if err != nil {
 				return fmt.Errorf("Failed to get other members' schema versions: %w", err)
 			}
@@ -199,12 +200,12 @@ func (db *DqliteDB) waitUpgrade(bootstrap bool, ext extensions.Extensions) error
 			otherNodesBehindAPI := false
 			// Perform the API extensions check.
 			err = query.Transaction(context.TODO(), db.db, func(ctx context.Context, tx *sql.Tx) error {
-				err := cluster.UpdateClusterMemberAPIExtensions(ctx, tx, ext, db.memberName())
+				err := update.UpdateClusterMemberAPIExtensions(ctx, tx, ext, db.memberName())
 				if err != nil {
 					return fmt.Errorf("Failed to update API extensions when joining cluster: %w", err)
 				}
 
-				clusterMembersAPIExtensions, err := cluster.GetClusterMemberAPIExtensions(ctx, tx)
+				clusterMembersAPIExtensions, err := update.GetClusterMemberAPIExtensions(ctx, tx)
 				if err != nil {
 					return fmt.Errorf("Failed to get other members' API extensions: %w", err)
 				}

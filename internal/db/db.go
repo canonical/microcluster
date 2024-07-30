@@ -22,6 +22,7 @@ import (
 	"github.com/canonical/microcluster/internal/db/update"
 	"github.com/canonical/microcluster/internal/extensions"
 	"github.com/canonical/microcluster/internal/sys"
+	"github.com/canonical/microcluster/rest/types"
 )
 
 // Open opens the dqlite database and loads the schema.
@@ -31,7 +32,7 @@ func (db *DqliteDB) Open(ext extensions.Extensions, bootstrap bool, project stri
 	defer cancel()
 
 	db.statusLock.Lock()
-	db.status = StatusStarting
+	db.status = types.DatabaseStarting
 	db.statusLock.Unlock()
 
 	reverter := revert.New()
@@ -39,7 +40,7 @@ func (db *DqliteDB) Open(ext extensions.Extensions, bootstrap bool, project stri
 
 	reverter.Add(func() {
 		db.statusLock.Lock()
-		db.status = StatusOffline
+		db.status = types.DatabaseOffline
 		db.statusLock.Unlock()
 	})
 
@@ -76,7 +77,7 @@ func (db *DqliteDB) Open(ext extensions.Extensions, bootstrap bool, project stri
 	}
 
 	db.statusLock.Lock()
-	db.status = StatusReady
+	db.status = types.DatabaseReady
 	db.statusLock.Unlock()
 
 	reverter.Success()
@@ -233,7 +234,7 @@ func (db *DqliteDB) waitUpgrade(bootstrap bool, ext extensions.Extensions) error
 	// If we are not bootstrapping, wait for an upgrade notification, or wait a minute before checking again.
 	if otherNodesBehind && !bootstrap {
 		db.statusLock.Lock()
-		db.status = StatusWaiting
+		db.status = types.DatabaseWaiting
 		db.statusLock.Unlock()
 
 		logger.Warn("Waiting for other cluster members to upgrade their versions", logger.Ctx{"address": db.listenAddr.String()})
@@ -249,7 +250,7 @@ func (db *DqliteDB) waitUpgrade(bootstrap bool, ext extensions.Extensions) error
 // Transaction handles performing a transaction on the dqlite database.
 func (db *DqliteDB) Transaction(outerCtx context.Context, f func(context.Context, *sql.Tx) error) error {
 	status := db.Status()
-	if status != StatusWaiting && status != StatusReady {
+	if status != types.DatabaseWaiting && status != types.DatabaseReady {
 		return api.StatusErrorf(http.StatusServiceUnavailable, "Database is not ready yet: %v", status)
 	}
 

@@ -25,7 +25,6 @@ import (
 
 	"github.com/canonical/microcluster/client"
 	"github.com/canonical/microcluster/cluster"
-	"github.com/canonical/microcluster/internal/db"
 	internalClient "github.com/canonical/microcluster/internal/rest/client"
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
 	internalState "github.com/canonical/microcluster/internal/state"
@@ -243,7 +242,7 @@ func clusterGet(s state.State, r *http.Request) response.Response {
 	status := s.Database().Status()
 
 	// If the database is not in a ready or waiting state, we can't be sure it's available for use.
-	if status != db.StatusReady && status != db.StatusWaiting {
+	if status != types.DatabaseReady && status != types.DatabaseWaiting {
 		return response.SmartError(api.StatusErrorf(http.StatusServiceUnavailable, string(status)))
 	}
 
@@ -252,7 +251,7 @@ func clusterGet(s state.State, r *http.Request) response.Response {
 		var err error
 		var clusterMembers []cluster.CoreClusterMember
 		var awaitingUpgrade map[string]bool
-		if status == db.StatusReady {
+		if status == types.DatabaseReady {
 			clusterMembers, err = cluster.GetCoreClusterMembers(ctx, tx)
 		} else {
 			schemaInternal, schemaExternal, apiExtensions := s.Database().SchemaVersion()
@@ -289,7 +288,7 @@ func clusterGet(s state.State, r *http.Request) response.Response {
 	}
 
 	// Send a small request to each node to ensure they are reachable if the database is fully online.
-	if status == db.StatusReady {
+	if status == types.DatabaseReady {
 		clusterCert, err := s.ClusterCert().PublicKeyX509()
 		if err != nil {
 			return response.SmartError(err)

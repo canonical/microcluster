@@ -983,7 +983,7 @@ func (d *Daemon) ReloadCert(name types.CertificateName) error {
 	}
 
 	if name == types.ServerCertificateName {
-		if d.db.Status() != db.StatusNotReady {
+		if d.db.Status() != types.DatabaseNotReady {
 			return fmt.Errorf("Cannot replace server certificate after initialization")
 		}
 

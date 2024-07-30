@@ -6,10 +6,10 @@ import (
 
 	"github.com/canonical/lxd/lxd/response"
 
-	"github.com/canonical/microcluster/internal/db"
 	internalState "github.com/canonical/microcluster/internal/state"
 	"github.com/canonical/microcluster/rest"
 	"github.com/canonical/microcluster/rest/access"
+	"github.com/canonical/microcluster/rest/types"
 	"github.com/canonical/microcluster/state"
 )
 
@@ -32,7 +32,7 @@ func shutdownPost(state state.State, r *http.Request) response.Response {
 
 	return response.ManualResponse(func(w http.ResponseWriter) error {
 		// If the database is waiting for an upgrade, we may never become ready, so go ahead and shut down the database anyway.
-		if state.Database().Status() != db.StatusWaiting {
+		if state.Database().Status() != types.DatabaseWaiting {
 			<-intState.ReadyCh // Wait for daemon to start.
 		}
 

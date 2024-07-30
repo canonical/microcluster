@@ -15,7 +15,6 @@ import (
 	"github.com/canonical/lxd/shared/logger"
 	"github.com/canonical/lxd/shared/revert"
 
-	"github.com/canonical/microcluster/internal/db"
 	internalClient "github.com/canonical/microcluster/internal/rest/client"
 	internalTypes "github.com/canonical/microcluster/internal/rest/types"
 	internalState "github.com/canonical/microcluster/internal/state"
@@ -35,7 +34,7 @@ var controlCmd = rest.Endpoint{
 
 func controlPost(state state.State, r *http.Request) response.Response {
 	status := state.Database().Status()
-	if status != db.StatusNotReady {
+	if status != types.DatabaseNotReady {
 		return response.SmartError(fmt.Errorf("Unable to initialize cluster: %s", status))
 	}
 

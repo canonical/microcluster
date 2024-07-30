@@ -91,7 +91,7 @@ func NewDB(ctx context.Context, serverCert func() *shared.CertInfo, clusterCert 
 		heartbeatInterval: heartbeatInterval,
 		ctx:               shutdownCtx,
 		cancel:            shutdownCancel,
-		status:            StatusNotReady,
+		status:            types.DatabaseNotReady,
 		maxConns:          1,
 	}
 }
@@ -209,9 +209,9 @@ func (db *DqliteDB) Cluster(ctx context.Context, client *dqliteClient.Client) ([
 }
 
 // Status returns the current status of the database.
-func (db *DqliteDB) Status() Status {
+func (db *DqliteDB) Status() types.DatabaseStatus {
 	if db == nil {
-		return StatusNotReady
+		return types.DatabaseNotReady
 	}
 
 	db.statusLock.RLock()
@@ -226,7 +226,7 @@ func (db *DqliteDB) Status() Status {
 // The returned error may have the http status 503, indicating that the database is in a valid but unavailable state.
 func (db *DqliteDB) IsOpen(ctx context.Context) error {
 	if db == nil {
-		return api.StatusErrorf(http.StatusServiceUnavailable, string(StatusNotReady))
+		return api.StatusErrorf(http.StatusServiceUnavailable, string(types.DatabaseNotReady))
 	}
 
 	db.statusLock.RLock()
@@ -234,16 +234,16 @@ func (db *DqliteDB) IsOpen(ctx context.Context) error {
 	db.statusLock.RUnlock()
 
 	switch status {
-	case StatusReady:
+	case types.DatabaseReady:
 		return nil
-	case StatusNotReady:
+	case types.DatabaseNotReady:
 		fallthrough
-	case StatusOffline:
+	case types.DatabaseOffline:
 		fallthrough
-	case StatusStarting:
+	case types.DatabaseStarting:
 		return api.StatusErrorf(http.StatusServiceUnavailable, string(status))
 
-	case StatusWaiting:
+	case types.DatabaseWaiting:
 		intVersion, extversion, apiExtensions := db.Schema().Version()
 
 		awaitingSystems := 0
@@ -453,7 +453,7 @@ func dqliteNetworkDial(ctx context.Context, addr string, db *DqliteDB) (net.Conn
 func (db *DqliteDB) Stop() error {
 	db.statusLock.Lock()
 	db.cancel()
-	db.status = StatusOffline
+	db.status = types.DatabaseOffline
 	db.statusLock.Unlock()
 
 	if db.IsOpen(context.TODO()) == nil {

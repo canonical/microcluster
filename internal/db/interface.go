@@ -7,6 +7,7 @@ import (
 	dqliteClient "github.com/canonical/go-dqlite/client"
 
 	"github.com/canonical/microcluster/internal/extensions"
+	"github.com/canonical/microcluster/rest/types"
 )
 
 // DB exposes the internal database for use with external projects.
@@ -21,7 +22,7 @@ type DB interface {
 	Cluster(ctx context.Context, client *dqliteClient.Client) ([]dqliteClient.NodeInfo, error)
 
 	// Status returns the current status of the database.
-	Status() Status
+	Status() types.DatabaseStatus
 
 	// IsOpen returns nil  only if the DB has been opened and the schema loaded.
 	// Otherwise, it returns an error describing why the database is offline.

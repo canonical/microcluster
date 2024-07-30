@@ -348,14 +348,14 @@ func clusterMemberPut(s state.State, r *http.Request) response.Response {
 // resetClusterMember clears the daemon state, closing the database and stopping all listeners.
 // Returns a function that can be used to re-exec the daemon, forcibly reloading its state.
 func resetClusterMember(ctx context.Context, s state.State, force bool) (reExec func(), err error) {
-	err = s.Database().Stop()
-	if err != nil && !force {
-		return nil, fmt.Errorf("Failed shutting down database: %w", err)
-	}
-
 	intState, err := internalState.ToInternal(s)
 	if err != nil {
 		return nil, err
+	}
+
+	err = intState.InternalDatabase.Stop()
+	if err != nil && !force {
+		return nil, fmt.Errorf("Failed shutting down database: %w", err)
 	}
 
 	err = intState.StopListeners()

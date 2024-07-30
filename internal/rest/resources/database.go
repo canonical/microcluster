@@ -40,7 +40,7 @@ func databasePost(state state.State, r *http.Request) response.Response {
 	return response.EmptySyncResponse
 }
 
-func databasePatch(state state.State, r *http.Request) response.Response {
+func databasePatch(s state.State, r *http.Request) response.Response {
 	// Compare the dqlite version of the connecting client with our own.
 	versionHeader := r.Header.Get("X-Dqlite-Version")
 	if versionHeader == "" {
@@ -53,8 +53,13 @@ func databasePatch(state state.State, r *http.Request) response.Response {
 		return response.BadRequest(fmt.Errorf("Invalid dqlite vesion: %w", err))
 	}
 
+	intState, err := state.ToInternal(s)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
 	// Notify this node that a schema upgrade has occurred, in case we are waiting on one.
-	state.Database().NotifyUpgraded()
+	intState.InternalDatabase.NotifyUpgraded()
 
 	return response.EmptySyncResponse
 }

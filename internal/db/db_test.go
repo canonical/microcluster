@@ -649,9 +649,9 @@ func (s *dbSuite) Test_waitUpgradeSchemaAndAPI() {
 }
 
 // NewTedb returns a sqlite DB set up with the default microcluster schema.
-func NewTestDB(extensionsExternal []schema.Update) (*DB, error) {
+func NewTestDB(extensionsExternal []schema.Update) (*DqliteDB, error) {
 	var err error
-	db := &DB{
+	db := &DqliteDB{
 		ctx:        context.Background(),
 		memberName: func() string { return fmt.Sprintf("cluster-member-%d", 0) },
 		listenAddr: *api.NewURL().Host("10.0.0.0:8443"),

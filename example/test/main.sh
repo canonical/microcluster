@@ -11,6 +11,7 @@ if [ -n "${DEBUG:-}" ]; then
 fi
 
 if [ -n "${CLUSTER_VERBOSE:-}" ]; then
+  set -x
   cluster_flags+=("--verbose")
 fi
 
@@ -23,10 +24,12 @@ new_systems() {
     rm -r "${test_dir}"
   fi
 
+  microd_args=("${@}")
+
   for member in $(seq --format c%g "${1}"); do
     state_dir="${test_dir}/${member}"
     mkdir -p "${state_dir}"
-    microd --state-dir "${state_dir}" "${cluster_flags[@]}" &
+    microd --state-dir "${state_dir}" "${cluster_flags[@]}" "${microd_args[@]:2}" &
     microctl --state-dir "${state_dir}" waitready
   done
 }
@@ -76,7 +79,7 @@ shutdown_systems() {
 }
 
 test_misc() {
-  new_systems 2
+  new_systems 2 --heartbeat 2s
 
     # Ensure two daemons cannot start in the same state dir
   ! microd --state-dir "${test_dir}/c1" "${cluster_flags[@]}" || false
@@ -94,17 +97,16 @@ test_misc() {
 }
 
 test_tokens() {
-  new_systems 3
+  new_systems 3 --heartbeat 4s
   bootstrap_systems
 
   microctl --state-dir "${test_dir}/c1" tokens add default_expiry
 
-  microctl --state-dir "${test_dir}/c1" tokens add short_expiry --expire-after 5s
+  microctl --state-dir "${test_dir}/c1" tokens add short_expiry --expire-after 1s
 
   microctl --state-dir "${test_dir}/c1" tokens add long_expiry --expire-after 400h
 
-  # Need at least one heartbeat (every 10s)
-  sleep 15
+  sleep 1
 
   ! microctl --state-dir "${test_dir}/c1" tokens list --format csv | grep -q short_expiry || false
   microctl --state-dir "${test_dir}/c1" tokens list --format csv | grep -q default_expiry
@@ -115,10 +117,9 @@ test_tokens() {
   microd --state-dir "${test_dir}/c4" "${cluster_flags[@]}" &
   microctl --state-dir "${test_dir}/c4" waitready
 
-  # Assumes that heartbeats are 10s apart
-  token=$(microctl --state-dir "${test_dir}/c1" tokens add "c4" --expire-after 12s)
+  token=$(microctl --state-dir "${test_dir}/c1" tokens add "c4" --expire-after 1s)
 
-  sleep 12
+  sleep 1
 
   ! microctl --state-dir "${test_dir}/c4" init "c4" "127.0.0.1:9005" --token "${token}" || false
 
@@ -126,7 +127,7 @@ test_tokens() {
 }
 
 test_recover() {
-  new_systems 5
+  new_systems 5 --heartbeat 2s
   bootstrap_systems
   shutdown_systems
 
@@ -149,11 +150,12 @@ test_recover() {
 
   for member in c1 c2; do
     state_dir="${test_dir}/${member}"
-    microd --state-dir "${state_dir}" "${cluster_flags[@]}" > /dev/null &
+    microd --state-dir "${state_dir}" "${cluster_flags[@]}" --heartbeat 2s &
   done
+  microctl --state-dir "${test_dir}/c1" waitready
 
-  # microcluster takes a long time to update the member roles in the core_cluster_members table
-  sleep 90
+  # Allow for a round of heartbeats to update the member roles in core_cluster_members
+  sleep 3
 
   microctl --state-dir "${test_dir}/c1" cluster list
 

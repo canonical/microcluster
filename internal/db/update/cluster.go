@@ -8,7 +8,7 @@ import (
 	"github.com/canonical/lxd/lxd/db/query"
 	"github.com/canonical/lxd/shared/logger"
 
-	"github.com/canonical/microcluster/v2/internal/extensions"
+	"github.com/canonical/microcluster/v3/internal/extensions"
 )
 
 // PrepareUpdateV1 creates the temporary table `internal_cluster_members_new` if we have not yet run `updateFromV1`.

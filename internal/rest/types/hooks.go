@@ -1,6 +1,6 @@
 package types
 
-import "github.com/canonical/microcluster/v2/rest/types"
+import "github.com/canonical/microcluster/v3/rest/types"
 
 // HookType represents the various types of hooks available to microcluster.
 type HookType string

@@ -7,7 +7,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/canonical/microcluster/v2/rest/types"
+	"github.com/canonical/microcluster/v3/rest/types"
 )
 
 // DaemonConfig wraps the daemon's config with get, set and lock capabilities.

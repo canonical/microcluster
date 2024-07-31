@@ -6,8 +6,8 @@ import (
 
 	"github.com/canonical/lxd/shared/api"
 
-	"github.com/canonical/microcluster/v2/internal/rest/types"
-	apiTypes "github.com/canonical/microcluster/v2/rest/types"
+	"github.com/canonical/microcluster/v3/internal/rest/types"
+	apiTypes "github.com/canonical/microcluster/v3/rest/types"
 )
 
 // UpdateServers updates the additional servers config.

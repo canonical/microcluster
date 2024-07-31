@@ -15,13 +15,13 @@ import (
 	"github.com/canonical/lxd/shared/logger"
 	"github.com/gorilla/mux"
 
-	"github.com/canonical/microcluster/v2/cluster"
-	internalAccess "github.com/canonical/microcluster/v2/internal/rest/access"
-	"github.com/canonical/microcluster/v2/internal/rest/client"
-	internalState "github.com/canonical/microcluster/v2/internal/state"
-	"github.com/canonical/microcluster/v2/rest"
-	"github.com/canonical/microcluster/v2/rest/access"
-	"github.com/canonical/microcluster/v2/state"
+	"github.com/canonical/microcluster/v3/cluster"
+	internalAccess "github.com/canonical/microcluster/v3/internal/rest/access"
+	"github.com/canonical/microcluster/v3/internal/rest/client"
+	internalState "github.com/canonical/microcluster/v3/internal/state"
+	"github.com/canonical/microcluster/v3/rest"
+	"github.com/canonical/microcluster/v3/rest/access"
+	"github.com/canonical/microcluster/v3/state"
 )
 
 func handleAPIRequest(action rest.EndpointAction, state state.State, w http.ResponseWriter, r *http.Request) response.Response {

@@ -13,10 +13,10 @@ import (
 	"github.com/canonical/lxd/shared/api"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/canonical/microcluster/v2/cluster"
-	"github.com/canonical/microcluster/v2/internal/db/update"
-	"github.com/canonical/microcluster/v2/internal/extensions"
-	"github.com/canonical/microcluster/v2/internal/sys"
+	"github.com/canonical/microcluster/v3/cluster"
+	"github.com/canonical/microcluster/v3/internal/db/update"
+	"github.com/canonical/microcluster/v3/internal/extensions"
+	"github.com/canonical/microcluster/v3/internal/sys"
 )
 
 type dbSuite struct {

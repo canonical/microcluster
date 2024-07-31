@@ -7,7 +7,7 @@ import (
 
 	"github.com/canonical/lxd/lxd/db/schema"
 
-	"github.com/canonical/microcluster/v2/internal/extensions"
+	"github.com/canonical/microcluster/v3/internal/extensions"
 )
 
 // CreateSchema is the default schema applied when bootstrapping the database.

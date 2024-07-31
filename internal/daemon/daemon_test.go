@@ -11,11 +11,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/canonical/microcluster/v2/internal/config"
-	"github.com/canonical/microcluster/v2/internal/endpoints"
-	"github.com/canonical/microcluster/v2/internal/sys"
-	"github.com/canonical/microcluster/v2/rest"
-	"github.com/canonical/microcluster/v2/rest/types"
+	"github.com/canonical/microcluster/v3/internal/config"
+	"github.com/canonical/microcluster/v3/internal/endpoints"
+	"github.com/canonical/microcluster/v3/internal/sys"
+	"github.com/canonical/microcluster/v3/rest"
+	"github.com/canonical/microcluster/v3/rest/types"
 )
 
 type daemonsSuite struct {

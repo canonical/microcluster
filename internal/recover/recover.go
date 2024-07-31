@@ -21,13 +21,13 @@ import (
 	"github.com/canonical/lxd/shared/logger"
 	"gopkg.in/yaml.v3"
 
-	"github.com/canonical/microcluster/v2/client"
-	"github.com/canonical/microcluster/v2/cluster"
-	"github.com/canonical/microcluster/v2/internal/config"
-	internalTypes "github.com/canonical/microcluster/v2/internal/rest/types"
-	"github.com/canonical/microcluster/v2/internal/sys"
-	"github.com/canonical/microcluster/v2/internal/trust"
-	"github.com/canonical/microcluster/v2/rest/types"
+	"github.com/canonical/microcluster/v3/client"
+	"github.com/canonical/microcluster/v3/cluster"
+	"github.com/canonical/microcluster/v3/internal/config"
+	internalTypes "github.com/canonical/microcluster/v3/internal/rest/types"
+	"github.com/canonical/microcluster/v3/internal/sys"
+	"github.com/canonical/microcluster/v3/internal/trust"
+	"github.com/canonical/microcluster/v3/rest/types"
 )
 
 // GetDqliteClusterMembers parses the trust store and

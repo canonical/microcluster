@@ -5,8 +5,8 @@ import (
 
 	"github.com/canonical/lxd/lxd/response"
 
-	"github.com/canonical/microcluster/v2/rest/types"
-	"github.com/canonical/microcluster/v2/state"
+	"github.com/canonical/microcluster/v3/rest/types"
+	"github.com/canonical/microcluster/v3/state"
 )
 
 // EndpointAlias represents an alias URL of and Endpoint in our API.

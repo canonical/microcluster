@@ -15,12 +15,12 @@ import (
 	"github.com/canonical/lxd/shared/logger"
 	"github.com/gorilla/mux"
 
-	"github.com/canonical/microcluster/v2/client"
-	internalState "github.com/canonical/microcluster/v2/internal/state"
-	"github.com/canonical/microcluster/v2/rest"
-	"github.com/canonical/microcluster/v2/rest/access"
-	"github.com/canonical/microcluster/v2/rest/types"
-	"github.com/canonical/microcluster/v2/state"
+	"github.com/canonical/microcluster/v3/client"
+	internalState "github.com/canonical/microcluster/v3/internal/state"
+	"github.com/canonical/microcluster/v3/rest"
+	"github.com/canonical/microcluster/v3/rest/access"
+	"github.com/canonical/microcluster/v3/rest/types"
+	"github.com/canonical/microcluster/v3/state"
 )
 
 var clusterCertificatesCmd = rest.Endpoint{

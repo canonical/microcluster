@@ -18,11 +18,11 @@ import (
 	"github.com/canonical/lxd/shared/logger"
 	"github.com/canonical/lxd/shared/revert"
 
-	"github.com/canonical/microcluster/v2/cluster"
-	"github.com/canonical/microcluster/v2/internal/db/update"
-	"github.com/canonical/microcluster/v2/internal/extensions"
-	"github.com/canonical/microcluster/v2/internal/sys"
-	"github.com/canonical/microcluster/v2/rest/types"
+	"github.com/canonical/microcluster/v3/cluster"
+	"github.com/canonical/microcluster/v3/internal/db/update"
+	"github.com/canonical/microcluster/v3/internal/extensions"
+	"github.com/canonical/microcluster/v3/internal/sys"
+	"github.com/canonical/microcluster/v3/rest/types"
 )
 
 // Open opens the dqlite database and loads the schema.

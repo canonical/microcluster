@@ -11,13 +11,13 @@ import (
 	"github.com/canonical/lxd/lxd/response"
 	"github.com/gorilla/mux"
 
-	"github.com/canonical/microcluster/v2/client"
-	internalClient "github.com/canonical/microcluster/v2/internal/rest/client"
-	"github.com/canonical/microcluster/v2/internal/trust"
-	"github.com/canonical/microcluster/v2/rest"
-	"github.com/canonical/microcluster/v2/rest/access"
-	"github.com/canonical/microcluster/v2/rest/types"
-	"github.com/canonical/microcluster/v2/state"
+	"github.com/canonical/microcluster/v3/client"
+	internalClient "github.com/canonical/microcluster/v3/internal/rest/client"
+	"github.com/canonical/microcluster/v3/internal/trust"
+	"github.com/canonical/microcluster/v3/rest"
+	"github.com/canonical/microcluster/v3/rest/access"
+	"github.com/canonical/microcluster/v3/rest/types"
+	"github.com/canonical/microcluster/v3/state"
 )
 
 var trustCmd = rest.Endpoint{

@@ -7,8 +7,8 @@ import (
 	clusterRequest "github.com/canonical/lxd/lxd/cluster/request"
 	"github.com/canonical/lxd/shared/api"
 
-	"github.com/canonical/microcluster/v2/internal/rest/client"
-	"github.com/canonical/microcluster/v2/rest/types"
+	"github.com/canonical/microcluster/v3/internal/rest/client"
+	"github.com/canonical/microcluster/v3/rest/types"
 )
 
 // Client is a rest client for the MicroCluster daemon.

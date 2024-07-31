@@ -3,7 +3,7 @@ package state
 import (
 	"context"
 
-	"github.com/canonical/microcluster/rest/types"
+	"github.com/canonical/microcluster/v2/rest/types"
 )
 
 // Hooks holds customizable functions that can be called at varying points by the daemon to.

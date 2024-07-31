@@ -10,11 +10,11 @@ import (
 	"github.com/canonical/lxd/lxd/util"
 	"github.com/canonical/lxd/shared/logger"
 
-	"github.com/canonical/microcluster/internal/endpoints"
-	"github.com/canonical/microcluster/internal/rest/access"
-	internalState "github.com/canonical/microcluster/internal/state"
-	"github.com/canonical/microcluster/rest/types"
-	"github.com/canonical/microcluster/state"
+	"github.com/canonical/microcluster/v2/internal/endpoints"
+	"github.com/canonical/microcluster/v2/internal/rest/access"
+	internalState "github.com/canonical/microcluster/v2/internal/state"
+	"github.com/canonical/microcluster/v2/rest/types"
+	"github.com/canonical/microcluster/v2/state"
 )
 
 // ErrInvalidHost is used to indicate that a request host is invalid.

@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/canonical/microcluster/rest/types"
+	"github.com/canonical/microcluster/v2/rest/types"
 )
 
 // TokenRequest holds information for requesting a join token.

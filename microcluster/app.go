@@ -16,14 +16,14 @@ import (
 	"github.com/canonical/lxd/shared/logger"
 	"golang.org/x/sys/unix"
 
-	"github.com/canonical/microcluster/client"
-	"github.com/canonical/microcluster/cluster"
-	"github.com/canonical/microcluster/internal/daemon"
-	"github.com/canonical/microcluster/internal/recover"
-	internalClient "github.com/canonical/microcluster/internal/rest/client"
-	internalTypes "github.com/canonical/microcluster/internal/rest/types"
-	"github.com/canonical/microcluster/internal/sys"
-	"github.com/canonical/microcluster/rest/types"
+	"github.com/canonical/microcluster/v2/client"
+	"github.com/canonical/microcluster/v2/cluster"
+	"github.com/canonical/microcluster/v2/internal/daemon"
+	"github.com/canonical/microcluster/v2/internal/recover"
+	internalClient "github.com/canonical/microcluster/v2/internal/rest/client"
+	internalTypes "github.com/canonical/microcluster/v2/internal/rest/types"
+	"github.com/canonical/microcluster/v2/internal/sys"
+	"github.com/canonical/microcluster/v2/rest/types"
 )
 
 // DaemonArgs are the data needed to start a MicroCluster daemon.

@@ -15,15 +15,15 @@ import (
 	"github.com/canonical/lxd/shared/logger"
 	"github.com/canonical/lxd/shared/revert"
 
-	internalClient "github.com/canonical/microcluster/internal/rest/client"
-	internalTypes "github.com/canonical/microcluster/internal/rest/types"
-	internalState "github.com/canonical/microcluster/internal/state"
-	"github.com/canonical/microcluster/internal/trust"
-	"github.com/canonical/microcluster/internal/utils"
-	"github.com/canonical/microcluster/rest"
-	"github.com/canonical/microcluster/rest/access"
-	"github.com/canonical/microcluster/rest/types"
-	"github.com/canonical/microcluster/state"
+	internalClient "github.com/canonical/microcluster/v2/internal/rest/client"
+	internalTypes "github.com/canonical/microcluster/v2/internal/rest/types"
+	internalState "github.com/canonical/microcluster/v2/internal/state"
+	"github.com/canonical/microcluster/v2/internal/trust"
+	"github.com/canonical/microcluster/v2/internal/utils"
+	"github.com/canonical/microcluster/v2/rest"
+	"github.com/canonical/microcluster/v2/rest/access"
+	"github.com/canonical/microcluster/v2/rest/types"
+	"github.com/canonical/microcluster/v2/state"
 )
 
 var controlCmd = rest.Endpoint{

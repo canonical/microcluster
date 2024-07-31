@@ -1,7 +1,7 @@
 package types
 
 import (
-	"github.com/canonical/microcluster/rest/types"
+	"github.com/canonical/microcluster/v2/rest/types"
 )
 
 // HeartbeatInfo represents information about the cluster sent out by the leader of the cluster to other members.

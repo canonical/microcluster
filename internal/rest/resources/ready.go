@@ -6,10 +6,10 @@ import (
 
 	"github.com/canonical/lxd/lxd/response"
 
-	internalState "github.com/canonical/microcluster/internal/state"
-	"github.com/canonical/microcluster/rest"
-	"github.com/canonical/microcluster/rest/access"
-	"github.com/canonical/microcluster/state"
+	internalState "github.com/canonical/microcluster/v2/internal/state"
+	"github.com/canonical/microcluster/v2/rest"
+	"github.com/canonical/microcluster/v2/rest/access"
+	"github.com/canonical/microcluster/v2/state"
 )
 
 var readyCmd = rest.Endpoint{

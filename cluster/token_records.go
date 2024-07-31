@@ -9,8 +9,8 @@ import (
 	"github.com/canonical/lxd/shared"
 	"github.com/canonical/lxd/shared/logger"
 
-	internalTypes "github.com/canonical/microcluster/internal/rest/types"
-	"github.com/canonical/microcluster/rest/types"
+	internalTypes "github.com/canonical/microcluster/v2/internal/rest/types"
+	"github.com/canonical/microcluster/v2/rest/types"
 )
 
 // Code generation directives.

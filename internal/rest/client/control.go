@@ -3,7 +3,7 @@ package client
 import (
 	"context"
 
-	"github.com/canonical/microcluster/internal/rest/types"
+	"github.com/canonical/microcluster/v2/internal/rest/types"
 )
 
 // ControlDaemon posts control data to the daemon.

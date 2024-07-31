@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/canonical/microcluster/internal/db/update"
-	"github.com/canonical/microcluster/internal/extensions"
-	"github.com/canonical/microcluster/rest/types"
+	"github.com/canonical/microcluster/v2/internal/db/update"
+	"github.com/canonical/microcluster/v2/internal/extensions"
+	"github.com/canonical/microcluster/v2/rest/types"
 )
 
 //go:generate -command mapper lxd-generate db mapper -t cluster_members.mapper.go

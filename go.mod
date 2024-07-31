@@ -4,7 +4,7 @@ go 1.22.5
 
 require (
 	github.com/canonical/go-dqlite v1.22.0
-	github.com/canonical/lxd v0.0.0-20240725152227-dd8bcf029436
+	github.com/canonical/lxd v0.0.0-20240730172021-8e39e5d4f55f
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/google/renameio v1.0.1
 	github.com/gorilla/mux v1.8.1
@@ -22,7 +22,7 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/flosch/pongo2 v0.0.0-20200913210552-0d938eb266f3 // indirect
 	github.com/fvbommel/sortorder v1.1.0 // indirect
-	github.com/go-jose/go-jose/v4 v4.0.3 // indirect
+	github.com/go-jose/go-jose/v4 v4.0.4 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
@@ -33,7 +33,7 @@ require (
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
-	github.com/mattn/go-runewidth v0.0.15 // indirect
+	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/muhlemmer/gu v0.3.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pkg/sftp v1.13.6 // indirect

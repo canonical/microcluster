@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 
@@ -107,8 +108,15 @@ func GetCallerProject() string {
 
 	// If not a snap build path, the project may be in a go module path of the form .../project@version....
 	before, _, ok := strings.Cut(file, "@")
-	if ok && filepath.Base(before) != "" {
-		return filepath.Base(before)
+	base := filepath.Base(before)
+	if ok && base != "" {
+		// If the base path is a go module version like v2, the project name will be one level down.
+		exp := regexp.MustCompile(`^v\d+$`)
+		if exp.MatchString(base) {
+			return filepath.Base(filepath.Dir(before))
+		}
+
+		return base
 	}
 
 	// If not a go module path,	assume a GOPATH of the form example.com/author/project/packages....

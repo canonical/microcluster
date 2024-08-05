@@ -49,6 +49,14 @@ var InternalEndpoints = rest.Resources{
 	},
 }
 
+// LegacyEndpoints allows access to the legacy /cluster/internal/database endpoint to facilitate upgrades to the newer endpoint path structure.
+var LegacyEndpoints = rest.Resources{
+	PathPrefix: internalTypes.LegacyEndpoint,
+	Endpoints: []rest.Endpoint{
+		databaseCmd,
+	},
+}
+
 // ValidateEndpoints checks if any endpoints defined in extensionServers conflict with other endpoints.
 // An invalid server is defined as one of the following:
 // - The PathPrefix+Path of an endpoint conflicts with another endpoint in the same server.
@@ -57,7 +65,7 @@ var InternalEndpoints = rest.Resources{
 // If the Server is a core API server, its resources must not conflict with any other core API server, and it must not have a defined address or certificate.
 func ValidateEndpoints(extensionServers map[string]rest.Server, coreAddress string) error {
 	serverAddresses := map[string]bool{coreAddress: true}
-	baseCoreEndpoints := []rest.Resources{UnixEndpoints, PublicEndpoints, InternalEndpoints}
+	baseCoreEndpoints := []rest.Resources{UnixEndpoints, PublicEndpoints, InternalEndpoints, LegacyEndpoints}
 	existingEndpointPaths := map[string]map[string]bool{endpoints.EndpointsCore: {}}
 
 	// Record the paths for all internal endpoints on the core listener.

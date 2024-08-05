@@ -23,4 +23,7 @@ const (
 
 	// ControlEndpoint - All internal endpoints available on the local unix socket.
 	ControlEndpoint types.EndpointPrefix = "core/control"
+
+	// LegacyEndpoint - Legacy endpoint path to facilitate system upgrades from the older server structure.
+	LegacyEndpoint types.EndpointPrefix = "cluster/internal"
 )

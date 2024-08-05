@@ -4,7 +4,7 @@ go 1.22.5
 
 require (
 	github.com/canonical/go-dqlite v1.22.0
-	github.com/canonical/lxd v0.0.0-20240730172021-8e39e5d4f55f
+	github.com/canonical/lxd v0.0.0-20240805200029-c1e264d77eb4
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/google/renameio v1.0.1
 	github.com/gorilla/mux v1.8.1
@@ -51,8 +51,8 @@ require (
 	go.opentelemetry.io/otel/metric v1.28.0 // indirect
 	go.opentelemetry.io/otel/trace v1.28.0 // indirect
 	golang.org/x/crypto v0.25.0 // indirect
-	golang.org/x/oauth2 v0.21.0 // indirect
-	golang.org/x/sync v0.7.0 // indirect
+	golang.org/x/oauth2 v0.22.0 // indirect
+	golang.org/x/sync v0.8.0 // indirect
 	golang.org/x/term v0.22.0 // indirect
 	golang.org/x/text v0.16.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect

@@ -5,9 +5,25 @@ updates:
     labels: []
     schedule:
       interval: "weekly"
+    target-branch: "v3"
 
   - package-ecosystem: "gomod"
     directory: "/"
     labels: []
     schedule:
       interval: "weekly"
+    target-branch: "v3"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    labels: []
+    schedule:
+      interval: "weekly"
+    target-branch: "v2"
+
+  - package-ecosystem: "gomod"
+    directory: "/"
+    labels: []
+    schedule:
+      interval: "weekly"
+    target-branch: "v2"

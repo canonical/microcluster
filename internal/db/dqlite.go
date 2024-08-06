@@ -425,6 +425,28 @@ func dqliteNetworkDial(ctx context.Context, addr string, db *DqliteDB) (net.Conn
 	}
 
 	defer response.Body.Close()
+	if response.StatusCode == http.StatusNotFound {
+		_ = response.Body.Close()
+
+		// If the response returns a 404, that means this server is likely in the process of upgrading,
+		// so try the legacy /cluster/internal/database endpoint that older cluster members are using.
+		path := fmt.Sprintf("https://%s/%s/%s", addr, internalTypes.LegacyEndpoint, "database")
+		request.URL, err = url.Parse(path)
+		if err != nil {
+			return nil, err
+		}
+
+		err = request.Write(conn)
+		if err != nil {
+			return nil, fmt.Errorf("Failed sending HTTP request to %q: %w", request.URL, err)
+		}
+
+		response, err = http.ReadResponse(bufio.NewReader(conn), request)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to read response: %w", err)
+		}
+	}
+
 	_, err = io.Copy(io.Discard, response.Body)
 	if err != nil {
 		logger.Error("Failed to read dqlite response body", logger.Ctx{"error": err})

@@ -293,6 +293,7 @@ func (d *Daemon) init(listenAddress string, socketGroup string, heartbeatInterva
 		resources.UnixEndpoints,
 		resources.InternalEndpoints,
 		resources.PublicEndpoints,
+		resources.LegacyEndpoints,
 	}
 
 	d.extensionServersMu.RLock()
@@ -560,7 +561,7 @@ func (d *Daemon) StartAPI(ctx context.Context, bootstrap bool, initConfig map[st
 		return err
 	}
 
-	serverEndpoints := []rest.Resources{resources.InternalEndpoints, resources.PublicEndpoints}
+	serverEndpoints := []rest.Resources{resources.InternalEndpoints, resources.PublicEndpoints, resources.LegacyEndpoints}
 	err = d.addCoreServers(false, *d.Address(), d.ClusterCert(), serverEndpoints)
 	if err != nil {
 		return err

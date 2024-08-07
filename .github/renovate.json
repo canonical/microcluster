@@ -1,4 +1,8 @@
 {
   "enabled": false
   "dependencyDashboard": false
+  "extends": [
+    "config:recommended",
+    ":disableDependencyDashboard",
+  ]
 }

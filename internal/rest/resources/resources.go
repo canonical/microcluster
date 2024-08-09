@@ -3,6 +3,7 @@ package resources
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/canonical/microcluster/v2/internal/endpoints"
 	internalTypes "github.com/canonical/microcluster/v2/internal/rest/types"
@@ -62,7 +63,10 @@ var LegacyEndpoints = rest.Resources{
 // - The PathPrefix+Path of an endpoint conflicts with another endpoint in the same server.
 // - The address of the server clashes with another server.
 // - The server does not have defined resources.
-// If the Server is a core API server, its resources must not conflict with any other core API server, and it must not have a defined address or certificate.
+// - If the Server is a core API server:
+//   - The PathPrefix+Path of an endpoint must not begin with `core`.
+//   - Its resources must not conflict with any other core API server.
+//   - It must not have a defined address or certificate.
 func ValidateEndpoints(extensionServers map[string]rest.Server, coreAddress string) error {
 	serverAddresses := map[string]bool{coreAddress: true}
 	baseCoreEndpoints := []rest.Resources{UnixEndpoints, PublicEndpoints, InternalEndpoints, LegacyEndpoints}
@@ -114,6 +118,11 @@ func ValidateEndpoints(extensionServers map[string]rest.Server, coreAddress stri
 				internalName := serverName
 				if server.CoreAPI {
 					internalName = endpoints.EndpointsCore
+
+					// Reserve the /core namespace for microcluster
+					if firstPathElement(url) == endpoints.EndpointsCore {
+						return fmt.Errorf("Endpoint from server %q conflicts with reserved namespace \"/%s\"", serverName, endpoints.EndpointsCore)
+					}
 				}
 
 				_, ok := existingEndpointPaths[internalName]
@@ -131,4 +140,28 @@ func ValidateEndpoints(extensionServers map[string]rest.Server, coreAddress stri
 	}
 
 	return nil
+}
+
+// "core/"   -> "core"
+// "/core"   -> "core"
+// "/core/x" -> "core"
+// "/"       -> ""
+// Returns the first non-root path element in `path`.
+func firstPathElement(path string) string {
+	parts := strings.SplitN(path, "/", 3)
+	switch len(parts) {
+	case 0:
+		// Shouldn't be possible
+		return path
+	case 1:
+		return parts[0]
+	default:
+		if parts[0] == "" {
+			// "/core"
+			return parts[1]
+		} else {
+			// "core/"
+			return parts[0]
+		}
+	}
 }

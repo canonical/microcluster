@@ -110,6 +110,10 @@ func ValidateEndpoints(extensionServers map[string]rest.Server, coreAddress stri
 		// Ensure no endpoint path conflicts with another endpoint on the same server.
 		// If a server is an extension to the core API, it will be compared against all core API paths.
 		for _, resource := range server.Resources {
+			if len(resource.Endpoints) == 0 {
+				return fmt.Errorf("Server %q resource must have defined endpoints", serverName)
+			}
+
 			for _, e := range resource.Endpoints {
 				url := filepath.Join(string(resource.PathPrefix), e.Path)
 

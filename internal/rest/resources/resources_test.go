@@ -12,6 +12,11 @@ var validServers = map[string]rest.Server{
 		Resources: []rest.Resources{
 			{
 				PathPrefix: "core_consumer",
+				Endpoints: []rest.Endpoint{
+					{
+						Path: "hello",
+					},
+				},
 			},
 		},
 	},
@@ -27,6 +32,10 @@ func TestValidateEndpointsValidServers(t *testing.T) {
 var invalidServers = map[string]rest.Server{
 	"emptyResources": {
 		CoreAPI: true,
+	},
+	"emptyEndpoints": {
+		CoreAPI:   true,
+		Resources: []rest.Resources{},
 	},
 	"duplicate": {
 		Resources: []rest.Resources{

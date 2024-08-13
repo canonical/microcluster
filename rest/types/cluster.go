@@ -28,6 +28,17 @@ type ClusterMemberLocal struct {
 // MemberStatus represents the online status of a cluster member.
 type MemberStatus string
 
+// RoleStatus represents the previous and current role of a cluster member.
+type RoleStatus struct {
+	Old string
+	New string
+}
+
+// RoleChanged returns whether there has been a role change.
+func (rs RoleStatus) RoleChanged() bool {
+	return rs.Old != rs.New
+}
+
 const (
 	// MemberOnline should be the MemberStatus when the node is online and reachable.
 	MemberOnline MemberStatus = "ONLINE"

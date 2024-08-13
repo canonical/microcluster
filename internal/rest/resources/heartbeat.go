@@ -229,6 +229,7 @@ func beginHeartbeat(ctx context.Context, s state.State, hbReq internalTypes.Hear
 	}
 
 	// Having sent a heartbeat to each valid cluster member, update the database record of members.
+	roleStatusMap := map[string]types.RoleStatus{}
 	err = s.Database().Transaction(ctx, func(ctx context.Context, tx *sql.Tx) error {
 		dbClusterMembers, err := cluster.GetCoreClusterMembers(ctx, tx)
 		if err != nil {
@@ -239,6 +240,12 @@ func beginHeartbeat(ctx context.Context, s state.State, hbReq internalTypes.Hear
 			heartbeatInfo, ok := hbInfo.ClusterMembers[clusterMember.Address]
 			if !ok {
 				continue
+			}
+
+			// Store role status for OnHeartbeat hook.
+			roleStatusMap[clusterMember.Name] = types.RoleStatus{
+				Old: string(clusterMember.Role),
+				New: heartbeatInfo.Role,
 			}
 
 			clusterMember.Heartbeat = heartbeatInfo.LastHeartbeat
@@ -256,7 +263,7 @@ func beginHeartbeat(ctx context.Context, s state.State, hbReq internalTypes.Hear
 	}
 
 	hookCtx, hookCancel := context.WithCancel(ctx)
-	err = intState.Hooks.OnHeartbeat(hookCtx, s)
+	err = intState.Hooks.OnHeartbeat(hookCtx, s, roleStatusMap)
 	hookCancel()
 	if err != nil {
 		return response.SmartError(err)

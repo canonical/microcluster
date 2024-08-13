@@ -345,6 +345,7 @@ func (d *Daemon) applyHooks(hooks *state.Hooks) {
 	noOpInitHook := func(ctx context.Context, s state.State, initConfig map[string]string) error { return nil }
 	noOpConfigHook := func(ctx context.Context, s state.State, config types.DaemonConfig) error { return nil }
 	noOpNewMemberHook := func(ctx context.Context, s state.State, newMember types.ClusterMemberLocal) error { return nil }
+	noOpHeartbeatHook := func(ctx context.Context, s state.State, roleStatus map[string]types.RoleStatus) error { return nil }
 
 	if hooks == nil {
 		d.hooks = state.Hooks{}
@@ -373,7 +374,7 @@ func (d *Daemon) applyHooks(hooks *state.Hooks) {
 	}
 
 	if d.hooks.OnHeartbeat == nil {
-		d.hooks.OnHeartbeat = noOpHook
+		d.hooks.OnHeartbeat = noOpHeartbeatHook
 	}
 
 	if d.hooks.OnNewMember == nil {

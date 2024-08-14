@@ -375,7 +375,7 @@ func (m *MicroCluster) SQL(ctx context.Context, query string) (string, *internal
 			return "", nil, fmt.Errorf("failed to parse dump response: %w", err)
 		}
 
-		return fmt.Sprintf(dump.Text), nil, nil
+		return dump.Text, nil, nil
 	}
 
 	data := internalTypes.SQLQuery{

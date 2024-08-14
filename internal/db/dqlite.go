@@ -241,7 +241,7 @@ func (db *DqliteDB) IsOpen(ctx context.Context) error {
 	case types.DatabaseOffline:
 		fallthrough
 	case types.DatabaseStarting:
-		return api.StatusErrorf(http.StatusServiceUnavailable, string(status))
+		return api.StatusErrorf(http.StatusServiceUnavailable, "%s", string(status))
 
 	case types.DatabaseWaiting:
 		intVersion, extversion, apiExtensions := db.Schema().Version()

@@ -243,7 +243,7 @@ func clusterGet(s state.State, r *http.Request) response.Response {
 
 	// If the database is not in a ready or waiting state, we can't be sure it's available for use.
 	if status != types.DatabaseReady && status != types.DatabaseWaiting {
-		return response.SmartError(api.StatusErrorf(http.StatusServiceUnavailable, string(status)))
+		return response.SmartError(api.StatusErrorf(http.StatusServiceUnavailable, "%s", string(status)))
 	}
 
 	var apiClusterMembers []types.ClusterMember

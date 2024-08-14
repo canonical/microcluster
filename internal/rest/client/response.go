@@ -25,7 +25,7 @@ func parseResponse(resp *http.Response) (*api.Response, error) {
 
 	// Handle errors
 	if response.Type == api.ErrorResponse {
-		return nil, api.StatusErrorf(resp.StatusCode, response.Error)
+		return nil, api.StatusErrorf(resp.StatusCode, "%s", response.Error)
 	}
 
 	return &response, nil

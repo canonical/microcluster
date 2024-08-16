@@ -314,6 +314,21 @@ func (m *MicroCluster) LocalClient() (*client.Client, error) {
 // RemoteClient gets a client for the specified cluster member URL.
 // The filesystem will be parsed for the cluster and server certificates.
 func (m *MicroCluster) RemoteClient(address string) (*client.Client, error) {
+	var publicKey *x509.Certificate
+	clusterCert, err := m.FileSystem.ClusterCert()
+	if err == nil {
+		publicKey, err = clusterCert.PublicKeyX509()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return m.RemoteClientWithCert(address, publicKey)
+}
+
+// RemoteClientWithCert gets a client for the specified cluster member URL using the remote server cert.
+// The filesystem will be parsed for the server client certificate.
+func (m *MicroCluster) RemoteClientWithCert(address string, cert *x509.Certificate) (*client.Client, error) {
 	c := m.args.Client
 	if c == nil {
 		serverCert, err := m.FileSystem.ServerCert()
@@ -321,17 +336,8 @@ func (m *MicroCluster) RemoteClient(address string) (*client.Client, error) {
 			return nil, err
 		}
 
-		var publicKey *x509.Certificate
-		clusterCert, err := m.FileSystem.ClusterCert()
-		if err == nil {
-			publicKey, err = clusterCert.PublicKeyX509()
-			if err != nil {
-				return nil, err
-			}
-		}
-
 		url := api.NewURL().Scheme("https").Host(address)
-		internalClient, err := internalClient.New(*url, serverCert, publicKey, false)
+		internalClient, err := internalClient.New(*url, serverCert, cert, false)
 		if err != nil {
 			return nil, err
 		}

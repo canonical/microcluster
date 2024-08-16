@@ -33,7 +33,7 @@ type Hooks struct {
 	PostRemove func(ctx context.Context, s State, force bool) error
 
 	// OnHeartbeat is run after a successful heartbeat round.
-	OnHeartbeat func(ctx context.Context, s State) error
+	OnHeartbeat func(ctx context.Context, s State, roleStatus map[string]types.RoleStatus) error
 
 	// OnNewMember is run on each peer after a new cluster member has joined and executed their 'PreJoin' hook.
 	OnNewMember func(ctx context.Context, s State, newMember types.ClusterMemberLocal) error

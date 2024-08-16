@@ -171,9 +171,18 @@ func (c *cmdDaemon) run(cmd *cobra.Command, args []string) error {
 		},
 
 		// OnHeartbeat is run after a successful heartbeat round.
-		OnHeartbeat: func(ctx context.Context, s state.State) error {
-			logger.Info("This is a hook that is run on the dqlite leader after a successful heartbeat")
+		OnHeartbeat: func(ctx context.Context, s state.State, roleStatus map[string]types.RoleStatus) error {
+			logger.Info("This is a hook that is run on the dqlite leader after a successful heartbeat; role information for cluster members is available")
 
+			// You can check if the role of a cluster member has changed since the last heartbeat and determine
+			// its previous and current roles.
+			myStatus := roleStatus[s.Name()]
+			if myStatus.RoleChanged() {
+				logger.Infof("Role of cluster member %s changed from %s to %s", s.Name(), myStatus.Old, myStatus.New)
+				return nil
+			}
+
+			logger.Infof("Role of member %s remains unchanged as %s", s.Name(), myStatus.Old)
 			return nil
 		},
 

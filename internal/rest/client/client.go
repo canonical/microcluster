@@ -268,12 +268,7 @@ func (c *Client) MakeRequest(r *http.Request) (*api.Response, error) {
 	return parsedResponse, nil
 }
 
-// QueryStruct sends a request of the specified method to the provided endpoint (optional) on the API matching the endpointType.
-// The response gets unpacked into the target struct. POST requests can optionally provide raw data to be sent through.
-//
-// The final URL is that provided as the endpoint combined with the applicable prefix for the endpointType and the scheme and host from the client.
-func (c *Client) QueryStruct(ctx context.Context, method string, endpointType types.EndpointPrefix, endpoint *api.URL, data any, target any) error {
-	// Merge the provided URL with the one we have for the client.
+func (c *Client) mergeURL(endpointType types.EndpointPrefix, endpoint *api.URL) *api.URL {
 	localURL := api.NewURL()
 	if endpoint != nil {
 		// Get a new local struct to avoid modifying the provided one.
@@ -293,6 +288,16 @@ func (c *Client) QueryStruct(ctx context.Context, method string, endpointType ty
 	}
 
 	localURL.URL.RawQuery = clientQuery.Encode()
+	return localURL
+}
+
+// QueryStruct sends a request of the specified method to the provided endpoint (optional) on the API matching the endpointType.
+// The response gets unpacked into the target struct. POST requests can optionally provide raw data to be sent through.
+//
+// The final URL is that provided as the endpoint combined with the applicable prefix for the endpointType and the scheme and host from the client.
+func (c *Client) QueryStruct(ctx context.Context, method string, endpointType types.EndpointPrefix, endpoint *api.URL, data any, target any) error {
+	// Merge the provided URL with the one we have for the client.
+	localURL := c.mergeURL(endpointType, endpoint)
 
 	// Send the actual query through.
 	resp, err := c.rawQuery(ctx, method, localURL, data)

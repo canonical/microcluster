@@ -12,7 +12,7 @@ import (
 	"github.com/canonical/microcluster/v3/rest/types"
 )
 
-// Client is a rest client for the MicroCluster daemon.
+// Client is a rest client for the microcluster daemon.
 type Client struct {
 	client.Client
 }
@@ -22,8 +22,8 @@ func IsNotification(r *http.Request) bool {
 	return r.Header.Get("User-Agent") == clusterRequest.UserAgentNotifier
 }
 
-// Query is a helper for initiating a request on any endpoints defined external to Microcluster. This function should be used for all client
-// methods defined externally from MicroCluster.
+// Query is a helper for initiating a request on any endpoints defined external to microcluster. This function should be used for all client
+// methods defined externally from microcluster.
 func (c *Client) Query(ctx context.Context, method string, prefix types.EndpointPrefix, path *api.URL, in any, out any) error {
 	queryCtx, cancel := context.WithCancel(ctx)
 	defer cancel()

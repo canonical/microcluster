@@ -22,6 +22,7 @@ import (
 	"github.com/canonical/lxd/shared/api"
 	"github.com/canonical/lxd/shared/logger"
 	"github.com/canonical/lxd/shared/tcp"
+	"github.com/gorilla/websocket"
 
 	"github.com/canonical/microcluster/v2/rest/types"
 )
@@ -268,12 +269,7 @@ func (c *Client) MakeRequest(r *http.Request) (*api.Response, error) {
 	return parsedResponse, nil
 }
 
-// QueryStruct sends a request of the specified method to the provided endpoint (optional) on the API matching the endpointType.
-// The response gets unpacked into the target struct. POST requests can optionally provide raw data to be sent through.
-//
-// The final URL is that provided as the endpoint combined with the applicable prefix for the endpointType and the scheme and host from the client.
-func (c *Client) QueryStruct(ctx context.Context, method string, endpointType types.EndpointPrefix, endpoint *api.URL, data any, target any) error {
-	// Merge the provided URL with the one we have for the client.
+func (c *Client) mergeURL(endpointType types.EndpointPrefix, endpoint *api.URL) *api.URL {
 	localURL := api.NewURL()
 	if endpoint != nil {
 		// Get a new local struct to avoid modifying the provided one.
@@ -293,6 +289,16 @@ func (c *Client) QueryStruct(ctx context.Context, method string, endpointType ty
 	}
 
 	localURL.URL.RawQuery = clientQuery.Encode()
+	return localURL
+}
+
+// QueryStruct sends a request of the specified method to the provided endpoint (optional) on the API matching the endpointType.
+// The response gets unpacked into the target struct. POST requests can optionally provide raw data to be sent through.
+//
+// The final URL is that provided as the endpoint combined with the applicable prefix for the endpointType and the scheme and host from the client.
+func (c *Client) QueryStruct(ctx context.Context, method string, endpointType types.EndpointPrefix, endpoint *api.URL, data any, target any) error {
+	// Merge the provided URL with the one we have for the client.
+	localURL := c.mergeURL(endpointType, endpoint)
 
 	// Send the actual query through.
 	resp, err := c.rawQuery(ctx, method, localURL, data)
@@ -310,6 +316,61 @@ func (c *Client) QueryStruct(ctx context.Context, method string, endpointType ty
 	logger.Debug("Got response struct from microcluster daemon", logger.Ctx{"endpoint": localURL.String(), "method": method})
 	// TODO: Log.pretty.
 	return nil
+}
+
+// RawWebsocket dials the provided endpoint and tries to upgrade the connection.
+//
+// The final URL is that provided as the endpoint combined with the applicable prefix for the endpointType and the scheme and host from the client.
+func (c *Client) RawWebsocket(ctx context.Context, endpointType types.EndpointPrefix, endpoint *api.URL) (*websocket.Conn, error) {
+	// Merge the provided URL with the one we have for the client.
+	localURL := c.mergeURL(endpointType, endpoint)
+
+	// Pick the right scheme based on the client configuration.
+	if c.url.URL.Scheme == "http" {
+		localURL.URL.Scheme = "ws"
+	} else {
+		localURL.URL.Scheme = "wss"
+	}
+
+	// Get the transport configuration from the HTTP client.
+	tr, ok := c.Client.Transport.(*http.Transport)
+	if !ok {
+		return nil, fmt.Errorf("Invalid underlying client transport, expected %T, got %T", &http.Transport{}, c.Client.Transport)
+	}
+
+	// Setup a new websocket dialer using the already existing HTTP client.
+	// As the client might be either local or remote always copy the relevant TLS config too.
+	dialer := websocket.Dialer{
+		NetDialContext:    tr.DialContext,
+		NetDialTLSContext: tr.DialTLSContext,
+		TLSClientConfig:   tr.TLSClientConfig,
+		Proxy:             tr.Proxy,
+	}
+
+	// Assign a context timeout if we don't already have one.
+	_, ok = ctx.Deadline()
+	if !ok {
+		timeoutCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		ctx = timeoutCtx
+		defer cancel()
+	}
+
+	// Establish the connection
+	conn, resp, err := dialer.DialContext(ctx, localURL.String(), nil)
+	if err != nil {
+		if resp != nil {
+			_, err := parseResponse(resp)
+			if err != nil {
+				return nil, fmt.Errorf("Failed websocket upgrade request: %w", err)
+			}
+		}
+
+		return nil, fmt.Errorf("Failed to establish websocket connection: %w", err)
+	}
+
+	logger.Debug("Established websocket connection", logger.Ctx{"endpoint": localURL.String()})
+
+	return conn, nil
 }
 
 // URL returns the address used for the client.

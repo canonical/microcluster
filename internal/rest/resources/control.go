@@ -127,7 +127,7 @@ func controlPost(state state.State, r *http.Request) response.Response {
 		}
 
 		// Generate a new keypair with the new subject name.
-		_, err = shared.KeyPairAndCA(state.FileSystem().StateDir, string(types.ServerCertificateName), shared.CertServer, shared.CertOptions{AddHosts: true, SubjectName: req.Name})
+		_, err = shared.KeyPairAndCA(state.FileSystem().StateDir, string(types.ServerCertificateName), shared.CertServer, shared.CertOptions{AddHosts: true, CommonName: req.Name})
 		if err != nil {
 			return response.SmartError(err)
 		}

@@ -491,6 +491,15 @@ func (d *Daemon) initServer(resources ...rest.Resources) *http.Server {
 	}
 }
 
+// setConfig applies and commits to memory the supplied daemon configuration.
+func (d *Daemon) setConfig(newConfig trust.Location) error {
+	d.config.SetAddress(newConfig.Address)
+	d.config.SetName(newConfig.Name)
+
+	// Write the latest config to disk.
+	return d.config.Write()
+}
+
 // StartAPI starts up the admin and consumer APIs, and generates a cluster cert
 // if we are bootstrapping the first node.
 func (d *Daemon) StartAPI(ctx context.Context, bootstrap bool, initConfig map[string]string, joinAddresses ...string) error {
@@ -1056,6 +1065,7 @@ func (d *Daemon) State() state.State {
 		Hooks:                    &d.hooks,
 		Context:                  d.shutdownCtx,
 		ReadyCh:                  d.ReadyChan,
+		SetConfig:                d.setConfig,
 		StartAPI:                 d.StartAPI,
 		Extensions:               d.Extensions,
 		Endpoints:                d.endpoints,

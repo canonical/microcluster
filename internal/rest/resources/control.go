@@ -59,6 +59,12 @@ func controlPost(state state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
+	daemonConfig := trust.Location{Address: req.Address, Name: req.Name}
+	err = intState.SetConfig(daemonConfig)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
 	reverter := revert.New()
 	defer reverter.Fail()
 

@@ -65,6 +65,13 @@ func controlPost(state state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
+	ctx, cancel := context.WithCancel(r.Context())
+	err = intState.Hooks.PreInit(ctx, state, req.Bootstrap, req.InitConfig)
+	cancel()
+	if err != nil {
+		return response.SmartError(fmt.Errorf("Failed to run pre-init hook before starting the API: %w", err))
+	}
+
 	reverter := revert.New()
 	defer reverter.Fail()
 

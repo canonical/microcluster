@@ -343,6 +343,9 @@ func (d *Daemon) applyHooks(hooks *state.Hooks) {
 	noOpHook := func(ctx context.Context, s state.State) error { return nil }
 	noOpRemoveHook := func(ctx context.Context, s state.State, force bool) error { return nil }
 	noOpInitHook := func(ctx context.Context, s state.State, initConfig map[string]string) error { return nil }
+	noOpGenericInitHook := func(ctx context.Context, s state.State, bootstrap bool, initConfig map[string]string) error {
+		return nil
+	}
 	noOpConfigHook := func(ctx context.Context, s state.State, config types.DaemonConfig) error { return nil }
 	noOpNewMemberHook := func(ctx context.Context, s state.State, newMember types.ClusterMemberLocal) error { return nil }
 	noOpHeartbeatHook := func(ctx context.Context, s state.State, roleStatus map[string]types.RoleStatus) error { return nil }
@@ -355,6 +358,10 @@ func (d *Daemon) applyHooks(hooks *state.Hooks) {
 
 	if d.hooks.PreBootstrap == nil {
 		d.hooks.PreBootstrap = noOpInitHook
+	}
+
+	if d.hooks.PreInit == nil {
+		d.hooks.PreInit = noOpGenericInitHook
 	}
 
 	if d.hooks.PostBootstrap == nil {

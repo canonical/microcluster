@@ -253,7 +253,12 @@ func HandleEndpoint(state state.State, mux *mux.Router, version string, e rest.E
 		}
 
 		// Handle errors.
-		if e.Path != "database" {
+		// In case of the database extra care has to be taken to not accidentally write
+		// to the ResponseWriter as the connection gets hijacked and passed to dqlite.
+		// In case the database request handler doesn't return an EmptySyncResponse
+		// we can ensure that the connection wasn't yet hijacked and the actual error
+		// can be safely returned to the caller.
+		if e.Path != "database" || (e.Path == "database" && resp != response.EmptySyncResponse) {
 			err := resp.Render(w)
 			if err != nil {
 				err := response.InternalError(err).Render(w)

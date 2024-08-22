@@ -423,7 +423,7 @@ func (d *Daemon) reloadIfBootstrapped() error {
 		return fmt.Errorf("Failed to retrieve daemon configuration yaml: %w", err)
 	}
 
-	err = d.StartAPI(d.shutdownCtx, false, nil, nil)
+	err = d.StartAPI(d.shutdownCtx, false, nil)
 	if err != nil {
 		return err
 	}
@@ -493,23 +493,7 @@ func (d *Daemon) initServer(resources ...rest.Resources) *http.Server {
 
 // StartAPI starts up the admin and consumer APIs, and generates a cluster cert
 // if we are bootstrapping the first node.
-func (d *Daemon) StartAPI(ctx context.Context, bootstrap bool, initConfig map[string]string, newConfig *trust.Location, joinAddresses ...string) error {
-	if newConfig != nil {
-		d.config.SetAddress(newConfig.Address)
-		d.config.SetName(newConfig.Name)
-
-		// Write the latest config to disk.
-		err := d.config.Write()
-		if err != nil {
-			return err
-		}
-	} else {
-		err := d.config.Load()
-		if err != nil {
-			return err
-		}
-	}
-
+func (d *Daemon) StartAPI(ctx context.Context, bootstrap bool, initConfig map[string]string, joinAddresses ...string) error {
 	if d.Address().URL.Host == "" || d.config.GetName() == "" {
 		return fmt.Errorf("Cannot start network API without valid daemon configuration")
 	}

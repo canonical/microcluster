@@ -111,13 +111,13 @@ func (c *cmdDaemon) run(cmd *cobra.Command, args []string) error {
 			return nil
 		},
 
-		PreBootstrap: func(ctx context.Context, s state.State, initConfig map[string]string) error {
+		PreInit: func(ctx context.Context, s state.State, bootstrap bool, initConfig map[string]string) error {
 			logCtx := logger.Ctx{}
 			for k, v := range initConfig {
 				logCtx[k] = v
 			}
 
-			logger.Info("This is a hook that runs before the daemon is initialized and bootstrapped")
+			logger.Info("This is a hook that runs before the daemon is initialized")
 			logger.Info("Here are the extra configuration keys that were passed into the init --bootstrap command", logCtx)
 
 			return nil

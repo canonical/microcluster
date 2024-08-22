@@ -356,10 +356,6 @@ func (d *Daemon) applyHooks(hooks *state.Hooks) {
 		d.hooks = *hooks
 	}
 
-	if d.hooks.PreBootstrap == nil {
-		d.hooks.PreBootstrap = noOpInitHook
-	}
-
 	if d.hooks.PreInit == nil {
 		d.hooks.PreInit = noOpGenericInitHook
 	}
@@ -511,15 +507,6 @@ func (d *Daemon) StartAPI(ctx context.Context, bootstrap bool, initConfig map[st
 		err := d.config.Load()
 		if err != nil {
 			return err
-		}
-	}
-
-	if bootstrap {
-		ctx, cancel := context.WithCancel(ctx)
-		err := d.hooks.PreBootstrap(ctx, d.State(), initConfig)
-		cancel()
-		if err != nil {
-			return fmt.Errorf("Failed to run pre-bootstrap hook before starting the API: %w", err)
 		}
 	}
 

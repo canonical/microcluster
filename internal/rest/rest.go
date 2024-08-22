@@ -145,8 +145,23 @@ func handleDatabaseRequest(action rest.EndpointAction, state state.State, w http
 		return response.NotImplemented(nil)
 	}
 
+	// Run the database handler before hijacking the connection.
+	// This ensures errors happening in the handler can still be
+	// returned to the caller.
+	resp := action.Handler(state, r)
+	if resp != response.EmptySyncResponse {
+		return resp
+	}
+
 	// If the request is a POST, then it is likely from the dqlite dial function, so hijack the connection.
 	if r.Method == "POST" {
+		intState, err := internalState.ToInternal(state)
+		if err != nil {
+			return response.InternalError(fmt.Errorf("Failed to parse internal state: %w", err))
+		}
+
+		// Do not perform anymore validation after hijacking the connection.
+		// Otherwise errors cannot be returned to the caller.
 		hijacker, ok := w.(http.Hijacker)
 		if !ok {
 			return response.InternalError(fmt.Errorf("Webserver does not support hijacking"))
@@ -157,15 +172,10 @@ func handleDatabaseRequest(action rest.EndpointAction, state state.State, w http
 			return response.InternalError(fmt.Errorf("Failed to hijack connection: %w", err))
 		}
 
-		intState, err := internalState.ToInternal(state)
-		if err != nil {
-			return response.InternalError(fmt.Errorf("Failed to parse internal state: %w", err))
-		}
-
 		intState.InternalDatabase.Accept(conn)
 	}
 
-	return action.Handler(state, r)
+	return response.EmptySyncResponse
 }
 
 // HandleEndpoint adds the endpoint to the mux router. A function variable is used to implement common logic

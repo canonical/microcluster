@@ -29,7 +29,7 @@ func databasePost(state state.State, r *http.Request) response.Response {
 
 	_, err := strconv.Atoi(versionHeader)
 	if err != nil {
-		return response.BadRequest(fmt.Errorf("Invalid dqlite vesion: %w", err))
+		return response.BadRequest(fmt.Errorf("Invalid dqlite version: %w", err))
 	}
 
 	// Handle leader address requests.
@@ -50,7 +50,7 @@ func databasePatch(s state.State, r *http.Request) response.Response {
 
 	_, err := strconv.Atoi(versionHeader)
 	if err != nil {
-		return response.BadRequest(fmt.Errorf("Invalid dqlite vesion: %w", err))
+		return response.BadRequest(fmt.Errorf("Invalid dqlite version: %w", err))
 	}
 
 	intState, err := state.ToInternal(s)

@@ -343,6 +343,9 @@ func (d *Daemon) applyHooks(hooks *state.Hooks) {
 	noOpHook := func(ctx context.Context, s state.State) error { return nil }
 	noOpRemoveHook := func(ctx context.Context, s state.State, force bool) error { return nil }
 	noOpInitHook := func(ctx context.Context, s state.State, initConfig map[string]string) error { return nil }
+	noOpGenericInitHook := func(ctx context.Context, s state.State, bootstrap bool, initConfig map[string]string) error {
+		return nil
+	}
 	noOpConfigHook := func(ctx context.Context, s state.State, config types.DaemonConfig) error { return nil }
 	noOpNewMemberHook := func(ctx context.Context, s state.State, newMember types.ClusterMemberLocal) error { return nil }
 	noOpHeartbeatHook := func(ctx context.Context, s state.State, roleStatus map[string]types.RoleStatus) error { return nil }
@@ -353,8 +356,8 @@ func (d *Daemon) applyHooks(hooks *state.Hooks) {
 		d.hooks = *hooks
 	}
 
-	if d.hooks.PreBootstrap == nil {
-		d.hooks.PreBootstrap = noOpInitHook
+	if d.hooks.PreInit == nil {
+		d.hooks.PreInit = noOpGenericInitHook
 	}
 
 	if d.hooks.PostBootstrap == nil {
@@ -420,7 +423,7 @@ func (d *Daemon) reloadIfBootstrapped() error {
 		return fmt.Errorf("Failed to retrieve daemon configuration yaml: %w", err)
 	}
 
-	err = d.StartAPI(d.shutdownCtx, false, nil, nil)
+	err = d.StartAPI(d.shutdownCtx, false, nil)
 	if err != nil {
 		return err
 	}
@@ -488,34 +491,18 @@ func (d *Daemon) initServer(resources ...rest.Resources) *http.Server {
 	}
 }
 
+// setConfig applies and commits to memory the supplied daemon configuration.
+func (d *Daemon) setConfig(newConfig trust.Location) error {
+	d.config.SetAddress(newConfig.Address)
+	d.config.SetName(newConfig.Name)
+
+	// Write the latest config to disk.
+	return d.config.Write()
+}
+
 // StartAPI starts up the admin and consumer APIs, and generates a cluster cert
 // if we are bootstrapping the first node.
-func (d *Daemon) StartAPI(ctx context.Context, bootstrap bool, initConfig map[string]string, newConfig *trust.Location, joinAddresses ...string) error {
-	if newConfig != nil {
-		d.config.SetAddress(newConfig.Address)
-		d.config.SetName(newConfig.Name)
-
-		// Write the latest config to disk.
-		err := d.config.Write()
-		if err != nil {
-			return err
-		}
-	} else {
-		err := d.config.Load()
-		if err != nil {
-			return err
-		}
-	}
-
-	if bootstrap {
-		ctx, cancel := context.WithCancel(ctx)
-		err := d.hooks.PreBootstrap(ctx, d.State(), initConfig)
-		cancel()
-		if err != nil {
-			return fmt.Errorf("Failed to run pre-bootstrap hook before starting the API: %w", err)
-		}
-	}
-
+func (d *Daemon) StartAPI(ctx context.Context, bootstrap bool, initConfig map[string]string, joinAddresses ...string) error {
 	if d.Address().URL.Host == "" || d.config.GetName() == "" {
 		return fmt.Errorf("Cannot start network API without valid daemon configuration")
 	}
@@ -898,7 +885,7 @@ func (d *Daemon) addExtensionServers(preInit bool, fallbackCert *shared.CertInfo
 		} else {
 			// Generate a dedicated certificate or load the custom one if it exists.
 			// When updating the additional listeners the dedicated certificate from before will be reused.
-			cert, err = shared.KeyPairAndCA(d.os.CertificatesDir, serverName, shared.CertServer, shared.CertOptions{AddHosts: true, SubjectName: serverName})
+			cert, err = shared.KeyPairAndCA(d.os.CertificatesDir, serverName, shared.CertServer, shared.CertOptions{AddHosts: true, CommonName: serverName})
 			if err != nil {
 				return fmt.Errorf("Failed to setup dedicated certificate for additional server %q: %w", serverName, err)
 			}
@@ -973,7 +960,7 @@ func (d *Daemon) ReloadCert(name types.CertificateName) error {
 		dir = d.os.CertificatesDir
 	}
 
-	cert, err := shared.KeyPairAndCA(dir, string(name), shared.CertServer, shared.CertOptions{AddHosts: true, SubjectName: d.Name()})
+	cert, err := shared.KeyPairAndCA(dir, string(name), shared.CertServer, shared.CertOptions{AddHosts: true, CommonName: d.Name()})
 	if err != nil {
 		return fmt.Errorf("Failed to load TLS certificate %q: %w", name, err)
 	}
@@ -1078,6 +1065,7 @@ func (d *Daemon) State() state.State {
 		Hooks:                    &d.hooks,
 		Context:                  d.shutdownCtx,
 		ReadyCh:                  d.ReadyChan,
+		SetConfig:                d.setConfig,
 		StartAPI:                 d.StartAPI,
 		Extensions:               d.Extensions,
 		Endpoints:                d.endpoints,

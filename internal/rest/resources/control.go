@@ -59,6 +59,19 @@ func controlPost(state state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
+	daemonConfig := trust.Location{Address: req.Address, Name: req.Name}
+	err = intState.SetConfig(daemonConfig)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	ctx, cancel := context.WithCancel(r.Context())
+	err = intState.Hooks.PreInit(ctx, state, req.Bootstrap, req.InitConfig)
+	cancel()
+	if err != nil {
+		return response.SmartError(fmt.Errorf("Failed to run pre-init hook before starting the API: %w", err))
+	}
+
 	reverter := revert.New()
 	defer reverter.Fail()
 
@@ -127,7 +140,7 @@ func controlPost(state state.State, r *http.Request) response.Response {
 		}
 
 		// Generate a new keypair with the new subject name.
-		_, err = shared.KeyPairAndCA(state.FileSystem().StateDir, string(types.ServerCertificateName), shared.CertServer, shared.CertOptions{AddHosts: true, SubjectName: req.Name})
+		_, err = shared.KeyPairAndCA(state.FileSystem().StateDir, string(types.ServerCertificateName), shared.CertServer, shared.CertOptions{AddHosts: true, CommonName: req.Name})
 		if err != nil {
 			return response.SmartError(err)
 		}
@@ -149,8 +162,7 @@ func controlPost(state state.State, r *http.Request) response.Response {
 		return response.EmptySyncResponse
 	}
 
-	daemonConfig := &trust.Location{Address: req.Address, Name: req.Name}
-	err = intState.StartAPI(r.Context(), req.Bootstrap, req.InitConfig, daemonConfig)
+	err = intState.StartAPI(r.Context(), req.Bootstrap, req.InitConfig)
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -272,7 +284,7 @@ func joinWithToken(state state.State, r *http.Request, req *internalTypes.Contro
 	}
 
 	// Start the HTTPS listeners and join Dqlite.
-	err = intState.StartAPI(r.Context(), false, req.InitConfig, daemonConfig, joinAddrs.Strings()...)
+	err = intState.StartAPI(r.Context(), false, req.InitConfig, joinAddrs.Strings()...)
 	if err != nil {
 		return nil, err
 	}

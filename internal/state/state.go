@@ -75,8 +75,11 @@ type InternalState struct {
 	// Local daemon's config.
 	LocalConfig func() *internalConfig.DaemonConfig
 
+	// SetConfig Applies and commits to memory the supplied daemon configuration.
+	SetConfig func(trust.Location) error
+
 	// Initialize APIs and bootstrap/join database.
-	StartAPI func(ctx context.Context, bootstrap bool, initConfig map[string]string, newConfig *trust.Location, joinAddresses ...string) error
+	StartAPI func(ctx context.Context, bootstrap bool, initConfig map[string]string, joinAddresses ...string) error
 
 	// Update the additional listeners.
 	UpdateServers func() error

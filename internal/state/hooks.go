@@ -9,8 +9,8 @@ import (
 // Hooks holds customizable functions that can be called at varying points by the daemon to.
 // integrate with other tools.
 type Hooks struct {
-	// PreBootstrap is run before the daemon is initialized and bootstrapped.
-	PreBootstrap func(ctx context.Context, s State, initConfig map[string]string) error
+	// PreInit is run before the daemon is initialized.
+	PreInit func(ctx context.Context, s State, bootstrap bool, initConfig map[string]string) error
 
 	// PostBootstrap is run after the daemon is initialized and bootstrapped.
 	PostBootstrap func(ctx context.Context, s State, initConfig map[string]string) error

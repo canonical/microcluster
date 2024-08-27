@@ -197,7 +197,7 @@ func (d *Daemon) Run(ctx context.Context, stateDir string, args Args) error {
 		// Check if the name is a valid FQDN as it might be used for the certificates SAN.
 		err := utils.ValidateFQDN(k)
 		if err != nil {
-			return fmt.Errorf("Invalid server name %q: %w", k, err)
+			return fmt.Errorf("Server name %q is not a valid FQDN: %w", k, err)
 		}
 
 		// `core` and `unix` are reserved server names.

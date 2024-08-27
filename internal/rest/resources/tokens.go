@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/canonical/microcluster/v2/cluster"
 	internalTypes "github.com/canonical/microcluster/v2/internal/rest/types"
 	"github.com/canonical/microcluster/v2/internal/state"
+	"github.com/canonical/microcluster/v2/internal/utils"
 	"github.com/canonical/microcluster/v2/rest"
 	"github.com/canonical/microcluster/v2/rest/access"
 	"github.com/canonical/microcluster/v2/rest/types"
@@ -41,6 +43,11 @@ func tokensPost(state state.State, r *http.Request) response.Response {
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
 		return response.BadRequest(err)
+	}
+
+	err = utils.ValidateFQDN(req.Name)
+	if err != nil {
+		return response.SmartError(fmt.Errorf("Token name %q is not a valid FQDN: %w", req.Name, err))
 	}
 
 	// Generate join token for new member. This will be stored alongside the join

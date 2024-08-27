@@ -91,7 +91,7 @@ func clusterPost(s state.State, r *http.Request) response.Response {
 
 	err = utils.ValidateFQDN(req.Name)
 	if err != nil {
-		return response.SmartError(fmt.Errorf("Invalid cluster member name %q: %w", req.Name, err))
+		return response.SmartError(fmt.Errorf("Cluster member name %q is not a valid FQDN: %w", req.Name, err))
 	}
 
 	// Check if any of the remote's addresses are currently in use.

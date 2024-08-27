@@ -51,7 +51,7 @@ func controlPost(state state.State, r *http.Request) response.Response {
 
 	err = utils.ValidateFQDN(req.Name)
 	if err != nil {
-		return response.SmartError(fmt.Errorf("Invalid cluster member name %q: %w", req.Name, err))
+		return response.SmartError(fmt.Errorf("Cluster member name %q is not a valid FQDN: %w", req.Name, err))
 	}
 
 	intState, err := internalState.ToInternal(state)

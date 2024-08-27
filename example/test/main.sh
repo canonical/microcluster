@@ -90,7 +90,7 @@ test_misc() {
   microctl --state-dir "${test_dir}/c1" init "c1" 127.0.0.1:9001 --bootstrap
 
   # Ensure only valid member names are used for join
-  token_node2=$(microctl --state-dir "${test_dir}/c1" tokens add "c/2")
+  token_node2=$(microctl --state-dir "${test_dir}/c1" tokens add "c2")
   ! microctl --state-dir "${test_dir}/c2" init "c/2" 127.0.0.1:9002 --token "${token_node2}" || false
 
   shutdown_systems
@@ -100,17 +100,25 @@ test_tokens() {
   new_systems 3 --heartbeat 4s
   bootstrap_systems
 
-  microctl --state-dir "${test_dir}/c1" tokens add default_expiry
+  # Ensure tokens with invalid names cannot be created
+  ! microctl --state-dir "${test_dir}/c1" tokens add ""
+  ! microctl --state-dir "${test_dir}/c1" tokens add "invalid_name"
+  ! microctl --state-dir "${test_dir}/c1" tokens add "invalid_"
+  ! microctl --state-dir "${test_dir}/c1" tokens add "_invalid"
+  ! microctl --state-dir "${test_dir}/c1" tokens add "invalid."
+  ! microctl --state-dir "${test_dir}/c1" tokens add ".invalid"
 
-  microctl --state-dir "${test_dir}/c1" tokens add short_expiry --expire-after 1s
+  microctl --state-dir "${test_dir}/c1" tokens add default-expiry
 
-  microctl --state-dir "${test_dir}/c1" tokens add long_expiry --expire-after 400h
+  microctl --state-dir "${test_dir}/c1" tokens add short-expiry --expire-after 1s
+
+  microctl --state-dir "${test_dir}/c1" tokens add long-expiry --expire-after 400h
 
   sleep 1
 
-  ! microctl --state-dir "${test_dir}/c1" tokens list --format csv | grep -q short_expiry || false
-  microctl --state-dir "${test_dir}/c1" tokens list --format csv | grep -q default_expiry
-  microctl --state-dir "${test_dir}/c1" tokens list --format csv | grep -q long_expiry
+  ! microctl --state-dir "${test_dir}/c1" tokens list --format csv | grep -q short-expiry || false
+  microctl --state-dir "${test_dir}/c1" tokens list --format csv | grep -q default-expiry
+  microctl --state-dir "${test_dir}/c1" tokens list --format csv | grep -q long-expiry
 
   # Ensure expired tokens cannot be used to join the cluster
   mkdir -p "${test_dir}/c4"

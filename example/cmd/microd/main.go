@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"os"
+	"time"
 
 	"github.com/canonical/lxd/shared/logger"
 	"github.com/spf13/cobra"
@@ -44,6 +45,8 @@ type cmdDaemon struct {
 
 	flagStateDir    string
 	flagSocketGroup string
+
+	flagHeartbeatInterval time.Duration
 }
 
 func (c *cmdDaemon) command() *cobra.Command {
@@ -72,7 +75,8 @@ func (c *cmdDaemon) run(cmd *cobra.Command, args []string) error {
 		Debug:   c.global.flagLogDebug,
 		Version: version.Version(),
 
-		SocketGroup: c.flagSocketGroup,
+		SocketGroup:       c.flagSocketGroup,
+		HeartbeatInterval: c.flagHeartbeatInterval,
 
 		ExtensionsSchema: database.SchemaExtensions,
 		APIExtensions:    api.Extensions(),
@@ -204,6 +208,8 @@ func main() {
 
 	app.PersistentFlags().StringVar(&daemonCmd.flagStateDir, "state-dir", "", "Path to store state information"+"``")
 	app.PersistentFlags().StringVar(&daemonCmd.flagSocketGroup, "socket-group", "", "Group to set socket's group ownership to")
+
+	app.PersistentFlags().DurationVar(&daemonCmd.flagHeartbeatInterval, "heartbeat", time.Second*10, "Time between attempted heartbeats")
 
 	app.SetVersionTemplate("{{.Version}}\n")
 

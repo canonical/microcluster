@@ -1,9 +1,10 @@
 package utils
 
 import (
-	"fmt"
+	"net/http"
 	"strings"
 
+	"github.com/canonical/lxd/shared/api"
 	"github.com/canonical/lxd/shared/validate"
 )
 
@@ -11,14 +12,14 @@ import (
 func ValidateFQDN(name string) error {
 	// Validate length
 	if len(name) < 1 || len(name) > 255 {
-		return fmt.Errorf("Name must be 1-255 characters long")
+		return api.StatusErrorf(http.StatusBadRequest, "%s", "Name must be 1-255 characters long")
 	}
 
 	hostnames := strings.Split(name, ".")
 	for _, h := range hostnames {
 		err := validate.IsHostname(h)
 		if err != nil {
-			return err
+			return api.StatusErrorf(http.StatusBadRequest, "%s", err.Error())
 		}
 	}
 

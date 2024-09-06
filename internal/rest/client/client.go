@@ -191,7 +191,7 @@ func IsForwardedRequest(r *http.Request) bool {
 	return r.Header.Get("User-Agent") == clusterRequest.UserAgentNotifier
 }
 
-func (c *Client) rawQuery(ctx context.Context, method string, url *api.URL, data any) (*api.Response, error) {
+func (c *Client) rawQuery(ctx context.Context, method string, url *api.URL, data any) (*http.Response, error) {
 	var req *http.Request
 	var err error
 
@@ -244,7 +244,13 @@ func (c *Client) rawQuery(ctx context.Context, method string, url *api.URL, data
 		}
 	}
 
-	return c.MakeRequest(req)
+	// Send the request
+	resp, err := c.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp, nil
 }
 
 // MakeRequest performs a request and parses the response into an api.Response.

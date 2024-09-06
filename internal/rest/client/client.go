@@ -255,6 +255,8 @@ func (c *Client) rawQuery(ctx context.Context, method string, url *api.URL, data
 }
 
 // MakeRequest performs a request and parses the response into an api.Response.
+// This function can be used instead of the QueryStruct if custom settings have
+// to be applied to the request struct.
 func (c *Client) MakeRequest(r *http.Request) (*api.Response, error) {
 	// Send the request
 	resp, err := c.Do(r)

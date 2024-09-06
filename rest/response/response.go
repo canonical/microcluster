@@ -1,14 +1,17 @@
-package client
+package response
 
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/canonical/lxd/shared/api"
+	"github.com/canonical/lxd/shared/logger"
 )
 
-func parseResponse(resp *http.Response) (*api.Response, error) {
+// ParseResponse takes a http response, parses it and returns the extracted result.
+func ParseResponse(resp *http.Response) (*api.Response, error) {
 	// Decode the response
 	decoder := json.NewDecoder(resp.Body)
 	response := api.Response{}
@@ -26,6 +29,12 @@ func parseResponse(resp *http.Response) (*api.Response, error) {
 	// Handle errors
 	if response.Type == api.ErrorResponse {
 		return nil, api.StatusErrorf(resp.StatusCode, "%s", response.Error)
+	}
+
+	defer resp.Body.Close()
+	_, err = io.Copy(io.Discard, resp.Body)
+	if err != nil {
+		logger.Error("Failed to read response body", logger.Ctx{"error": err})
 	}
 
 	return &response, nil

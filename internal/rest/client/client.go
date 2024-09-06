@@ -24,6 +24,7 @@ import (
 	"github.com/canonical/lxd/shared/tcp"
 	"github.com/gorilla/websocket"
 
+	"github.com/canonical/microcluster/v3/rest/response"
 	"github.com/canonical/microcluster/v3/rest/types"
 )
 
@@ -261,15 +262,9 @@ func (c *Client) MakeRequest(r *http.Request) (*api.Response, error) {
 		return nil, err
 	}
 
-	parsedResponse, err := parseResponse(resp)
+	parsedResponse, err := response.ParseResponse(resp)
 	if err != nil {
 		return nil, err
-	}
-
-	defer resp.Body.Close()
-	_, err = io.Copy(io.Discard, resp.Body)
-	if err != nil {
-		logger.Error("Failed to read response body", logger.Ctx{"error": err})
 	}
 
 	return parsedResponse, nil
@@ -365,7 +360,7 @@ func (c *Client) RawWebsocket(ctx context.Context, endpointType types.EndpointPr
 	conn, resp, err := dialer.DialContext(ctx, localURL.String(), nil)
 	if err != nil {
 		if resp != nil {
-			_, err := parseResponse(resp)
+			_, err := response.ParseResponse(resp)
 			if err != nil {
 				return nil, fmt.Errorf("Failed websocket upgrade request: %w", err)
 			}

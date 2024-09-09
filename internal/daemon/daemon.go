@@ -470,7 +470,7 @@ func (d *Daemon) initServer(resources ...rest.Resources) *http.Server {
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		err := response.SyncResponse(true, []string{"/1.0"}).Render(w)
+		err := response.SyncResponse(true, []string{"/1.0"}).Render(w, r)
 		if err != nil {
 			logger.Error("Failed to write HTTP response", logger.Ctx{"url": r.URL, "err": err})
 		}
@@ -479,7 +479,7 @@ func (d *Daemon) initServer(resources ...rest.Resources) *http.Server {
 	mux.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		logger.Info("Sending top level 404", logger.Ctx{"url": r.URL})
 		w.Header().Set("Content-Type", "application/json")
-		err := response.NotFound(nil).Render(w)
+		err := response.NotFound(nil).Render(w, r)
 		if err != nil {
 			logger.Error("Failed to write HTTP response", logger.Ctx{"url": r.URL, "err": err})
 		}

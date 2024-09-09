@@ -53,7 +53,7 @@ func handleAPIRequest(action rest.EndpointAction, state state.State, w http.Resp
 		}
 
 		if resp != nil {
-			err := resp.Render(w)
+			err := resp.Render(w, r)
 			if err != nil {
 				return response.InternalError(err)
 			}
@@ -194,7 +194,7 @@ func HandleEndpoint(state state.State, mux *mux.Router, version string, e rest.E
 
 		intState, err := internalState.ToInternal(state)
 		if err != nil {
-			err := response.BadRequest(err).Render(w)
+			err := response.BadRequest(err).Render(w, r)
 			if err != nil {
 				logger.Error("Failed to write HTTP response", logger.Ctx{"url": r.URL, "err": err})
 			}
@@ -204,7 +204,7 @@ func HandleEndpoint(state state.State, mux *mux.Router, version string, e rest.E
 
 		// Return Unavailable Error (503) if daemon is shutting down, except for endpoints with AllowedDuringShutdown.
 		if intState.Context.Err() == context.Canceled && !e.AllowedDuringShutdown {
-			err := response.Unavailable(fmt.Errorf("Daemon is shutting down")).Render(w)
+			err := response.Unavailable(fmt.Errorf("Daemon is shutting down")).Render(w, r)
 			if err != nil {
 				logger.Error("Failed to write HTTP response", logger.Ctx{"url": r.URL, "err": err})
 			}
@@ -215,7 +215,7 @@ func HandleEndpoint(state state.State, mux *mux.Router, version string, e rest.E
 		if !e.AllowedBeforeInit {
 			err := state.Database().IsOpen(r.Context())
 			if err != nil {
-				err := response.SmartError(err).Render(w)
+				err := response.SmartError(err).Render(w, r)
 				if err != nil {
 					logger.Error("Failed to write HTTP response", logger.Ctx{"url": r.URL, "err": err})
 				}
@@ -259,9 +259,9 @@ func HandleEndpoint(state state.State, mux *mux.Router, version string, e rest.E
 		// we can ensure that the connection wasn't yet hijacked and the actual error
 		// can be safely returned to the caller.
 		if e.Path != "database" || (e.Path == "database" && resp != response.EmptySyncResponse) {
-			err := resp.Render(w)
+			err := resp.Render(w, r)
 			if err != nil {
-				err := response.InternalError(err).Render(w)
+				err := response.InternalError(err).Render(w, r)
 				if err != nil {
 					logger.Error("Failed writing error for HTTP response", logger.Ctx{"url": url, "error": err})
 				}

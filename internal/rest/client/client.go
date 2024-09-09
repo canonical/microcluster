@@ -24,6 +24,7 @@ import (
 	"github.com/canonical/lxd/shared/tcp"
 	"github.com/gorilla/websocket"
 
+	"github.com/canonical/microcluster/v2/rest/response"
 	"github.com/canonical/microcluster/v2/rest/types"
 )
 
@@ -191,7 +192,7 @@ func IsForwardedRequest(r *http.Request) bool {
 	return r.Header.Get("User-Agent") == clusterRequest.UserAgentNotifier
 }
 
-func (c *Client) rawQuery(ctx context.Context, method string, url *api.URL, data any) (*api.Response, error) {
+func (c *Client) rawQuery(ctx context.Context, method string, url *api.URL, data any) (*http.Response, error) {
 	var req *http.Request
 	var err error
 
@@ -244,10 +245,18 @@ func (c *Client) rawQuery(ctx context.Context, method string, url *api.URL, data
 		}
 	}
 
-	return c.MakeRequest(req)
+	// Send the request
+	resp, err := c.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp, nil
 }
 
 // MakeRequest performs a request and parses the response into an api.Response.
+// This function can be used instead of the QueryStruct if custom settings have
+// to be applied to the request struct.
 func (c *Client) MakeRequest(r *http.Request) (*api.Response, error) {
 	// Send the request
 	resp, err := c.Do(r)
@@ -255,15 +264,9 @@ func (c *Client) MakeRequest(r *http.Request) (*api.Response, error) {
 		return nil, err
 	}
 
-	parsedResponse, err := parseResponse(resp)
+	parsedResponse, err := response.ParseResponse(resp)
 	if err != nil {
 		return nil, err
-	}
-
-	defer resp.Body.Close()
-	_, err = io.Copy(io.Discard, resp.Body)
-	if err != nil {
-		logger.Error("Failed to read response body", logger.Ctx{"error": err})
 	}
 
 	return parsedResponse, nil
@@ -297,25 +300,43 @@ func (c *Client) mergeURL(endpointType types.EndpointPrefix, endpoint *api.URL) 
 //
 // The final URL is that provided as the endpoint combined with the applicable prefix for the endpointType and the scheme and host from the client.
 func (c *Client) QueryStruct(ctx context.Context, method string, endpointType types.EndpointPrefix, endpoint *api.URL, data any, target any) error {
+	resp, err := c.QueryStructRaw(ctx, method, endpointType, endpoint, data)
+	if err != nil {
+		return err
+	}
+
+	response, err := response.ParseResponse(resp)
+	if err != nil {
+		return err
+	}
+
+	// Unpack into the target struct.
+	err = response.MetadataAsStruct(&target)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// QueryStructRaw sends a request of the specified method to the provided endpoint (optional) on the API matching the endpointType.
+// The raw response is returned. POST requests can optionally provide raw data to be sent through.
+//
+// The final URL is that provided as the endpoint combined with the applicable prefix for the endpointType and the scheme and host from the client.
+func (c *Client) QueryStructRaw(ctx context.Context, method string, endpointType types.EndpointPrefix, endpoint *api.URL, data any) (*http.Response, error) {
 	// Merge the provided URL with the one we have for the client.
 	localURL := c.mergeURL(endpointType, endpoint)
 
 	// Send the actual query through.
 	resp, err := c.rawQuery(ctx, method, localURL, data)
 	if err != nil {
-		return err
-	}
-
-	// Unpack into the target struct.
-	err = resp.MetadataAsStruct(&target)
-	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Log the data.
-	logger.Debug("Got response struct from microcluster daemon", logger.Ctx{"endpoint": localURL.String(), "method": method})
-	// TODO: Log.pretty.
-	return nil
+	// TODO: log pretty.
+	logger.Debug("Got raw response struct from microcluster daemon", logger.Ctx{"endpoint": localURL.String(), "method": method})
+	return resp, nil
 }
 
 // RawWebsocket dials the provided endpoint and tries to upgrade the connection.
@@ -359,7 +380,7 @@ func (c *Client) RawWebsocket(ctx context.Context, endpointType types.EndpointPr
 	conn, resp, err := dialer.DialContext(ctx, localURL.String(), nil)
 	if err != nil {
 		if resp != nil {
-			_, err := parseResponse(resp)
+			_, err := response.ParseResponse(resp)
 			if err != nil {
 				return nil, fmt.Errorf("Failed websocket upgrade request: %w", err)
 			}

@@ -2,6 +2,12 @@ name: Tests
 on:
   pull_request:
   push:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * *'  # Test TICS daily
+
+env:
+  GOCOVERDIR: ${{ ( github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' ) && '/home/runner/work/microcluster/microcluster/coverage' || '' }}
 
 permissions:
   contents: read
@@ -44,8 +50,7 @@ jobs:
 
           sudo apt-get install --no-install-recommends -y \
             libdqlite-dev \
-            shellcheck
-
+            shellcheck 
 
       - name: Run static analysis
         run: |
@@ -61,10 +66,88 @@ jobs:
 
           make -C example check-unit
 
+      - name: Make GOCOVERDIR
+        run: mkdir -p "${GOCOVERDIR}"
+        if: env.GOCOVERDIR != ''
+
       - name: Example system tests
         run: |
           set -eux
           make -C example
 
           cd example/test
-          CLUSTER_VERBOSE=1 ./main.sh
+          sudo --preserve-env=PATH,GOPATH,GOCOVERDIR,GITHUB_ACTIONS CLUSTER_VERBOSE=1 ./main.sh
+
+      - name: Upload coverage data
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-example-system
+          path: ${{env.GOCOVERDIR}}
+        if: env.GOCOVERDIR != ''
+
+      - name: Upload TIOBE TICS dependencies
+        uses: actions/upload-artifact@v4
+        with:
+          name: system-tiobe-tics-deps
+          path: |
+            /home/runner/go/bin/microd
+            /home/runner/go/bin/microctl
+            /home/runner/go/bin/dqlite
+          retention-days: 1
+
+  tics:
+    name: Tiobe TICS
+    runs-on: ubuntu-22.04
+    needs: code-tests
+    if: ${{ ( github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' ) && github.ref_name == 'v3' && github.repository == 'canonical/microcluster' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # A non-shallow clone is needed for the Differential ShellCheck
+          fetch-depth: 0
+
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.22.x
+
+      - name: Download coverage data
+        uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-example-system
+          path: ${{env.GOCOVERDIR}}
+          merge-multiple: true
+
+      - name: Download TIOBE TICS dependencies
+        uses: actions/download-artifact@v4
+        with:
+          name: system-tiobe-tics-deps
+          merge-multiple: true
+          path: /home/runner/go/bin
+
+      - name: Install dependencies
+        run: |
+          go install github.com/axw/gocov/gocov@latest
+          go install github.com/AlekSi/gocov-xml@latest
+          go install honnef.co/go/tools/cmd/staticcheck@latest
+
+      - name: Convert coverage files
+        working-directory: /home/runner/work/microcluster/microcluster/example
+        run: |
+          go tool covdata textfmt -i="${GOCOVERDIR}" -o "${GOCOVERDIR}"/coverage.out
+          gocov convert "${GOCOVERDIR}"/coverage.out > "${GOCOVERDIR}"/coverage.json
+          gocov-xml < "${GOCOVERDIR}"/coverage.json > "${GOCOVERDIR}"/coverage-go.xml
+          go tool covdata percent -i="${GOCOVERDIR}"
+
+      # - name: Run TICS
+      #   uses: tiobe/tics-github-action@v3
+      #   with:
+      #     mode: qserver
+      #     project: MicroCluster
+      #     viewerUrl: https://canonical.tiobe.com/tiobeweb/TICS/api/cfg?name=default
+      #     branchdir: ${{ github.workspace }}
+      #     ticsAuthToken: ${{ secrets.TICS_AUTH_TOKEN }}
+      #     installTics: true
+      #     calc: ALL
+      #     tmpdir: /tmp/tics

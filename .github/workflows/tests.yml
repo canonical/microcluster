@@ -59,15 +59,23 @@ jobs:
 
           make -C example check-static
 
+      
+      - name: Make GOCOVERDIR
+        run: mkdir -p "${GOCOVERDIR}"
+        if: env.GOCOVERDIR != ''
+
       - name: Unit tests (all)
         run: |
           set -eux
-          make check-unit
+          sudo --preserve-env=PATH,GOPATH,GOCOVERDIR make check-unit
 
           make -C example check-unit
 
-      - name: Make GOCOVERDIR
-        run: mkdir -p "${GOCOVERDIR}"
+      - name: Upload coverage data
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-unit
+          path: ${{env.GOCOVERDIR}}
         if: env.GOCOVERDIR != ''
 
       - name: Example system tests
@@ -115,7 +123,7 @@ jobs:
       - name: Download coverage data
         uses: actions/download-artifact@v4
         with:
-          pattern: coverage-example-system
+          pattern: coverage-*
           path: ${{env.GOCOVERDIR}}
           merge-multiple: true
 

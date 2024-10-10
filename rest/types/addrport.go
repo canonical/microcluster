@@ -16,6 +16,10 @@ type AddrPorts []AddrPort
 
 // ParseAddrPort parses an IPv4/IPv6 address and port string into an AddrPort.
 func ParseAddrPort(addrPortStr string) (AddrPort, error) {
+	if addrPortStr == "" {
+		return AddrPort{}, nil
+	}
+
 	addrPort, err := netip.ParseAddrPort(addrPortStr)
 	if err != nil {
 		return AddrPort{}, err

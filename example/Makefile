@@ -1,5 +1,6 @@
 VERSION=$(shell git describe --always --dirty --abbrev=10)
 LDFLAGS="-X github.com/canonical/microcluster/v3/example/version.version=$(VERSION)"
+GOCOVERDIR ?= $(shell go env GOCOVERDIR)
 
 .PHONY: default
 default: build
@@ -7,12 +8,23 @@ default: build
 # Build targets.
 .PHONY: build
 build:
+ifeq "$(GOCOVERDIR)" ""
 	go install -v \
 		-ldflags $(LDFLAGS) \
 		./cmd/microctl
 	go install -v \
 		-ldflags $(LDFLAGS) \
 		./cmd/microd
+else
+	go install -v \
+		-ldflags $(LDFLAGS) \
+		-cover \
+		./cmd/microctl
+	go install -v \
+		-ldflags $(LDFLAGS) \
+		-cover \
+		./cmd/microd
+endif
 
 # Testing targets.
 .PHONY: check

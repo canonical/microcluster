@@ -9,7 +9,11 @@ check: check-static check-unit check-system
 
 .PHONY: check-unit
 check-unit:
+ifeq "$(GOCOVERDIR)" ""
 	go test ./...
+else
+	go test ./... -cover -test.gocoverdir="${GOCOVERDIR}"
+endif
 
 .PHONY: check-system
 check-system:

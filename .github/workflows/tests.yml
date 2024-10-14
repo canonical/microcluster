@@ -7,7 +7,7 @@ on:
     - cron: '0 0 * * *'  # Test TICS daily
 
 env:
-  GOCOVERDIR: ${{ ( github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' ) && '/home/runner/work/microcluster/microcluster/coverage' || '' }}
+  GOCOVERDIR: ${{ ( github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' ) && '/home/runner/work/microcluster/microcluster/cover' || '' }}
 
 permissions:
   contents: read
@@ -58,7 +58,6 @@ jobs:
           make check-static
 
           make -C example check-static
-
       
       - name: Make GOCOVERDIR
         run: mkdir -p "${GOCOVERDIR}"
@@ -141,7 +140,6 @@ jobs:
           go install honnef.co/go/tools/cmd/staticcheck@latest
 
       - name: Convert coverage files
-        working-directory: /home/runner/work/microcluster/microcluster/example
         run: |
           go tool covdata textfmt -i="${GOCOVERDIR}" -o "${GOCOVERDIR}"/coverage.out
           gocov convert "${GOCOVERDIR}"/coverage.out > "${GOCOVERDIR}"/coverage.json

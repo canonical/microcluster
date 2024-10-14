@@ -152,7 +152,7 @@ jobs:
         uses: tiobe/tics-github-action@v3
         with:
           mode: qserver
-          project: MicroCluster
+          project: microcluster
           viewerUrl: https://canonical.tiobe.com/tiobeweb/TICS/api/cfg?name=default
           branchdir: ${{ github.workspace }}
           ticsAuthToken: ${{ secrets.TICS_AUTH_TOKEN }}

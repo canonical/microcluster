@@ -106,7 +106,12 @@ func proxyTarget(action rest.EndpointAction, s state.State, r *http.Request) res
 		return response.InternalError(fmt.Errorf("Failed to parse cluster certificate for request: %w", err))
 	}
 
-	client, err := client.New(*targetURL, s.ServerCert(), clusterCert, false)
+	intState, err := internalState.ToInternal(s)
+	if err != nil {
+		return response.InternalError(fmt.Errorf("Failed to parse internal state: %w", err))
+	}
+
+	client, err := client.New(*targetURL, s.ServerCert(), clusterCert, intState.InternalDatabase.GetSessionCache(), false)
 	if err != nil {
 		return response.InternalError(fmt.Errorf("Failed to get a client for the target %q at address %q: %w", target, targetURL.String(), err))
 	}

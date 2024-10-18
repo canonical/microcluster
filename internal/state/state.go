@@ -188,7 +188,7 @@ func (s *InternalState) Cluster(isNotification bool) (client.Cluster, error) {
 		}
 
 		url := api.NewURL().Scheme("https").Host(clusterMember.Address.String())
-		c, err := internalClient.New(*url, s.ServerCert(), publicKey, isNotification)
+		c, err := internalClient.New(*url, s.ServerCert(), publicKey, s.InternalDatabase.GetSessionCache(), isNotification)
 		if err != nil {
 			return nil, err
 		}
@@ -220,7 +220,7 @@ func (s *InternalState) Leader() (*client.Client, error) {
 	}
 
 	url := api.NewURL().Scheme("https").Host(leaderInfo.Address)
-	c, err := internalClient.New(*url, s.ServerCert(), publicKey, false)
+	c, err := internalClient.New(*url, s.ServerCert(), publicKey, s.InternalDatabase.GetSessionCache(), false)
 	if err != nil {
 		return nil, err
 	}

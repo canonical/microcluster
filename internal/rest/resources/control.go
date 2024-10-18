@@ -115,7 +115,7 @@ func controlPost(state state.State, r *http.Request) response.Response {
 			return
 		}
 
-		client, err := internalClient.New(*url, state.ServerCert(), cert, false)
+		client, err := internalClient.New(*url, state.ServerCert(), cert, intState.InternalDatabase.GetSessionCache(), false)
 		if err != nil {
 			return
 		}
@@ -227,7 +227,7 @@ func joinWithToken(state state.State, r *http.Request, req *internalTypes.Contro
 			continue
 		}
 
-		d, err := internalClient.New(*url, state.ServerCert(), cert, false)
+		d, err := internalClient.New(*url, state.ServerCert(), cert, intState.InternalDatabase.GetSessionCache(), false)
 		if err != nil {
 			return nil, err
 		}

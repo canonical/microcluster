@@ -35,7 +35,7 @@ type Client struct {
 }
 
 // New returns a new client configured with the given url and certificates.
-func New(url api.URL, clientCert *shared.CertInfo, remoteCert *x509.Certificate, forwarding bool) (*Client, error) {
+func New(url api.URL, clientCert *shared.CertInfo, remoteCert *x509.Certificate, sessionCache tls.ClientSessionCache, forwarding bool) (*Client, error) {
 	var err error
 	var httpClient *http.Client
 
@@ -49,7 +49,7 @@ func New(url api.URL, clientCert *shared.CertInfo, remoteCert *x509.Certificate,
 			proxy = forwardingProxy
 		}
 
-		httpClient, err = tlsHTTPClient(clientCert, remoteCert, proxy)
+		httpClient, err = tlsHTTPClient(clientCert, remoteCert, sessionCache, proxy)
 	}
 
 	if err != nil {
@@ -94,11 +94,11 @@ func unixHTTPClient(path string) (*http.Client, error) {
 	return client, nil
 }
 
-func tlsHTTPClient(clientCert *shared.CertInfo, remoteCert *x509.Certificate, proxy func(req *http.Request) (*url.URL, error)) (*http.Client, error) {
+func tlsHTTPClient(clientCert *shared.CertInfo, remoteCert *x509.Certificate, sessionCache tls.ClientSessionCache, proxy func(req *http.Request) (*url.URL, error)) (*http.Client, error) {
 	var tlsConfig *tls.Config
 	if remoteCert != nil {
 		var err error
-		tlsConfig, err = TLSClientConfig(clientCert, remoteCert)
+		tlsConfig, err = TLSClientConfig(clientCert, remoteCert, sessionCache)
 		if err != nil {
 			return nil, fmt.Errorf("Failed to parse TLS config: %w", err)
 		}

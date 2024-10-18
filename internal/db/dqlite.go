@@ -333,7 +333,7 @@ func (db *DqliteDB) heartbeat(leaderInfo dqliteClient.NodeInfo, servers []dqlite
 		return nil
 	}
 
-	client, err := internalClient.New(db.os.ControlSocket(), nil, nil, false)
+	client, err := internalClient.New(db.os.ControlSocket(), nil, nil, db.sessionCache, false)
 	if err != nil {
 		logger.Error("Failed to get local client", logger.Ctx{"address": db.listenAddr.String(), "error": err})
 		return nil

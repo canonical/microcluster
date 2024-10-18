@@ -41,6 +41,8 @@ type DqliteDB struct {
 	serverCert  func() *shared.CertInfo // Server certificate for dqlite authentication.
 	listenAddr  api.URL                 // Listen address for this dqlite node.
 
+	sessionCache tls.ClientSessionCache
+
 	dbName string // This is db.bin.
 	os     *sys.OS
 
@@ -93,6 +95,7 @@ func NewDB(ctx context.Context, serverCert func() *shared.CertInfo, clusterCert 
 		cancel:            shutdownCancel,
 		status:            types.DatabaseNotReady,
 		maxConns:          1,
+		sessionCache:      tls.NewLRUClientSessionCache(64),
 	}
 }
 
@@ -111,6 +114,11 @@ func (db *DqliteDB) Schema() *update.SchemaUpdate {
 // SchemaVersion returns the current internal and external schema version, as well as all API extensions in memory.
 func (db *DqliteDB) SchemaVersion() (versionInternal uint64, versionExternal uint64, apiExtensions extensions.Extensions) {
 	return db.schema.Version()
+}
+
+// GetSessionCache returns the database client session cache.
+func (db *DqliteDB) GetSessionCache() tls.ClientSessionCache {
+	return db.sessionCache
 }
 
 // Bootstrap dqlite.
@@ -358,7 +366,7 @@ func dqliteNetworkDial(ctx context.Context, addr string, db *DqliteDB) (net.Conn
 		return nil, err
 	}
 
-	config, err := internalClient.TLSClientConfig(db.serverCert(), peerCert)
+	config, err := internalClient.TLSClientConfig(db.serverCert(), peerCert, db.sessionCache)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to parse TLS config: %w", err)
 	}

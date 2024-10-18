@@ -222,7 +222,7 @@ func (r *Remotes) Cluster(isNotification bool, serverCert *shared.CertInfo, publ
 	cluster := make(client.Cluster, 0, r.Count()-1)
 	for _, addr := range r.Addresses() {
 		url := api.NewURL().Scheme("https").Host(addr.String())
-		c, err := internalClient.New(*url, serverCert, publicKey, isNotification)
+		c, err := internalClient.New(*url, serverCert, publicKey, nil, isNotification)
 		if err != nil {
 			return nil, err
 		}

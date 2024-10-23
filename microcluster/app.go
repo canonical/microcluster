@@ -2,6 +2,7 @@ package microcluster
 
 import (
 	"context"
+	"crypto/tls"
 	"crypto/x509"
 	"fmt"
 	"io"
@@ -40,8 +41,9 @@ type MicroCluster struct {
 type Args struct {
 	StateDir string
 
-	Client *client.Client
-	Proxy  func(*http.Request) (*url.URL, error)
+	Client      *client.Client
+	Proxy       func(*http.Request) (*url.URL, error)
+	ClientCache tls.ClientSessionCache
 }
 
 // App returns an instance of MicroCluster with a newly initialized filesystem if one does not exist.
@@ -290,7 +292,7 @@ func (m *MicroCluster) RevokeJoinToken(ctx context.Context, name string) error {
 func (m *MicroCluster) LocalClient() (*client.Client, error) {
 	c := m.args.Client
 	if c == nil {
-		internalClient, err := internalClient.New(m.FileSystem.ControlSocket(), nil, nil, false)
+		internalClient, err := internalClient.New(m.FileSystem.ControlSocket(), nil, nil, m.args.ClientCache, false)
 		if err != nil {
 			return nil, err
 		}
@@ -337,7 +339,7 @@ func (m *MicroCluster) RemoteClientWithCert(address string, cert *x509.Certifica
 		}
 
 		url := api.NewURL().Scheme("https").Host(address)
-		internalClient, err := internalClient.New(*url, serverCert, cert, false)
+		internalClient, err := internalClient.New(*url, serverCert, cert, m.args.ClientCache, false)
 		if err != nil {
 			return nil, err
 		}

@@ -294,9 +294,14 @@ func clusterGet(s state.State, r *http.Request) response.Response {
 			return response.SmartError(err)
 		}
 
+		intState, err := internalState.ToInternal(s)
+		if err != nil {
+			return response.SmartError(err)
+		}
+
 		for i, clusterMember := range apiClusterMembers {
 			addr := api.NewURL().Scheme("https").Host(clusterMember.Address.String())
-			d, err := internalClient.New(*addr, s.ServerCert(), clusterCert, false)
+			d, err := internalClient.New(*addr, s.ServerCert(), clusterCert, intState.InternalDatabase.GetSessionCache(), false)
 			if err != nil {
 				return response.SmartError(fmt.Errorf("Failed to create HTTPS client for cluster member with address %q: %w", addr.String(), err))
 			}
@@ -587,8 +592,13 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
+	intState, err := internalState.ToInternal(s)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
 	// Set the forwarded flag so that the the system to be removed knows the removal is in progress.
-	c, err := internalClient.New(remote.URL(), s.ServerCert(), publicKey, true)
+	c, err := internalClient.New(remote.URL(), s.ServerCert(), publicKey, intState.InternalDatabase.GetSessionCache(), true)
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -615,7 +625,7 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 		}
 	}
 
-	localClient, err := internalClient.New(s.FileSystem().ControlSocket(), nil, nil, false)
+	localClient, err := internalClient.New(s.FileSystem().ControlSocket(), nil, nil, intState.InternalDatabase.GetSessionCache(), false)
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -625,7 +635,7 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	c, err = internalClient.New(remote.URL(), s.ServerCert(), publicKey, false)
+	c, err = internalClient.New(remote.URL(), s.ServerCert(), publicKey, intState.InternalDatabase.GetSessionCache(), false)
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -636,11 +646,6 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 	}
 
 	cluster, err := s.Cluster(false)
-	if err != nil {
-		return response.SmartError(err)
-	}
-
-	intState, err := internalState.ToInternal(s)
 	if err != nil {
 		return response.SmartError(err)
 	}

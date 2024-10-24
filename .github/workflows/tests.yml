@@ -12,6 +12,11 @@ concurrency:
 
 jobs:
   code-tests:
+    env:
+      CGO_CFLAGS: -I/home/runner/go/deps/dqlite/include/
+      CGO_LDFLAGS: -L/home/runner/go/deps/dqlite/.libs/
+      LD_LIBRARY_PATH: /home/runner/go/deps/dqlite/.libs/
+      CGO_LDFLAGS_ALLOW: (-Wl,-wrap,pthread_create)|(-Wl,-z,now)
     name: Code
     runs-on: ubuntu-22.04
     strategy:
@@ -39,13 +44,15 @@ jobs:
       - name: Install dependencies
         run: |
           set -eux
-          sudo add-apt-repository ppa:dqlite/dev -y --no-update
           sudo apt-get update
 
           sudo apt-get install --no-install-recommends -y \
-            libdqlite-dev \
-            shellcheck
+            pkg-config autoconf automake libtool make libuv1-dev libsqlite3-dev liblz4-dev
 
+      - name: Build dependencies
+        run: |
+          set -eux
+          make deps
 
       - name: Run static analysis
         run: |

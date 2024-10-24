@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/canonical/go-dqlite"
+	"github.com/canonical/go-dqlite/v2"
 	"github.com/canonical/lxd/shared/api"
 	"github.com/canonical/lxd/shared/logger"
 	"gopkg.in/yaml.v3"

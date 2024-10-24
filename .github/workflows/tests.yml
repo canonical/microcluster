@@ -18,6 +18,11 @@ concurrency:
 
 jobs:
   code-tests:
+    env:
+      CGO_CFLAGS: -I/home/runner/go/deps/dqlite/include/
+      CGO_LDFLAGS: -L/home/runner/go/deps/dqlite/.libs/
+      LD_LIBRARY_PATH: /home/runner/go/deps/dqlite/.libs/
+      CGO_LDFLAGS_ALLOW: (-Wl,-wrap,pthread_create)|(-Wl,-z,now)
     name: Code
     runs-on: ubuntu-22.04
     strategy:
@@ -45,12 +50,15 @@ jobs:
       - name: Install dependencies
         run: |
           set -eux
-          sudo add-apt-repository ppa:dqlite/dev -y --no-update
           sudo apt-get update
 
           sudo apt-get install --no-install-recommends -y \
-            libdqlite-dev \
-            shellcheck 
+            shellcheck pkg-config autoconf automake libtool make libuv1-dev libsqlite3-dev liblz4-dev
+
+      - name: Build dependencies
+        run: |
+          set -eux
+          make deps
 
       - name: Run static analysis
         run: |
@@ -58,7 +66,7 @@ jobs:
           make check-static
 
           make -C example check-static
-      
+
       - name: Make GOCOVERDIR
         run: mkdir -p "${GOCOVERDIR}"
         if: env.GOCOVERDIR != ''
@@ -66,7 +74,7 @@ jobs:
       - name: Unit tests (all)
         run: |
           set -eux
-          sudo --preserve-env=PATH,GOPATH,GOCOVERDIR make check-unit
+          make check-unit
 
           make -C example check-unit
 
@@ -83,7 +91,7 @@ jobs:
           make -C example
 
           cd example/test
-          sudo --preserve-env=PATH,GOPATH,GOCOVERDIR,GITHUB_ACTIONS CLUSTER_VERBOSE=1 ./main.sh
+          CLUSTER_VERBOSE=1 ./main.sh
 
       - name: Upload coverage data
         uses: actions/upload-artifact@v4

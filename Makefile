@@ -1,7 +1,27 @@
 GOMIN=1.22.7
+GOPATH ?= $(shell go env GOPATH)
+DQLITE_PATH=$(GOPATH)/deps/dqlite
+DQLITE_BRANCH=master
 
 .PHONY: default
 default: update-schema
+
+# Build dependencies
+.PHONY: deps
+deps:
+	# dqlite (+raft)
+	@if [ ! -e "$(DQLITE_PATH)" ]; then \
+		echo "Retrieving dqlite from ${DQLITE_BRANCH} branch"; \
+		git clone --depth=1 --branch "${DQLITE_BRANCH}" "https://github.com/canonical/dqlite" "$(DQLITE_PATH)"; \
+	elif [ -e "$(DQLITE_PATH)/.git" ]; then \
+		echo "Updating existing dqlite branch"; \
+		cd "$(DQLITE_PATH)"; git pull; \
+	fi
+
+	cd "$(DQLITE_PATH)" && \
+		autoreconf -i && \
+		./configure --enable-build-raft && \
+		make
 
 # Testing targets.
 .PHONY: check

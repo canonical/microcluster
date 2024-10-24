@@ -3,7 +3,7 @@ module github.com/canonical/microcluster/v3
 go 1.22.7
 
 require (
-	github.com/canonical/go-dqlite v1.22.0
+	github.com/canonical/go-dqlite/v3 v3.0.0
 	github.com/canonical/lxd v0.0.0-20241022112222-538639622c38
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/google/renameio v1.0.1
@@ -20,6 +20,7 @@ require (
 require (
 	github.com/Rican7/retry v0.3.1 // indirect
 	github.com/armon/go-proxyproto v0.1.0 // indirect
+	github.com/canonical/go-dqlite v1.22.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/flosch/pongo2 v0.0.0-20200913210552-0d938eb266f3 // indirect
 	github.com/fvbommel/sortorder v1.1.0 // indirect

@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 
-	dqliteClient "github.com/canonical/go-dqlite/client"
+	dqliteClient "github.com/canonical/go-dqlite/v3/client"
 
 	"github.com/canonical/microcluster/v3/internal/extensions"
 	"github.com/canonical/microcluster/v3/rest/types"

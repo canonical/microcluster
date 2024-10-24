@@ -3,8 +3,8 @@ package cluster
 import (
 	"fmt"
 
-	"github.com/canonical/go-dqlite"
-	dqliteClient "github.com/canonical/go-dqlite/client"
+	"github.com/canonical/go-dqlite/v3"
+	dqliteClient "github.com/canonical/go-dqlite/v3/client"
 )
 
 // DqliteMember is the information that can be derived locally about a cluster

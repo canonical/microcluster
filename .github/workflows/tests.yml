@@ -74,7 +74,7 @@ jobs:
       - name: Unit tests (all)
         run: |
           set -eux
-          sudo --preserve-env=PATH,GOPATH,GOCOVERDIR make check-unit
+          make check-unit
 
           make -C example check-unit
 
@@ -91,7 +91,7 @@ jobs:
           make -C example
 
           cd example/test
-          sudo --preserve-env=PATH,GOPATH,GOCOVERDIR,GITHUB_ACTIONS CLUSTER_VERBOSE=1 ./main.sh
+          CLUSTER_VERBOSE=1 ./main.sh
 
       - name: Upload coverage data
         uses: actions/upload-artifact@v4

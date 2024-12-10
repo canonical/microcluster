@@ -16,8 +16,8 @@ import (
 	"sync"
 	"time"
 
-	dqlite "github.com/canonical/go-dqlite/app"
-	dqliteClient "github.com/canonical/go-dqlite/client"
+	dqlite "github.com/canonical/go-dqlite/v2/app"
+	dqliteClient "github.com/canonical/go-dqlite/v2/client"
 	"github.com/canonical/lxd/lxd/db/schema"
 	"github.com/canonical/lxd/shared"
 	"github.com/canonical/lxd/shared/api"

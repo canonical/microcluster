@@ -99,7 +99,7 @@ func (s *OS) ServerCert() (*shared.CertInfo, error) {
 		return nil, fmt.Errorf("Failed to get server.crt from directory %q", s.StateDir)
 	}
 
-	cert, err := shared.KeyPairAndCA(s.StateDir, "server", shared.CertServer, true)
+	cert, err := shared.KeyPairAndCA(s.StateDir, "server", shared.CertServer, shared.CertOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to load TLS certificate: %w", err)
 	}
@@ -113,7 +113,7 @@ func (s *OS) ClusterCert() (*shared.CertInfo, error) {
 		return nil, fmt.Errorf("Failed to get cluster.crt from directory %q", s.StateDir)
 	}
 
-	cert, err := shared.KeyPairAndCA(s.StateDir, "cluster", shared.CertServer, true)
+	cert, err := shared.KeyPairAndCA(s.StateDir, "cluster", shared.CertServer, shared.CertOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to load TLS certificate: %w", err)
 	}

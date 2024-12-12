@@ -48,7 +48,7 @@ func (c *cmdSQL) Run(cmd *cobra.Command, args []string) error {
 	}
 
 	if dump != "" {
-		fmt.Printf(dump)
+		fmt.Print(dump)
 		return nil
 	}
 

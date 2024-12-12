@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	dqliteClient "github.com/canonical/go-dqlite/client"
+	dqliteClient "github.com/canonical/go-dqlite/v2/client"
 	"github.com/canonical/lxd/lxd/response"
 	"github.com/canonical/lxd/shared/api"
 	"github.com/canonical/lxd/shared/logger"
@@ -51,6 +51,18 @@ func clusterPost(s *state.State, r *http.Request) response.Response {
 	// If we received a forwarded request, assume the new member was successfully added on the leader,
 	// and execute the new member hook.
 	if client.IsForwardedRequest(r) {
+		ctx, cancel := context.WithTimeout(s.Context, 30*time.Second)
+		defer cancel()
+
+		// Wait for the database to be set up in case we received this request at the same time as joining ourselves.
+		for !s.Database.IsOpen() {
+			select {
+			case <-ctx.Done():
+				return response.SmartError(fmt.Errorf("Error waiting for peer to initialize: %w", ctx.Err()))
+			default:
+			}
+		}
+
 		err := state.OnNewMemberHook(s)
 		if err != nil {
 			return response.SmartError(fmt.Errorf("Failed to run post cluster member add actions: %w", err))
@@ -283,7 +295,7 @@ func clusterMemberPut(s *state.State, r *http.Request) response.Response {
 	}()
 
 	return response.ManualResponse(func(w http.ResponseWriter) error {
-		err := response.EmptySyncResponse.Render(w)
+		err := response.EmptySyncResponse.Render(w, r)
 		if err != nil {
 			return err
 		}
@@ -380,7 +392,7 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 		}
 
 		return response.ManualResponse(func(w http.ResponseWriter) error {
-			err := response.EmptySyncResponse.Render(w)
+			err := response.EmptySyncResponse.Render(w, r)
 			if err != nil {
 				return err
 			}
@@ -451,6 +463,12 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 		}
 	}
 
+	// Refresh members information since we may have changed roles.
+	info, err = leader.Cluster(s.Context)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
 	// If we are the leader and removing ourselves, reassign the leader role and perform the removal from there.
 	if allRemotes[name].Address.String() == leaderInfo.Address {
 		otherNodes := []uint64{}
@@ -491,7 +509,7 @@ func clusterMemberDelete(s *state.State, r *http.Request) response.Response {
 		}
 
 		return response.ManualResponse(func(w http.ResponseWriter) error {
-			err := response.EmptySyncResponse.Render(w)
+			err := response.EmptySyncResponse.Render(w, r)
 			if err != nil {
 				return err
 			}

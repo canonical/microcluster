@@ -1,3 +1,5 @@
+GOMIN=1.23.3
+
 .PHONY: default
 default: update-schema
 
@@ -31,8 +33,12 @@ endif
 # Update targets.
 .PHONY: update-gomod
 update-gomod:
-	go get -u ./...
-	go mod tidy
+	go get -t -v -u ./...
+
+	# Static pins
+	go get github.com/canonical/lxd@stable-5.21 # Stay on v2 dqlite and LXD LTS client
+
+	go mod tidy -go=$(GOMIN)
 
 # Update lxd-generate generated database helpers.
 .PHONY: update-schema

@@ -176,7 +176,7 @@ func HandleEndpoint(state *internalState.State, mux *mux.Router, version string,
 
 		// Return Unavailable Error (503) if daemon is shutting down, except for endpoints with AllowedDuringShutdown.
 		if state.Context.Err() == context.Canceled && !e.AllowedDuringShutdown {
-			err := response.Unavailable(fmt.Errorf("Daemon is shutting down")).Render(w)
+			err := response.Unavailable(fmt.Errorf("Daemon is shutting down")).Render(w, r)
 			if err != nil {
 				logger.Error("Failed to write HTTP response", logger.Ctx{"url": r.URL, "err": err})
 			}
@@ -186,7 +186,7 @@ func HandleEndpoint(state *internalState.State, mux *mux.Router, version string,
 
 		if !e.AllowedBeforeInit {
 			if !state.Database.IsOpen() {
-				err := response.Unavailable(fmt.Errorf("Daemon not yet initialized")).Render(w)
+				err := response.Unavailable(fmt.Errorf("Daemon not yet initialized")).Render(w, r)
 				if err != nil {
 					logger.Error("Failed to write HTTP response", logger.Ctx{"url": r.URL, "err": err})
 				}
@@ -225,9 +225,9 @@ func HandleEndpoint(state *internalState.State, mux *mux.Router, version string,
 
 		// Handle errors.
 		if e.Path != "database" {
-			err := resp.Render(w)
+			err := resp.Render(w, r)
 			if err != nil {
-				err := response.InternalError(err).Render(w)
+				err := response.InternalError(err).Render(w, r)
 				if err != nil {
 					logger.Error("Failed writing error for HTTP response", logger.Ctx{"url": url, "error": err})
 				}
@@ -265,7 +265,7 @@ func authenticate(state *internalState.State, r *http.Request) (bool, error) {
 
 	if r.TLS != nil {
 		for _, cert := range r.TLS.PeerCertificates {
-			trusted, fingerprint := util.CheckTrustState(*cert, trustedCerts, nil, false)
+			trusted, fingerprint := util.CheckMutualTLS(*cert, trustedCerts)
 			if trusted {
 				remote := state.Remotes().RemoteByCertificateFingerprint(fingerprint)
 				if remote == nil {

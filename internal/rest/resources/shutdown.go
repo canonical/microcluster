@@ -28,7 +28,7 @@ func shutdownPost(state *state.State, r *http.Request) response.Response {
 
 		// Run shutdown sequence synchronously.
 		stopErr := state.Stop()
-		err := response.SmartError(stopErr).Render(w)
+		err := response.SmartError(stopErr).Render(w, r)
 		if err != nil {
 			return err
 		}

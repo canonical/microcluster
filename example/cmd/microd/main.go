@@ -3,9 +3,7 @@ package main
 
 import (
 	"context"
-	"math/rand"
 	"os"
-	"time"
 
 	"github.com/canonical/lxd/shared/logger"
 	"github.com/spf13/cobra"
@@ -126,10 +124,6 @@ func (c *cmdDaemon) Run(cmd *cobra.Command, args []string) error {
 	}
 
 	return m.Start(api.Endpoints, database.SchemaExtensions, exampleHooks)
-}
-
-func init() {
-	rand.Seed(time.Now().UnixNano())
 }
 
 func main() {

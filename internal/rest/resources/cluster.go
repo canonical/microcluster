@@ -147,7 +147,7 @@ func clusterPost(s state.State, r *http.Request) response.Response {
 			return fmt.Errorf("Token expired")
 		}
 
-		if !shared.ValueInSlice(record.Name, req.Certificate.DNSNames) {
+		if err := req.Certificate.VerifyHostname(record.Name); err != nil {
 			return fmt.Errorf("Joining server certificate SAN does not contain join token name")
 		}
 

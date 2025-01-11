@@ -38,6 +38,7 @@ func NewSchema() *SchemaUpdateManager {
 			mgr.updateFromV3,
 			updateFromV4,
 			updateFromV5,
+			updateFromV6,
 		},
 	}
 
@@ -73,6 +74,32 @@ func (s *SchemaUpdateManager) Schema() *SchemaUpdate {
 func (s *SchemaUpdateManager) AppendSchema(schemaExtensions []schema.Update, apiExtensions extensions.Extensions) {
 	s.updates[updateExternal] = schemaExtensions
 	s.apiExtensions = apiExtensions
+}
+
+// updateFromV6 removed unique constraint on certificates.
+func updateFromV6(ctx context.Context, tx *sql.Tx) error {
+	stmt := `
+CREATE TABLE core_cluster_members_new (
+    id                      INTEGER   PRIMARY  KEY    AUTOINCREMENT  NOT  NULL,
+    name                    TEXT      NOT      NULL,
+    address                 TEXT      NOT      NULL,
+    certificate             TEXT      NOT      NULL,
+    schema_internal         INTEGER   NOT      NULL,
+    schema_external         INTEGER   NOT      NULL,
+    heartbeat               DATETIME  NOT      NULL,
+    role                    TEXT      NOT      NULL,
+    api_extensions          TEXT      NOT      NULL DEFAULT '[]',
+    UNIQUE(name)
+);
+
+INSERT INTO core_cluster_members_new (id, name, address, certificate, schema_internal, schema_external, heartbeat, role, api_extensions)
+SELECT id, name, address, certificate, schema_internal, schema_external, heartbeat, role, api_extensions FROM core_cluster_members;
+
+DROP TABLE core_cluster_members;
+ALTER TABLE core_cluster_members_new RENAME TO core_cluster_members;
+`
+	_, err := tx.ExecContext(ctx, stmt)
+	return err
 }
 
 // updateFromV5 adds an expiration column for join tokens.

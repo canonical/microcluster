@@ -80,12 +80,12 @@ func controlPost(state state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	certNameMatches := shared.ValueInSlice(req.Name, serverCert.DNSNames)
+	certNameMatches := serverCert.VerifyHostname(req.Name)
 	var joinInfo *internalTypes.TokenResponse
 	reverter.Add(func() {
 		// When joining, don't attempt to reset the cluster member if we never received authorization from any cluster members.
 		// This is because we won't have changed any state yet, so resetting the cluster member won't help, and may have its own side-effects.
-		if joinInfo == nil && req.JoinToken != "" && !certNameMatches {
+		if joinInfo == nil && req.JoinToken != "" && certNameMatches != nil {
 			return
 		}
 
@@ -128,7 +128,7 @@ func controlPost(state state.State, r *http.Request) response.Response {
 	})
 
 	// Replace the server keypair if the cluster member name has changed upon initialization.
-	if !certNameMatches {
+	if certNameMatches != nil {
 		err := os.Remove(filepath.Join(state.FileSystem().StateDir, "server.crt"))
 		if err != nil {
 			return response.SmartError(err)

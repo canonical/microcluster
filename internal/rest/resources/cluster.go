@@ -143,6 +143,10 @@ func clusterPost(s state.State, r *http.Request) response.Response {
 			return err
 		}
 
+		if record.Name != req.Name {
+			return fmt.Errorf("Joining server name doesn't match associated token name")
+		}
+
 		if record.Expired() {
 			return fmt.Errorf("Token expired")
 		}

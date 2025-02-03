@@ -41,6 +41,7 @@ func (c *cmdWaitready) run(cmd *cobra.Command, args []string) error {
 	if c.flagTimeout > 0 {
 		ctx, cancel = context.WithTimeout(ctx, time.Duration(c.flagTimeout)*time.Second)
 	}
+
 	defer cancel()
 
 	return m.Ready(ctx)

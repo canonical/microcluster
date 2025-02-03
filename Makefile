@@ -41,6 +41,7 @@ ifeq ($(shell command -v golangci-lint 2> /dev/null),)
 	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $$(go env GOPATH)/bin v2.0.0
 endif
 	golangci-lint run --timeout 5m
+	run-parts --verbose --exit-on-error --regex '.sh' test/lint
 
 # Update targets.
 .PHONY: update-gomod

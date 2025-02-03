@@ -121,6 +121,7 @@ func (t *hooksSuite) Test_hooks() {
 			// Set an URL for response.Render to not cause any panic.
 			URL: &url.URL{},
 		}
+
 		payload, ok := c.req.(internalTypes.HookRemoveMemberOptions)
 		if !ok {
 			payload, ok := c.req.(internalTypes.HookNewMemberOptions)

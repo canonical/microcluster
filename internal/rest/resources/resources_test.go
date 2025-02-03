@@ -102,6 +102,7 @@ func TestValidateEndpointsInvalidServers(t *testing.T) {
 		servers := map[string]rest.Server{
 			serverName: server,
 		}
+
 		err := ValidateEndpoints(servers, "localhost:8000")
 		if err == nil {
 			t.Errorf("Invalid server %q passed validation", serverName)

@@ -50,6 +50,7 @@ func hooksPost(s state.State, r *http.Request) response.Response {
 		if err != nil {
 			return response.SmartError(fmt.Errorf("Failed to execute pre-remove hook on cluster member %q: %w", s.Name(), err))
 		}
+
 	case internalTypes.PostRemove:
 		var req internalTypes.HookRemoveMemberOptions
 		err = json.NewDecoder(r.Body).Decode(&req)
@@ -77,6 +78,7 @@ func hooksPost(s state.State, r *http.Request) response.Response {
 		if err != nil {
 			return response.SmartError(fmt.Errorf("Failed to run hook after system %q has joined the cluster: %w", req.NewMember.Name, err))
 		}
+
 	case internalTypes.OnDaemonConfigUpdate:
 		var req types.DaemonConfig
 		err = json.NewDecoder(r.Body).Decode(&req)
@@ -88,6 +90,7 @@ func hooksPost(s state.State, r *http.Request) response.Response {
 		if err != nil {
 			return response.SmartError(fmt.Errorf("Failed to run hook on %q after daemon received local config update: %w", s.Name(), err))
 		}
+
 	default:
 		return response.SmartError(fmt.Errorf("No valid hook found for the given type"))
 	}

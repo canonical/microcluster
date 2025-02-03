@@ -217,7 +217,8 @@ func (e Extensions) MarshalYAML() (any, error) {
 // UnmarshalJSON implements the json.Unmarshaler interface.
 func (e *Extensions) UnmarshalJSON(data []byte) error {
 	var v any
-	if err := json.Unmarshal(data, &v); err != nil {
+	err := json.Unmarshal(data, &v)
+	if err != nil {
 		return err
 	}
 
@@ -246,14 +247,16 @@ func (e *Extensions) UnmarshalYAML(value *yaml.Node) error {
 	switch value.Kind {
 	case yaml.ScalarNode:
 		var s string
-		if err := value.Decode(&s); err != nil {
+		err := value.Decode(&s)
+		if err != nil {
 			return err
 		}
 
 		*e = Extensions{s}
 	case yaml.SequenceNode:
 		var slice []string
-		if err := value.Decode(&slice); err != nil {
+		err := value.Decode(&slice)
+		if err != nil {
 			return err
 		}
 

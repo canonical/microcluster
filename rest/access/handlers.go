@@ -89,6 +89,7 @@ func Authenticate(state state.State, r *http.Request, hostAddress string, truste
 				}
 			}
 		}
+
 	default:
 		return false, ErrInvalidHost{error: fmt.Errorf("Invalid request address %q", r.Host)}
 	}

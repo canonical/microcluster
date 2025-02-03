@@ -235,6 +235,7 @@ func (e *Extensions) UnmarshalJSON(data []byte) error {
 
 			(*e)[i] = str
 		}
+
 	default:
 		return fmt.Errorf("invalid type for Extension")
 	}

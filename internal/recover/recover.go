@@ -409,13 +409,14 @@ func MaybeUnpackRecoveryTarball(filesystem *sys.OS) error {
 	recoveryYamlPath := path.Join(unpackDir, "recovery.yaml")
 
 	// Determine if the recovery tarball exists
-	if _, err := os.Stat(tarballPath); errors.Is(err, os.ErrNotExist) {
+	_, err := os.Stat(tarballPath)
+	if errors.Is(err, os.ErrNotExist) {
 		return nil
 	}
 
 	logger.Warn("Recovery tarball located; attempting DB recovery", logger.Ctx{"tarball": tarballPath})
 
-	err := unpackTarball(tarballPath, unpackDir)
+	err = unpackTarball(tarballPath, unpackDir)
 	if err != nil {
 		return err
 	}

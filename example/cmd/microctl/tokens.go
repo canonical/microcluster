@@ -50,6 +50,7 @@ func (c *cmdTokensAdd) command() *cobra.Command {
 		Short: "Add a new join token under the given name",
 		RunE:  c.run,
 	}
+
 	cmd.Flags().StringVarP(&c.flagExpireAfter, "expire-after", "e", "3h", "Set the lifetime for the token")
 
 	return cmd
@@ -92,6 +93,7 @@ func (c *cmdTokensList) command() *cobra.Command {
 		Short: "List join tokens available for use",
 		RunE:  c.run,
 	}
+
 	cmd.Flags().StringVarP(&c.flagFormat, "format", "f", cli.TableFormatTable, "Format (csv|json|table|yaml|compact)")
 
 	return cmd

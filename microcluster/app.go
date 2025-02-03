@@ -49,10 +49,12 @@ func App(args Args) (*MicroCluster, error) {
 	if args.StateDir == "" {
 		return nil, fmt.Errorf("Missing state directory")
 	}
+
 	stateDir, err := filepath.Abs(args.StateDir)
 	if err != nil {
 		return nil, fmt.Errorf("Missing absolute state directory: %w", err)
 	}
+
 	os, err := sys.DefaultOS(stateDir, true)
 	if err != nil {
 		return nil, err

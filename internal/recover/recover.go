@@ -77,6 +77,7 @@ func RecoverFromQuorumLoss(filesystem *sys.OS, members []cluster.DqliteMember) (
 		if err != nil {
 			return "", err
 		}
+
 		nodeInfo = append(nodeInfo, *info)
 	}
 
@@ -125,6 +126,7 @@ func RecoverFromQuorumLoss(filesystem *sys.OS, members []cluster.DqliteMember) (
 		if err == nil {
 			return fmt.Errorf("Contacted cluster member at %q; please shut down all cluster members", rslt.Name)
 		}
+
 		return nil
 	})
 	cancel()
@@ -227,6 +229,7 @@ func writeDqliteClusterYaml(path string, members []cluster.DqliteMember) error {
 		if err != nil {
 			return err
 		}
+
 		nodeInfo[i] = *infoPtr
 	}
 
@@ -666,6 +669,7 @@ func unpackTarball(tarballPath string, destRoot string) error {
 			} else if err != nil {
 				return err
 			}
+
 		case tar.TypeDir:
 			err = os.MkdirAll(filepath, fs.FileMode(header.Mode&int64(fs.ModePerm)))
 			if err != nil {

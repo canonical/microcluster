@@ -379,6 +379,7 @@ func (d *Daemon) applyHooks(hooks *state.Hooks) error {
 	noOpGenericInitHook := func(ctx context.Context, s state.State, bootstrap bool, initConfig map[string]string) error {
 		return nil
 	}
+
 	noOpConfigHook := func(ctx context.Context, s state.State, config types.DaemonConfig) error { return nil }
 	noOpNewMemberHook := func(ctx context.Context, s state.State, newMember types.ClusterMemberLocal) error { return nil }
 

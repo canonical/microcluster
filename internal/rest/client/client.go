@@ -177,6 +177,7 @@ func forwardingProxy(r *http.Request) (*url.URL, error) {
 	if ok {
 		r.Header.Add(request.HeaderForwardedUsername, val)
 	}
+
 	val, ok = ctx.Value(request.CtxProtocol).(string)
 	if ok {
 		r.Header.Add(request.HeaderForwardedProtocol, val)

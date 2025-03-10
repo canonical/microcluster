@@ -1,0 +1,22 @@
+name: Install Microcluster build dependencies
+runs:
+  using: composite
+  steps:
+    - name: Installs Microcluster build dependencies
+      shell: bash
+      run: |
+        set -eux
+        sudo apt-get update
+        # Install deps.
+        sudo apt-get install --no-install-recommends -y \
+          shellcheck \
+          pkg-config \
+          autoconf \
+          automake \
+          libtool \
+          make \
+          libuv1-dev \
+          libsqlite3-dev \
+          liblz4-dev
+        # Reclaim some space.
+        sudo apt-get clean

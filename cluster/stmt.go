@@ -119,7 +119,16 @@ func GetCallerProject() string {
 		return base
 	}
 
-	// If not a go module path,	assume a GOPATH of the form example.com/author/project/packages....
+	// If not a go module path, the project may be in a vendor directory .../vendor/project...
+	_, after, ok = strings.Cut(file, fmt.Sprintf("%svendor%s", sep, sep))
+	if ok && after != "" {
+		tree := strings.Split(after, sep)
+		if len(tree) >= 3 {
+			return tree[2]
+		}
+	}
+
+	// If not a go module path and not vendor, assume a GOPATH of the form example.com/author/project/packages....
 	_, after, _ = strings.Cut(file, fmt.Sprintf("%ssrc%s", sep, sep))
 	tree := strings.Split(after, sep)
 	if len(tree) >= 3 {

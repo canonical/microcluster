@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -416,7 +417,18 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 		return response.SmartError(fmt.Errorf("No remote exists with the given name %q", name))
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), time.Second*30)
+	ctxTimeout := time.Second * 30
+	timeoutParam := r.URL.Query().Get("timeout")
+	if timeoutParam != "" {
+		seconds, err := strconv.Atoi(timeoutParam)
+		if err != nil || seconds <= 0 {
+			return response.SmartError(fmt.Errorf("Invalid timeout %s", timeoutParam))
+		}
+
+		ctxTimeout = time.Second * time.Duration(seconds)
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), ctxTimeout)
 	defer cancel()
 
 	leader, err := s.Database().Leader(ctx)
@@ -452,7 +464,7 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 			return response.SmartError(err)
 		}
 
-		err = client.DeleteClusterMember(r.Context(), name, force)
+		err = client.DeleteClusterMember(ctx, name, force)
 		if err != nil {
 			return response.SmartError(err)
 		}
@@ -570,7 +582,7 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 			clusterDisableMu.Unlock()
 		}()
 
-		err = client.DeleteClusterMember(r.Context(), name, force)
+		err = client.DeleteClusterMember(ctx, name, force)
 		if err != nil {
 			return response.SmartError(err)
 		}

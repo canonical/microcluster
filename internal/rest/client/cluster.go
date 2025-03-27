@@ -2,6 +2,8 @@ package client
 
 import (
 	"context"
+	"math"
+	"strconv"
 	"time"
 
 	"github.com/canonical/lxd/shared/api"
@@ -57,6 +59,10 @@ func (c *Client) DeleteClusterMember(ctx context.Context, name string, force boo
 	if force {
 		endpoint = endpoint.WithQuery("force", "1")
 	}
+
+	deadline, _ := queryCtx.Deadline()
+	seconds := int(math.Floor(time.Until(deadline).Seconds()))
+	endpoint.WithQuery("timeout", strconv.Itoa(seconds))
 
 	return c.QueryStruct(queryCtx, "DELETE", internalTypes.PublicEndpoint, endpoint, nil, nil)
 }

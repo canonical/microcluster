@@ -95,17 +95,19 @@ func controlPost(state state.State, r *http.Request) response.Response {
 			logger.Error("Failed to run pre-remove hook on initialization error", logger.Ctx{"error": err})
 		}
 
-		reExec, err := resetClusterMember(r.Context(), state, true)
-		if err != nil {
-			logger.Error("Failed to reset cluster member on bootstrap error", logger.Ctx{"error": err})
-			return
-		}
-
-		// Re-exec the daemon to clear any remaining state.
-		go reExec()
-
 		// Only send a request to delete the cluster member record if we are joining an existing cluster.
+		// As part of this request the cluster member gets re-executed.
+		// If we don't send the request, re-exec the member manually.
 		if joinInfo == nil || req.JoinToken == "" {
+			reExec, err := resetClusterMember(r.Context(), state, true)
+			if err != nil {
+				logger.Error("Failed to reset cluster member on bootstrap error", logger.Ctx{"error": err})
+				return
+			}
+
+			// Re-exec the daemon to clear any remaining state.
+			go reExec()
+
 			return
 		}
 
@@ -120,11 +122,16 @@ func controlPost(state state.State, r *http.Request) response.Response {
 			return
 		}
 
-		// Use `force=1` to ensure the node is fully removed, in case its listener hasn't been set up.
-		err = client.DeleteClusterMember(context.Background(), req.Name, true)
-		if err != nil {
-			logger.Error("Failed to clean up cluster state after join failure", logger.Ctx{"error": err})
-		}
+		// The cluster member also gets re-executed as part of the deletion.
+		go func() {
+			<-r.Context().Done()
+
+			// Use `force=1` to ensure the node is fully removed, in case its listener hasn't been set up.
+			err = client.DeleteClusterMember(context.Background(), req.Name, true)
+			if err != nil {
+				logger.Error("Failed to clean up cluster state after join failure", logger.Ctx{"error": err})
+			}
+		}()
 	})
 
 	// Replace the server keypair if the cluster member name has changed upon initialization.

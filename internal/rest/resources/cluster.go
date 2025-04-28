@@ -355,11 +355,6 @@ func resetClusterMember(ctx context.Context, s state.State, force bool) (reExec 
 	reExec = func() {
 		<-ctx.Done() // Wait until request has finished.
 
-		err = intState.InternalDatabase.Stop()
-		if err != nil && !force {
-			logger.Error("Failed shutting down database", logger.Ctx{"err": err})
-		}
-
 		// NOTE(claudiub): In the case we fail to bootstrap / join the cluster, or if we remove the node
 		// from the cluster, we'll be resetting the node's cluster membership. This includes closing the
 		// HTTPS and unix socket servers we have open.
@@ -370,9 +365,11 @@ func resetClusterMember(ctx context.Context, s state.State, force bool) (reExec 
 		// Gracefully shutting down the servers in a goroutine will address this issue: while this action
 		// happens, we'll be able to write the HTTP response and then close the connection, finally
 		// allowing the servers to gracefully shutdown, and the clients to be happy.
-		err = intState.StopListeners()
+		// As the daemon gets re-executed the returned exit function can be ignored as it used to signal
+		// a complete shutdown.
+		_, err := intState.Stop()
 		if err != nil && !force {
-			logger.Error("Failed shutting down listeners", logger.Ctx{"err": err})
+			logger.Error("Failed shutting down", logger.Ctx{"err": err})
 		}
 
 		err = os.RemoveAll(s.FileSystem().StateDir)

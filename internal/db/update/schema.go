@@ -3,6 +3,7 @@ package update
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 
@@ -151,11 +152,12 @@ func (s *SchemaUpdate) Ensure(db *sql.DB) (int, error) {
 
 		if s.check != nil {
 			err := s.check(ctx, current, tx)
-			if err != nil && err != schema.ErrGracefulAbort {
+			isErrGracefulAbort := errors.Is(err, ErrGracefulAbort)
+			if err != nil && !isErrGracefulAbort {
 				return err
 			}
 
-			if err == schema.ErrGracefulAbort {
+			if isErrGracefulAbort {
 				// Abort the update gracefully, committing what
 				// we've done so far.
 				aborted = true
@@ -177,7 +179,7 @@ func (s *SchemaUpdate) Ensure(db *sql.DB) (int, error) {
 			}
 		}
 
-		return current, schema.ErrGracefulAbort
+		return current, ErrGracefulAbort
 	}
 
 	// If there are internal schema updates to run, ensure foreign keys are disabled

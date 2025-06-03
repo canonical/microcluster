@@ -194,7 +194,7 @@ func (db *DqliteDB) Join(extensions extensions.Extensions, addr api.URL, joinAdd
 		}
 
 		// If this is a graceful abort, then we should loop back and try to start the database again.
-		if errors.Is(err, schema.ErrGracefulAbort) {
+		if errors.Is(err, update.ErrGracefulAbort) {
 			logger.Debug("Re-attempting schema upgrade and API extension checks", logger.Ctx{"address": db.listenAddr.String()})
 
 			continue

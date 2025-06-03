@@ -302,12 +302,14 @@ func clusterGet(s state.State, r *http.Request) response.Response {
 				return response.SmartError(fmt.Errorf("Failed to create HTTPS client for cluster member with address %q: %w", addr.String(), err))
 			}
 
-			err = d.CheckReady(r.Context())
+			checkCtx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+			err = d.CheckReady(checkCtx)
 			if err == nil {
 				apiClusterMembers[i].Status = types.MemberOnline
 			} else {
 				logger.Warnf("Failed to get status of cluster member with address %q: %v", addr.String(), err)
 			}
+			cancel()
 		}
 	}
 

@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/canonical/lxd/lxd/db/query"
-	"github.com/canonical/lxd/lxd/db/schema"
 	"github.com/canonical/lxd/shared"
 	"github.com/canonical/lxd/shared/api"
 	"github.com/canonical/lxd/shared/logger"
@@ -182,7 +181,7 @@ func (db *DqliteDB) waitUpgrade(bootstrap bool, ext extensions.Extensions) error
 			if otherNodesBehindInternal || otherNodesBehindExternal {
 				otherNodesBehind = true
 
-				return schema.ErrGracefulAbort
+				return update.ErrGracefulAbort
 			}
 
 			return nil
@@ -224,7 +223,7 @@ func (db *DqliteDB) waitUpgrade(bootstrap bool, ext extensions.Extensions) error
 
 			if otherNodesBehindAPI {
 				otherNodesBehind = true
-				return schema.ErrGracefulAbort
+				return update.ErrGracefulAbort
 			}
 		}
 

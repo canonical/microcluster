@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/canonical/lxd/lxd/response"
 	"github.com/canonical/lxd/lxd/util"
@@ -80,7 +81,7 @@ func controlPost(state state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	certNameMatches := shared.ValueInSlice(req.Name, serverCert.DNSNames)
+	certNameMatches := slices.Contains(serverCert.DNSNames, req.Name)
 	var joinInfo *internalTypes.TokenResponse
 	reverter.Add(func() {
 		// When joining, don't attempt to reset the cluster member if we never received authorization from any cluster members.

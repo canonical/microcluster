@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"slices"
 
-	"github.com/canonical/lxd/shared"
 	"gopkg.in/yaml.v3"
 )
 
@@ -134,7 +134,7 @@ func NewExtensionRegistryFromList(extensions []string) (Extensions, error) {
 func (e *Extensions) Register(newExtensions []string) error {
 	// Check for duplicates for internal and External extensions
 	for _, extension := range newExtensions {
-		if shared.ValueInSlice[string](extension, *e) {
+		if slices.Contains(*e, extension) {
 			return fmt.Errorf("Extension %q already registered", extension)
 		}
 

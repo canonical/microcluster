@@ -2,6 +2,7 @@ package endpoints
 
 import (
 	"context"
+	"slices"
 	"sync"
 
 	"github.com/canonical/lxd/shared"
@@ -165,7 +166,7 @@ func (e *Endpoints) List(types ...EndpointType) map[string]Endpoint {
 
 	var endpoints = make(map[string]Endpoint, 0)
 	for name, endpoint := range e.listeners {
-		if shared.ValueInSlice(endpoint.Type(), types) {
+		if slices.Contains(types, endpoint.Type()) {
 			endpoints[name] = endpoint
 		}
 	}

@@ -240,7 +240,7 @@ func (s *dbSuite) Test_waitUpgradeSchema() {
 		if t.expectErr != nil {
 			s.Equal(t.expectErr, err)
 		} else if t.expectWait {
-			s.Equal(schema.ErrGracefulAbort, err)
+			s.Equal(update.ErrGracefulAbort, err)
 		} else {
 			s.NoError(err)
 		}
@@ -407,7 +407,7 @@ func (s *dbSuite) Test_waitUpgradeAPI() {
 		if t.expectErr != nil {
 			s.Equal(t.expectErr, err)
 		} else if t.expectWait {
-			s.Equal(schema.ErrGracefulAbort, err)
+			s.Equal(update.ErrGracefulAbort, err)
 		} else {
 			s.NoError(err)
 		}
@@ -583,7 +583,7 @@ func (s *dbSuite) Test_waitUpgradeSchemaAndAPI() {
 		if t.expectErr != nil {
 			s.Equal(t.expectErr, err)
 		} else if t.expectWait {
-			s.Equal(schema.ErrGracefulAbort, err)
+			s.Equal(update.ErrGracefulAbort, err)
 		} else {
 			s.NoError(err)
 		}

@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 
 	"github.com/canonical/lxd/lxd/response"
-	"github.com/canonical/lxd/shared"
 
 	"github.com/canonical/microcluster/v2/client"
 	internalClient "github.com/canonical/microcluster/v2/internal/rest/client"
@@ -64,7 +64,7 @@ func daemonServersPut(s state.State, r *http.Request) response.Response {
 	for _, server := range req {
 		serverAddress := server.Address.String()
 
-		if shared.ValueInSlice(serverAddress, serverAddresses) {
+		if slices.Contains(serverAddresses, serverAddress) {
 			return response.BadRequest(fmt.Errorf("Address %q is already in use", serverAddress))
 		}
 

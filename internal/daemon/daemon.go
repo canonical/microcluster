@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -209,7 +210,7 @@ func (d *Daemon) Run(ctx context.Context, stateDir string, args Args) error {
 		}
 
 		// `core` and `unix` are reserved server names.
-		if shared.ValueInSlice(k, []string{endpoints.EndpointsCore, endpoints.EndpointsUnix}) {
+		if slices.Contains([]string{endpoints.EndpointsCore, endpoints.EndpointsUnix}, k) {
 			return fmt.Errorf("Cannot use the reserved server name %q", k)
 		}
 
@@ -760,7 +761,7 @@ func (d *Daemon) UpdateServers() error {
 
 	// Stop all additional listeners which got removed from the config.
 	for _, serverName := range d.ExtensionServers() {
-		if !shared.ValueInSlice(serverName, configuredServerNames) {
+		if !slices.Contains(configuredServerNames, serverName) {
 			// Remove their config.
 			d.extensionServersMu.Lock()
 			extensionServer, ok := d.extensionServers[serverName]

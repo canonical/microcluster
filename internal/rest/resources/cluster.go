@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -147,7 +148,7 @@ func clusterPost(s state.State, r *http.Request) response.Response {
 			return fmt.Errorf("Token expired")
 		}
 
-		if !shared.ValueInSlice(record.Name, req.Certificate.DNSNames) {
+		if !slices.Contains(req.Certificate.DNSNames, record.Name) {
 			return fmt.Errorf("Joining server certificate SAN does not contain join token name")
 		}
 

@@ -307,33 +307,54 @@ func clusterGet(s state.State, r *http.Request) response.Response {
 			return response.SmartError(err)
 		}
 
+		wg := sync.WaitGroup{}
+		wg.Add(len(apiClusterMembers))
+
 		for i, clusterMember := range apiClusterMembers {
-			addr := api.NewURL().Scheme("https").Host(clusterMember.Address.String())
-			d, err := internalClient.New(*addr, s.ServerCert(), clusterCert, false)
-			if err != nil {
-				return response.SmartError(fmt.Errorf("Failed to create HTTPS client for cluster member with address %q: %w", addr.String(), err))
-			}
+			go func(i int, clusterMember types.ClusterMember) {
+				defer wg.Done()
 
-			var (
-				checkCtx context.Context
-				cancel   context.CancelFunc
-			)
-			if deadline, ok := ctx.Deadline(); ok {
-				until := time.Until(deadline)
-				timeout := (until / time.Duration(len(apiClusterMembers))).Truncate(time.Second)
-				timeout = max(time.Second, timeout)
-				checkCtx, cancel = context.WithTimeout(ctx, timeout)
-			} else {
-				checkCtx, cancel = context.WithCancel(ctx)
-			}
+				addr := api.NewURL().Scheme("https").Host(clusterMember.Address.String())
+				d, err := internalClient.New(*addr, s.ServerCert(), clusterCert, false)
+				if err != nil {
+					logger.Errorf("Failed to create HTTPS client for cluster member with address %q: %v", addr.String(), err)
+					return
+				}
 
-			err = d.CheckReady(checkCtx)
-			if err == nil {
-				apiClusterMembers[i].Status = types.MemberOnline
-			} else {
-				logger.Warnf("Failed to get status of cluster member with address %q: %v", addr.String(), err)
-			}
-			cancel()
+				var (
+					checkCtx context.Context
+					cancel   context.CancelFunc
+				)
+				if deadline, ok := ctx.Deadline(); ok {
+					until := time.Until(deadline)
+					timeout := (until / time.Duration(len(apiClusterMembers))).Truncate(time.Second)
+					timeout = max(time.Second, timeout)
+					checkCtx, cancel = context.WithTimeout(ctx, timeout)
+				} else {
+					checkCtx, cancel = context.WithCancel(ctx)
+				}
+
+				err = d.CheckReady(checkCtx)
+				if err == nil {
+					apiClusterMembers[i].Status = types.MemberOnline
+				} else {
+					logger.Warnf("Failed to get status of cluster member with address %q: %v", addr.String(), err)
+				}
+
+				cancel()
+			}(i, clusterMember)
+		}
+
+		waitCh := make(chan struct{})
+		go func() {
+			wg.Wait()
+			close(waitCh)
+		}()
+
+		select {
+		case <-ctx.Done():
+			return response.SmartError(fmt.Errorf("failed while waiting for cluster members to respond: %w", ctx.Err()))
+		case <-waitCh:
 		}
 	}
 

@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"strconv"
 	"time"
 
 	"github.com/canonical/lxd/shared/api"
@@ -42,8 +43,14 @@ func (c *Client) GetClusterMembers(ctx context.Context) ([]types.ClusterMember, 
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
+	endpoint := api.NewURL().Path("cluster")
+	if deadline, ok := queryCtx.Deadline(); ok {
+		timeout := int(time.Until(deadline).Seconds())
+		endpoint = endpoint.WithQuery("timeout", strconv.Itoa(timeout))
+	}
+
 	clusterMembers := []types.ClusterMember{}
-	err := c.QueryStruct(queryCtx, "GET", internalTypes.PublicEndpoint, api.NewURL().Path("cluster"), nil, &clusterMembers)
+	err := c.QueryStruct(queryCtx, "GET", internalTypes.PublicEndpoint, endpoint, nil, &clusterMembers)
 
 	return clusterMembers, err
 }

@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -242,13 +243,24 @@ func clusterPost(s state.State, r *http.Request) response.Response {
 func clusterGet(s state.State, r *http.Request) response.Response {
 	status := s.Database().Status()
 
+	ctx := r.Context()
+	var cancel context.CancelFunc
+	if timeoutStr := r.URL.Query().Get("timeout"); timeoutStr != "" {
+		timeout, err := strconv.Atoi(timeoutStr)
+		if err != nil {
+			return response.SmartError(api.StatusErrorf(http.StatusBadRequest, "Invalid timeout value (should be an integer representing timeout in seconds): %v", err))
+		}
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
+		defer cancel()
+	}
+
 	// If the database is not in a ready or waiting state, we can't be sure it's available for use.
 	if status != types.DatabaseReady && status != types.DatabaseWaiting {
 		return response.SmartError(api.StatusErrorf(http.StatusServiceUnavailable, "%s", string(status)))
 	}
 
 	var apiClusterMembers []types.ClusterMember
-	err := s.Database().Transaction(r.Context(), func(ctx context.Context, tx *sql.Tx) error {
+	err := s.Database().Transaction(ctx, func(ctx context.Context, tx *sql.Tx) error {
 		var err error
 		var clusterMembers []cluster.CoreClusterMember
 		var awaitingUpgrade map[string]bool
@@ -302,7 +314,19 @@ func clusterGet(s state.State, r *http.Request) response.Response {
 				return response.SmartError(fmt.Errorf("Failed to create HTTPS client for cluster member with address %q: %w", addr.String(), err))
 			}
 
-			checkCtx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+			var (
+				checkCtx context.Context
+				cancel   context.CancelFunc
+			)
+			if deadline, ok := ctx.Deadline(); ok {
+				until := time.Until(deadline)
+				timeout := (until / time.Duration(len(apiClusterMembers))).Truncate(time.Second)
+				timeout = max(time.Second, timeout)
+				checkCtx, cancel = context.WithTimeout(ctx, timeout)
+			} else {
+				checkCtx, cancel = context.WithCancel(ctx)
+			}
+
 			err = d.CheckReady(checkCtx)
 			if err == nil {
 				apiClusterMembers[i].Status = types.MemberOnline

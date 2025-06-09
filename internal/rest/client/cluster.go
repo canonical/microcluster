@@ -44,7 +44,8 @@ func (c *Client) GetClusterMembers(ctx context.Context) ([]types.ClusterMember, 
 	defer cancel()
 
 	endpoint := api.NewURL().Path("cluster")
-	if deadline, ok := queryCtx.Deadline(); ok {
+	deadline, ok := queryCtx.Deadline()
+	if ok {
 		timeout := int(time.Until(deadline).Seconds())
 		endpoint = endpoint.WithQuery("timeout", strconv.Itoa(timeout))
 	}

@@ -245,11 +245,13 @@ func clusterGet(s state.State, r *http.Request) response.Response {
 
 	ctx := r.Context()
 	var cancel context.CancelFunc
-	if timeoutStr := r.URL.Query().Get("timeout"); timeoutStr != "" {
+	timeoutStr := r.URL.Query().Get("timeout")
+	if timeoutStr != "" {
 		timeout, err := strconv.Atoi(timeoutStr)
 		if err != nil {
 			return response.SmartError(api.StatusErrorf(http.StatusBadRequest, "Invalid timeout value (should be an integer representing timeout in seconds): %v", err))
 		}
+
 		ctx, cancel = context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
 		defer cancel()
 	}
@@ -325,7 +327,8 @@ func clusterGet(s state.State, r *http.Request) response.Response {
 					checkCtx context.Context
 					cancel   context.CancelFunc
 				)
-				if deadline, ok := ctx.Deadline(); ok {
+				deadline, ok := ctx.Deadline()
+				if ok {
 					until := time.Until(deadline)
 					timeout := (until / time.Duration(len(apiClusterMembers))).Truncate(time.Second)
 					timeout = max(time.Second, timeout)

@@ -415,9 +415,7 @@ func dqliteNetworkDial(ctx context.Context, addr string, db *DqliteDB) (net.Conn
 	revert := revert.New()
 	defer revert.Fail()
 
-	deadline, _ := ctx.Deadline()
-	dialer := &net.Dialer{Timeout: time.Until(deadline)}
-	tlsDialer := tls.Dialer{NetDialer: dialer, Config: config}
+	tlsDialer := tls.Dialer{Config: config}
 	conn, err := tlsDialer.DialContext(ctx, "tcp", addr)
 	if err != nil {
 		return nil, fmt.Errorf("Failed connecting to HTTP endpoint %q: %w", addr, err)

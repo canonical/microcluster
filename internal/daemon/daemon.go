@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -512,6 +513,7 @@ func (d *Daemon) initServer(resources ...rest.Resources) *http.Server {
 	return &http.Server{
 		Handler:     mux,
 		ConnContext: request.SaveConnectionInContext,
+		ErrorLog:    log.New(newLogFilter(state.Remotes().Addresses), "", 0),
 	}
 }
 

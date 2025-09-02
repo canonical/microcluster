@@ -14,6 +14,7 @@ import (
 	"github.com/canonical/microcluster/v2/internal/config"
 	"github.com/canonical/microcluster/v2/internal/endpoints"
 	"github.com/canonical/microcluster/v2/internal/sys"
+	"github.com/canonical/microcluster/v2/internal/trust"
 	"github.com/canonical/microcluster/v2/rest"
 	"github.com/canonical/microcluster/v2/rest/types"
 )
@@ -186,7 +187,13 @@ func (t *daemonsSuite) Test_UpdateServers() {
 	for i, test := range tests {
 		t.T().Logf("%s (case %d)", test.name, i)
 
-		var err error
+		// Create a temp watcher.
+		watcher, err := sys.NewWatcher(context.TODO(), t.T().TempDir())
+		require.NoError(t.T(), err)
+
+		// Create a temp trust store.
+		store, err := trust.Init(watcher, nil, t.T().TempDir())
+		require.NoError(t.T(), err)
 
 		// Create a new daemon and set some defaults.
 		daemon := NewDaemon()
@@ -196,6 +203,7 @@ func (t *daemonsSuite) Test_UpdateServers() {
 		daemon.endpoints = endpoints.NewEndpoints(context.TODO(), map[string]endpoints.Endpoint{})
 		daemon.clusterCert = shared.TestingAltKeyPair()
 		daemon.shutdownCtx = context.TODO()
+		daemon.trustStore = store
 
 		daemon.os, err = sys.DefaultOS(filepath.Join(t.T().TempDir()), false)
 		require.NoError(t.T(), err)

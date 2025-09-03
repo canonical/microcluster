@@ -3,6 +3,7 @@ package daemon
 import (
 	"bytes"
 	"regexp"
+	"strings"
 
 	"github.com/canonical/lxd/shared/logger"
 
@@ -51,7 +52,8 @@ func (l logFilter) stripLog(p []byte) string {
 	var sourceIP string
 	if match != nil {
 		if match[1] != nil {
-			sourceIP = string(match[1])
+			// Trim off potential IPv6 brackets.
+			sourceIP = strings.Trim(string(match[1]), "[]")
 		}
 	}
 

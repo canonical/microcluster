@@ -9,7 +9,6 @@ import (
 	"net/url"
 	"path/filepath"
 
-	"github.com/canonical/lxd/lxd/request"
 	"github.com/canonical/lxd/lxd/response"
 	"github.com/canonical/lxd/shared/api"
 	"github.com/canonical/lxd/shared/logger"
@@ -127,7 +126,7 @@ func proxyTarget(action rest.EndpointAction, s state.State, r *http.Request) res
 }
 
 func handleDatabaseRequest(action rest.EndpointAction, state state.State, w http.ResponseWriter, r *http.Request) response.Response {
-	trusted := r.Context().Value(request.CtxAccess)
+	trusted := r.Context().Value(client.CtxAccess)
 	if trusted == nil {
 		return response.Forbidden(nil)
 	}

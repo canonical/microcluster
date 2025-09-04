@@ -17,7 +17,6 @@ import (
 	"time"
 
 	clusterRequest "github.com/canonical/lxd/lxd/cluster/request"
-	"github.com/canonical/lxd/lxd/request"
 	"github.com/canonical/lxd/shared"
 	"github.com/canonical/lxd/shared/api"
 	"github.com/canonical/lxd/shared/logger"
@@ -33,6 +32,14 @@ type Client struct {
 	*http.Client
 	url api.URL
 }
+
+// CtxKey is the type used for all fields stored in the request context by Microcluster.
+type CtxKey string
+
+const (
+	// CtxAccess is the access field in request context.
+	CtxAccess CtxKey = "access"
+)
 
 // New returns a new client configured with the given url and certificates.
 func New(url api.URL, clientCert *shared.CertInfo, remoteCert *x509.Certificate, forwarding bool) (*Client, error) {
@@ -170,20 +177,6 @@ func (c *Client) SetClusterNotification() {
 
 func forwardingProxy(r *http.Request) (*url.URL, error) {
 	r.Header.Set("User-Agent", clusterRequest.UserAgentNotifier)
-
-	ctx := r.Context()
-
-	val, ok := ctx.Value(request.CtxUsername).(string)
-	if ok {
-		r.Header.Add(request.HeaderForwardedUsername, val)
-	}
-
-	val, ok = ctx.Value(request.CtxProtocol).(string)
-	if ok {
-		r.Header.Add(request.HeaderForwardedProtocol, val)
-	}
-
-	r.Header.Add(request.HeaderForwardedAddress, r.RemoteAddr)
 
 	return shared.ProxyFromEnvironment(r)
 }

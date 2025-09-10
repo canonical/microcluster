@@ -11,7 +11,7 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/mattn/go-sqlite3 v1.14.32
 	github.com/olekukonko/tablewriter v0.0.5
-	github.com/spf13/cobra v1.9.1
+	github.com/spf13/cobra v1.10.1
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/sys v0.36.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -41,7 +41,7 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
-	github.com/spf13/pflag v1.0.6 // indirect
+	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/zitadel/logging v0.6.2 // indirect
 	github.com/zitadel/oidc/v3 v3.39.0 // indirect
 	github.com/zitadel/schema v1.3.1 // indirect

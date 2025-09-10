@@ -415,9 +415,7 @@ func dqliteNetworkDial(ctx context.Context, addr string, db *DqliteDB) (net.Conn
 	revert := revert.New()
 	defer revert.Fail()
 
-	deadline, _ := ctx.Deadline()
-	dialer := &net.Dialer{Timeout: time.Until(deadline)}
-	tlsDialer := tls.Dialer{NetDialer: dialer, Config: config}
+	tlsDialer := tls.Dialer{Config: config}
 	conn, err := tlsDialer.DialContext(ctx, "tcp", addr)
 	if err != nil {
 		return nil, fmt.Errorf("Failed connecting to HTTP endpoint %q: %w", addr, err)
@@ -430,7 +428,7 @@ func dqliteNetworkDial(ctx context.Context, addr string, db *DqliteDB) (net.Conn
 		}
 	})
 	logCtx := logger.AddContext(logger.Ctx{"local": conn.LocalAddr().String(), "remote": conn.RemoteAddr().String()})
-	logCtx.Debug("Dqlite connected outbound")
+	logCtx.Debug("Successfully established outbound dqlite connection")
 
 	// Set outbound timeouts.
 	remoteTCP, err := tcp.ExtractConn(conn)
@@ -453,7 +451,13 @@ func dqliteNetworkDial(ctx context.Context, addr string, db *DqliteDB) (net.Conn
 		return nil, fmt.Errorf("Failed to read response: %w", err)
 	}
 
-	defer response.Body.Close()
+	revert.Add(func() {
+		err := response.Body.Close()
+		if err != nil {
+			logCtx.Error("Failed to close dqlite response body", logger.Ctx{"error": err})
+		}
+	})
+
 	if response.StatusCode == http.StatusNotFound {
 		_ = response.Body.Close()
 
@@ -474,11 +478,24 @@ func dqliteNetworkDial(ctx context.Context, addr string, db *DqliteDB) (net.Conn
 		if err != nil {
 			return nil, fmt.Errorf("Failed to read response: %w", err)
 		}
+
+		revert.Add(func() {
+			err := response.Body.Close()
+			if err != nil {
+				logCtx.Error("Failed to close dqlite response body", logger.Ctx{"error": err})
+			}
+		})
 	}
 
 	_, err = io.Copy(io.Discard, response.Body)
 	if err != nil {
 		logger.Error("Failed to read dqlite response body", logger.Ctx{"error": err})
+	}
+
+	// We are done reading the response body. Close it.
+	err = response.Body.Close()
+	if err != nil {
+		return nil, fmt.Errorf("Failed to close dqlite response body: %w", err)
 	}
 
 	// If the remote server has detected that we are out of date, let's

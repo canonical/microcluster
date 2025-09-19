@@ -683,9 +683,8 @@ func (d *Daemon) StartAPI(ctx context.Context, bootstrap bool, initConfig map[st
 				lastErr = err
 				// Continue trying other nodes even if this one fails
 				return nil
-			} else {
-				clusterConfirmation = true
 			}
+			clusterConfirmation = true
 
 			// Continue to propagate trust to all nodes, don't stop after first success
 			return nil

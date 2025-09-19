@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
+	"time"
 
 	"github.com/canonical/lxd/lxd/response"
 	"github.com/canonical/lxd/lxd/util"
@@ -288,7 +290,10 @@ func setupLocalMember(state state.State, localClusterMember *trust.Remote, joinI
 			Certificate: clusterMember.Certificate,
 		}
 
-		joinAddrs = append(joinAddrs, clusterMember.Address)
+		// Only add reachable addresses to the join list
+		if isReachable(clusterMember.Address) {
+			joinAddrs = append(joinAddrs, clusterMember.Address)
+		}
 		clusterMembers = append(clusterMembers, remote)
 	}
 
@@ -299,4 +304,16 @@ func setupLocalMember(state state.State, localClusterMember *trust.Remote, joinI
 	}
 
 	return joinAddrs.Strings(), nil
+}
+
+// isReachable performs a quick TCP connectivity check to determine if a node is reachable.
+func isReachable(addr types.AddrPort) bool {
+	// Use a short timeout for the connectivity check
+	conn, err := net.DialTimeout("tcp", addr.String(), 2*time.Second)
+	if err != nil {
+		return false
+	}
+
+	conn.Close()
+	return true
 }

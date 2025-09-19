@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/canonical/lxd/shared"
 	"github.com/canonical/lxd/shared/api"
@@ -225,6 +227,12 @@ func (r *Remotes) Addresses() map[string]types.AddrPort {
 func (r *Remotes) Cluster(isNotification bool, serverCert *shared.CertInfo, publicKey *x509.Certificate) (client.Cluster, error) {
 	cluster := make(client.Cluster, 0, r.Count()-1)
 	for _, addr := range r.Addresses() {
+		// Filter out unreachable nodes with a quick connectivity check
+		if !isReachable(addr) {
+			logger.Debug("Skipping unreachable node", logger.Ctx{"address": addr.String()})
+			continue
+		}
+
 		url := api.NewURL().Scheme("https").Host(addr.String())
 		c, err := internalClient.New(*url, serverCert, publicKey, isNotification)
 		if err != nil {
@@ -310,6 +318,18 @@ func (r *Remotes) RemotesByName() map[string]Remote {
 	}
 
 	return remoteData
+}
+
+// isReachable performs a quick TCP connectivity check to determine if a node is reachable.
+func isReachable(addr types.AddrPort) bool {
+	// Use a short timeout for the connectivity check
+	conn, err := net.DialTimeout("tcp", addr.String(), 2*time.Second)
+	if err != nil {
+		return false
+	}
+
+	conn.Close()
+	return true
 }
 
 // URL returns the parsed URL of the Remote.

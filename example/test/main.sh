@@ -357,9 +357,30 @@ test_join_token_before_cluster_formed() {
     return 1
   }
   
+  # Verify dqlite cluster.yaml shows only 3 members (low-level dqlite validation)
+  dqlite_cluster_count=$(yq '. | length' "${test_dir}/c2/database/cluster.yaml")
+  [[ "${dqlite_cluster_count}" -eq 3 ]] || {
+    echo "ERROR: Expected exactly 3 members in dqlite cluster.yaml, got ${dqlite_cluster_count}"
+    echo "Dqlite cluster.yaml contents:"
+    cat "${test_dir}/c2/database/cluster.yaml"
+    return 1
+  }
+  
+  # Verify c4 (127.0.0.1:9004) is NOT in dqlite cluster.yaml
+  c4_in_dqlite_yaml=$(yq '.[] | select(.Address == "127.0.0.1:9004")' "${test_dir}/c2/database/cluster.yaml" | wc -l)
+  [[ "${c4_in_dqlite_yaml}" -eq 0 ]] || {
+    echo "ERROR: c4 found in dqlite cluster.yaml (partial join detected at dqlite level)"
+    echo "Dqlite cluster.yaml contents:"
+    cat "${test_dir}/c2/database/cluster.yaml"
+    return 1
+  }
+  
   echo "SUCCESS: Node c4 failed to join cleanly - no partial join state detected"
+  echo "SUCCESS: Verified at both microcluster API and go-dqlite cluster members"
   echo "Final cluster state (c4 should not appear):"
   microctl --state-dir "${test_dir}/c2" cluster list
+  echo "Dqlite cluster members:"
+  cat "${test_dir}/c2/database/cluster.yaml"
   
   shutdown_systems
 }

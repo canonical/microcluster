@@ -678,17 +678,17 @@ func (d *Daemon) StartAPI(ctx context.Context, bootstrap bool, initConfig map[st
 				return nil
 			}
 
-			// At this point the joiner is only trusted on the node that was leader at the time,
-			// so find it and have it instruct all dqlite members to trust this system now that it is functional.
-			if !clusterConfirmation {
-				err := internalClient.AddTrustStoreEntry(ctx, &c.Client, localMemberInfo)
-				if err != nil {
-					lastErr = err
-				} else {
-					clusterConfirmation = true
-				}
+			// Propagate trust to all reachable cluster members for fault tolerance.
+			err := internalClient.AddTrustStoreEntry(ctx, &c.Client, localMemberInfo)
+			if err != nil {
+				lastErr = err
+				// Continue trying other nodes even if this one fails
+				return nil
 			}
 
+			clusterConfirmation = true
+
+			// Continue to propagate trust to all nodes, don't stop after first success
 			return nil
 		})
 		if err != nil {
@@ -702,6 +702,14 @@ func (d *Daemon) StartAPI(ctx context.Context, bootstrap bool, initConfig map[st
 
 	// Tell the other nodes that this system is up.
 	remotes := d.trustStore.Remotes()
+
+	// Send a notification to all reachable cluster members.
+	// We don't fail the entire operation if some nodes are unreachable.
+	// This is important in case we are joining a cluster with some offline members.
+	// The heartbeat mechanism will take care of notifying those members later on.
+	var successCount, attemptCount int32
+	var counterMu sync.Mutex
+
 	err = cluster.Query(d.shutdownCtx, true, func(ctx context.Context, c *client.Client) error {
 		c.SetClusterNotification()
 
@@ -709,6 +717,10 @@ func (d *Daemon) StartAPI(ctx context.Context, bootstrap bool, initConfig map[st
 		if d.Address().URL.Host == c.URL().URL.Host {
 			return nil
 		}
+
+		counterMu.Lock()
+		attemptCount++
+		counterMu.Unlock()
 
 		// Send notification about this node's dqlite version to all other cluster members.
 		err = d.sendUpgradeNotification(ctx, c)
@@ -731,14 +743,24 @@ func (d *Daemon) StartAPI(ctx context.Context, bootstrap bool, initConfig map[st
 			// Run the OnNewMember hook, and skip errors on any nodes that are still in the process of joining.
 			err = internalClient.RunNewMemberHook(ctx, c.Client.UseTarget(remote.Name), internalTypes.HookNewMemberOptions{NewMember: localMemberInfo})
 			if err != nil && !api.StatusErrorCheck(err, http.StatusServiceUnavailable) {
-				return err
+				// log error but continue with other nodes
+				logger.Warn("Failed running OnNewMember hook on node", logger.Ctx{"node": c.URL().URL.Host, "error": err})
+				return nil
 			}
 		}
 
+		counterMu.Lock()
+		successCount++
+		counterMu.Unlock()
 		return nil
 	})
 	if err != nil {
 		return err
+	}
+
+	// Only fail if we attempted to notify other nodes but all failed
+	if attemptCount > 0 && successCount == 0 {
+		return fmt.Errorf("Failed to notify any existing cluster member at %q", strings.Join(joinAddresses, ", "))
 	}
 
 	if len(joinAddresses) > 0 {

@@ -611,7 +611,7 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 	err = s.Database().Transaction(r.Context(), func(ctx context.Context, tx *sql.Tx) error {
 		return cluster.DeleteCoreClusterMember(ctx, tx, remote.Address.String())
 	})
-	if err != nil {
+	if err != nil && !force {
 		return response.SmartError(err)
 	}
 

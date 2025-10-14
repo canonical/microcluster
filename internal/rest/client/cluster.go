@@ -10,9 +10,19 @@ import (
 	"github.com/canonical/microcluster/v2/rest/types"
 )
 
+// withTimeoutIfUnset returns a context with a 30s timeout only if the parent context has no deadline set.
+func withTimeoutIfUnset(ctx context.Context) (context.Context, context.CancelFunc) {
+	_, ok := ctx.Deadline()
+	if ok {
+		return ctx, func() {}
+	}
+
+	return context.WithTimeout(ctx, 30*time.Second)
+}
+
 // AddClusterMember records a new cluster member in the trust store of each current cluster member.
 func AddClusterMember(ctx context.Context, c *Client, args types.ClusterMember) (*internalTypes.TokenResponse, error) {
-	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	queryCtx, cancel := withTimeoutIfUnset(ctx)
 	defer cancel()
 
 	tokenResponse := internalTypes.TokenResponse{}
@@ -26,7 +36,7 @@ func AddClusterMember(ctx context.Context, c *Client, args types.ClusterMember) 
 
 // ResetClusterMember clears the state directory of the cluster member, and re-execs its daemon.
 func ResetClusterMember(ctx context.Context, c *Client, name string, force bool) error {
-	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	queryCtx, cancel := withTimeoutIfUnset(ctx)
 	defer cancel()
 
 	endpoint := api.NewURL().Path("cluster", name)
@@ -39,7 +49,7 @@ func ResetClusterMember(ctx context.Context, c *Client, name string, force bool)
 
 // GetClusterMembers returns the database record of cluster members.
 func (c *Client) GetClusterMembers(ctx context.Context) ([]types.ClusterMember, error) {
-	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	queryCtx, cancel := withTimeoutIfUnset(ctx)
 	defer cancel()
 
 	clusterMembers := []types.ClusterMember{}
@@ -50,7 +60,7 @@ func (c *Client) GetClusterMembers(ctx context.Context) ([]types.ClusterMember, 
 
 // DeleteClusterMember deletes the cluster member with the given name.
 func (c *Client) DeleteClusterMember(ctx context.Context, name string, force bool) error {
-	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	queryCtx, cancel := withTimeoutIfUnset(ctx)
 	defer cancel()
 
 	endpoint := api.NewURL().Path("cluster", name)
@@ -63,7 +73,7 @@ func (c *Client) DeleteClusterMember(ctx context.Context, name string, force boo
 
 // UpdateCertificate sets a new keypair and CA.
 func (c *Client) UpdateCertificate(ctx context.Context, name types.CertificateName, args types.KeyPair) error {
-	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	queryCtx, cancel := withTimeoutIfUnset(ctx)
 	defer cancel()
 
 	endpoint := api.NewURL().Path("cluster", "certificates", string(name))

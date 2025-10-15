@@ -414,7 +414,7 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 		return response.SmartError(fmt.Errorf("No remote exists with the given name %q", name))
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), time.Second*30)
+	ctx, cancel := context.WithTimeout(r.Context(), time.Second*60)
 	defer cancel()
 
 	leader, err := s.Database().Leader(ctx)
@@ -611,7 +611,7 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 	err = s.Database().Transaction(r.Context(), func(ctx context.Context, tx *sql.Tx) error {
 		return cluster.DeleteCoreClusterMember(ctx, tx, remote.Address.String())
 	})
-	if err != nil {
+	if err != nil && !force {
 		return response.SmartError(err)
 	}
 

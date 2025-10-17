@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 
 	"github.com/canonical/lxd/lxd/response"
+	"github.com/canonical/lxd/shared/logger"
 	"github.com/gorilla/mux"
 
 	"github.com/canonical/microcluster/v2/client"
@@ -57,16 +59,41 @@ func trustPost(s state.State, r *http.Request) response.Response {
 			return response.SmartError(err)
 		}
 
+		successCount := 0
+		attemptCount := 0
+		var counterMu sync.Mutex
+
+		// Try to add the truststore entry to all other nodes in the cluster.
+		// We don't fail the entire operation if some nodes are unreachable.
 		err = cluster.Query(ctx, true, func(ctx context.Context, c *client.Client) error {
 			// No need to send a request to ourselves, or to the node we are adding.
 			if s.Address().URL.Host == c.URL().URL.Host || req.Address.String() == c.URL().URL.Host {
 				return nil
 			}
 
-			return internalClient.AddTrustStoreEntry(ctx, &c.Client, req)
+			counterMu.Lock()
+			attemptCount++
+			counterMu.Unlock()
+
+			err := internalClient.AddTrustStoreEntry(ctx, &c.Client, req)
+			if err != nil {
+				// log error but continue with other nodes
+				logger.Warn("Failed adding truststore entry to node", logger.Ctx{"node": c.URL().URL.Host, "error": err})
+				return nil
+			}
+
+			counterMu.Lock()
+			successCount++
+			counterMu.Unlock()
+			return nil
 		})
 		if err != nil {
 			return response.SmartError(err)
+		}
+
+		// Only fail if we attempted to propagate to other nodes but all failed
+		if attemptCount > 0 && successCount == 0 {
+			return response.SmartError(fmt.Errorf("Failed adding truststore entry to any cluster node"))
 		}
 	}
 

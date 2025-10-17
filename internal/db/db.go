@@ -27,7 +27,9 @@ import (
 // Open opens the dqlite database and loads the schema.
 // Returns true if we need to wait for other nodes to catch up to our version.
 func (db *DqliteDB) Open(ext extensions.Extensions, bootstrap bool) error {
-	ctx, cancel := context.WithTimeout(db.ctx, 30*time.Second)
+	// Allow dqlite up to 2 minutes to become ready when starting up.
+	// This is to allow for unready/dead nodes to time out.
+	ctx, cancel := context.WithTimeout(db.ctx, 120*time.Second)
 	defer cancel()
 
 	db.statusLock.Lock()
@@ -41,6 +43,13 @@ func (db *DqliteDB) Open(ext extensions.Extensions, bootstrap bool) error {
 		db.statusLock.Lock()
 		db.status = types.DatabaseOffline
 		db.statusLock.Unlock()
+		// close the db if any of the following steps fail
+		closeErr := db.dqlite.Close()
+		if closeErr != nil {
+			logger.Error("Failed to close database", logger.Ctx{"address": db.listenAddr.String(), "error": closeErr})
+		}
+
+		db.db = nil
 	})
 
 	err := db.dqlite.Ready(ctx)
@@ -59,16 +68,6 @@ func (db *DqliteDB) Open(ext extensions.Extensions, bootstrap bool) error {
 	if err != nil {
 		return err
 	}
-
-	// If we receive an error after this point, close the database.
-	reverter.Add(func() {
-		closeErr := db.db.Close()
-		if closeErr != nil {
-			logger.Error("Failed to close database", logger.Ctx{"address": db.listenAddr.String(), "error": closeErr})
-		}
-
-		db.db = nil
-	})
 
 	err = cluster.PrepareStmts(db.db, "", false)
 	if err != nil {

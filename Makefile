@@ -1,4 +1,4 @@
-GOMIN=1.24.4
+GOMIN=1.24.5
 GOPATH ?= $(shell go env GOPATH)
 DQLITE_PATH=$(GOPATH)/deps/dqlite
 DQLITE_BRANCH=lts-1.17.x
@@ -49,7 +49,7 @@ update-gomod:
 	go get -t -v -u ./...
 
 	# Static pins
-	go get github.com/canonical/lxd@8079534cf291bbc562aeffc26b671a03c322ae10 # Stay on v2 dqlite and specific LXD LTS client from stable-5.21 branch
+	go get github.com/canonical/lxd@7c883edf07bba3556eb8d049a5215166c9fe0f5e # Stay on v2 dqlite and specific LXD LTS client from stable-5.21 branch
 	go get github.com/olekukonko/tablewriter@v0.0.5 # Due to breaking API in later versions
 
 	go mod tidy -go=$(GOMIN)

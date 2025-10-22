@@ -127,10 +127,12 @@ func (db *DqliteDB) SchemaVersion() (versionInternal uint64, versionExternal uin
 // isInitialized determines whether the database has been bootstrapped or joined to a cluster.
 // This is an internal helper function; external callers should use Status() instead.
 func (db *DqliteDB) isInitialized() (bool, error) {
-	if _, err := os.Stat(filepath.Join(db.os.DatabaseDir, "info.yaml")); err != nil {
+	_, err := os.Stat(filepath.Join(db.os.DatabaseDir, "info.yaml"))
+	if err != nil {
 		if os.IsNotExist(err) {
 			return false, nil
 		}
+
 		return false, err
 	}
 

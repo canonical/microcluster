@@ -16,8 +16,6 @@ import (
 	"strings"
 	"time"
 
-	clusterRequest "github.com/canonical/lxd/lxd/cluster/request"
-	"github.com/canonical/lxd/lxd/request"
 	"github.com/canonical/lxd/shared"
 	"github.com/canonical/lxd/shared/api"
 	"github.com/canonical/lxd/shared/logger"
@@ -33,6 +31,19 @@ type Client struct {
 	*http.Client
 	url api.URL
 }
+
+// CtxKey is the type used for all fields stored in the request context by Microcluster.
+type CtxKey string
+
+const (
+	// CtxAccess is the access field in request context.
+	CtxAccess CtxKey = "access"
+)
+
+// UserAgentNotifier is the user agent used for cluster wide notifications.
+// It's using the "lxd-" prefix for backwards compatibility with older cluster members
+// as originally the constant from LXD's client package was used.
+const UserAgentNotifier = "lxd-cluster-notifier"
 
 // New returns a new client configured with the given url and certificates.
 func New(url api.URL, clientCert *shared.CertInfo, remoteCert *x509.Certificate, forwarding bool) (*Client, error) {
@@ -169,27 +180,14 @@ func (c *Client) SetClusterNotification() {
 }
 
 func forwardingProxy(r *http.Request) (*url.URL, error) {
-	r.Header.Set("User-Agent", clusterRequest.UserAgentNotifier)
-
-	ctx := r.Context()
-
-	val, ok := ctx.Value(request.CtxUsername).(string)
-	if ok {
-		r.Header.Add(request.HeaderForwardedUsername, val)
-	}
-	val, ok = ctx.Value(request.CtxProtocol).(string)
-	if ok {
-		r.Header.Add(request.HeaderForwardedProtocol, val)
-	}
-
-	r.Header.Add(request.HeaderForwardedAddress, r.RemoteAddr)
+	r.Header.Set("User-Agent", UserAgentNotifier)
 
 	return shared.ProxyFromEnvironment(r)
 }
 
 // IsForwardedRequest determines if this request has been forwarded from another cluster member.
 func IsForwardedRequest(r *http.Request) bool {
-	return r.Header.Get("User-Agent") == clusterRequest.UserAgentNotifier
+	return r.Header.Get("User-Agent") == UserAgentNotifier
 }
 
 func (c *Client) rawQuery(ctx context.Context, method string, url *api.URL, data any) (*http.Response, error) {

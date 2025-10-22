@@ -101,6 +101,7 @@ func UpdateClusterMemberSchemaVersion(ctx context.Context, tx *sql.Tx, internalV
 	if err != nil {
 		return err
 	}
+
 	if n != 1 {
 		return fmt.Errorf("Updated %d rows instead of 1", n)
 	}
@@ -177,6 +178,7 @@ WHERE name IN ('api_extensions');
 	if err != nil {
 		return err
 	}
+
 	if n != 1 {
 		return fmt.Errorf("Updated %d rows instead of 1", n)
 	}

@@ -20,6 +20,7 @@ func shutdownServer(server *http.Server, timeout time.Duration) error {
 		if errors.Is(err, net.ErrClosed) {
 			return nil
 		}
+
 		return err
 	}
 
@@ -34,7 +35,9 @@ func shutdownServer(server *http.Server, timeout time.Duration) error {
 			logger.Error("Failed to close server", logger.Ctx{"err": closeErr})
 			return fmt.Errorf("Encountered error while closing server: %w, after failing to gracefully shutdown the server: %w", closeErr, err)
 		}
+
 		return err
 	}
+
 	return nil
 }

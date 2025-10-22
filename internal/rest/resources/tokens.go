@@ -78,6 +78,7 @@ func tokensPost(state state.State, r *http.Request) response.Response {
 	expiryDate := sql.NullTime{
 		Valid: req.ExpireAfter != 0,
 	}
+
 	if expiryDate.Valid {
 		expiryDate.Time = time.Now().Add(req.ExpireAfter)
 	}

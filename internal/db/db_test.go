@@ -658,6 +658,7 @@ func NewTestDB(extensionsExternal []schema.Update) (*DqliteDB, error) {
 		upgradeCh:  make(chan struct{}, 1),
 		os:         &sys.OS{},
 	}
+
 	db.db, err = sql.Open("sqlite3", ":memory:")
 	if err != nil {
 		return nil, err

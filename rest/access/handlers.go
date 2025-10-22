@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/canonical/lxd/lxd/request"
 	"github.com/canonical/lxd/lxd/response"
 	"github.com/canonical/lxd/lxd/util"
 	"github.com/canonical/lxd/shared/logger"
 
 	"github.com/canonical/microcluster/v2/internal/endpoints"
 	"github.com/canonical/microcluster/v2/internal/rest/access"
+	"github.com/canonical/microcluster/v2/internal/rest/client"
 	internalState "github.com/canonical/microcluster/v2/internal/state"
 	"github.com/canonical/microcluster/v2/rest/types"
 	"github.com/canonical/microcluster/v2/state"
@@ -30,7 +30,7 @@ func (e ErrInvalidHost) Unwrap() error {
 // AllowAuthenticated checks if the request is trusted by extracting access.TrustedRequest from the request context.
 // This handler is used as an access handler by default if AllowUntrusted is false on a rest.EndpointAction.
 func AllowAuthenticated(state state.State, r *http.Request) (bool, response.Response) {
-	trusted := r.Context().Value(request.CtxAccess)
+	trusted := r.Context().Value(client.CtxAccess)
 	if trusted == nil {
 		return false, response.Forbidden(nil)
 	}
@@ -89,6 +89,7 @@ func Authenticate(state state.State, r *http.Request, hostAddress string, truste
 				}
 			}
 		}
+
 	default:
 		return false, ErrInvalidHost{error: fmt.Errorf("Invalid request address %q", r.Host)}
 	}

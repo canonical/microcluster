@@ -113,7 +113,7 @@ func controlPost(state state.State, r *http.Request) response.Response {
 		}
 
 		url := api.NewURL().Scheme("https").Host(joinInfo.TrustedMember.Address.String())
-		cert, err := shared.GetRemoteCertificate(url.String(), "")
+		cert, err := shared.GetRemoteCertificate(r.Context(), url.String(), "")
 		if err != nil {
 			return
 		}
@@ -226,7 +226,7 @@ func joinWithToken(state state.State, r *http.Request, req *internalTypes.Contro
 	for _, addr := range token.JoinAddresses {
 		url := api.NewURL().Scheme("https").Host(addr.String())
 
-		cert, err := shared.GetRemoteCertificate(url.String(), "")
+		cert, err := shared.GetRemoteCertificate(r.Context(), url.String(), "")
 		if err != nil {
 			logger.Warn("Failed to get certificate of cluster member", logger.Ctx{"address": url.String(), "error": err})
 			lastErr = err

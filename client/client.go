@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 
-	clusterRequest "github.com/canonical/lxd/lxd/cluster/request"
 	"github.com/canonical/lxd/shared/api"
 	"github.com/gorilla/websocket"
 
@@ -19,7 +18,7 @@ type Client struct {
 
 // IsNotification determines if this request is to be considered a cluster-wide notification.
 func IsNotification(r *http.Request) bool {
-	return r.Header.Get("User-Agent") == clusterRequest.UserAgentNotifier
+	return r.Header.Get("User-Agent") == client.UserAgentNotifier
 }
 
 // Query is a helper for initiating a request on any endpoints defined external to microcluster. This function should be used for all client

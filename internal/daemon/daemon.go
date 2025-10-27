@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/canonical/go-dqlite/v3/driver"
-	"github.com/canonical/lxd/lxd/db/schema"
 	"github.com/canonical/lxd/lxd/request"
 	"github.com/canonical/lxd/lxd/util"
 	"github.com/canonical/lxd/shared"
@@ -28,6 +27,7 @@ import (
 	"github.com/canonical/microcluster/v3/cluster"
 	internalConfig "github.com/canonical/microcluster/v3/internal/config"
 	"github.com/canonical/microcluster/v3/internal/db"
+	"github.com/canonical/microcluster/v3/internal/db/schema"
 	"github.com/canonical/microcluster/v3/internal/endpoints"
 	"github.com/canonical/microcluster/v3/internal/extensions"
 	"github.com/canonical/microcluster/v3/internal/recover"

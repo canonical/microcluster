@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/canonical/lxd/lxd/db/query"
-	"github.com/canonical/lxd/lxd/db/schema"
 	"github.com/canonical/lxd/shared"
 
+	"github.com/canonical/microcluster/v3/internal/db/query"
+	"github.com/canonical/microcluster/v3/internal/db/schema"
 	"github.com/canonical/microcluster/v3/internal/extensions"
 )
 

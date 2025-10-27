@@ -5,9 +5,9 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/canonical/lxd/lxd/db/query"
 	"github.com/canonical/lxd/shared/logger"
 
+	"github.com/canonical/microcluster/v3/internal/db/query"
 	"github.com/canonical/microcluster/v3/internal/extensions"
 )
 

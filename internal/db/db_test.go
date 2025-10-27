@@ -8,12 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/canonical/lxd/lxd/db/query"
-	"github.com/canonical/lxd/lxd/db/schema"
 	"github.com/canonical/lxd/shared/api"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/canonical/microcluster/v3/cluster"
+	"github.com/canonical/microcluster/v3/internal/db/query"
+	"github.com/canonical/microcluster/v3/internal/db/schema"
 	"github.com/canonical/microcluster/v3/internal/db/update"
 	"github.com/canonical/microcluster/v3/internal/extensions"
 	"github.com/canonical/microcluster/v3/internal/sys"

@@ -7,9 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/canonical/lxd/lxd/db/query"
-	"github.com/canonical/lxd/lxd/db/schema"
 	"github.com/stretchr/testify/suite"
+
+	"github.com/canonical/microcluster/v3/internal/db/query"
+	"github.com/canonical/microcluster/v3/internal/db/schema"
 )
 
 type updateSuite struct {

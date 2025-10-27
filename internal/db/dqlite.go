@@ -18,7 +18,6 @@ import (
 
 	dqlite "github.com/canonical/go-dqlite/v3/app"
 	dqliteClient "github.com/canonical/go-dqlite/v3/client"
-	"github.com/canonical/lxd/lxd/db/schema"
 	"github.com/canonical/lxd/shared"
 	"github.com/canonical/lxd/shared/api"
 	"github.com/canonical/lxd/shared/logger"
@@ -26,6 +25,7 @@ import (
 	"github.com/canonical/lxd/shared/tcp"
 
 	"github.com/canonical/microcluster/v3/cluster"
+	"github.com/canonical/microcluster/v3/internal/db/schema"
 	"github.com/canonical/microcluster/v3/internal/db/update"
 	"github.com/canonical/microcluster/v3/internal/extensions"
 	internalClient "github.com/canonical/microcluster/v3/internal/rest/client"

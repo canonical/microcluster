@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"strings"
@@ -13,7 +14,8 @@ import (
 	"github.com/canonical/lxd/lxd/util"
 	"github.com/canonical/lxd/shared"
 	"github.com/canonical/lxd/shared/api"
-	"github.com/canonical/lxd/shared/logger"
+
+	"github.com/canonical/microcluster/v3/internal/log"
 )
 
 // Network represents an HTTPS listener and its server.
@@ -47,6 +49,12 @@ func NewNetwork(ctx context.Context, endpointType EndpointType, server *http.Ser
 
 		drainConnectionsTimeout: drainConnTimeout,
 	}
+}
+
+// log is a convenience to retrieve the internal logger from the network's context.
+// We always expect the logger to be present.
+func (n *Network) log() *slog.Logger {
+	return n.ctx.Value(log.CtxLogger).(*slog.Logger) //nolint:revive
 }
 
 // Type returns the type of the Endpoint.
@@ -106,22 +114,21 @@ func (n *Network) Serve() {
 		return
 	}
 
-	ctx := logger.Ctx{"network": n.listener.Addr()}
-	logger.Info(" - binding https socket", ctx)
+	n.log().Info("Binding https socket", slog.String("network", n.listener.Addr().String()))
 
 	go func() {
 		select {
 		case <-n.ctx.Done():
-			logger.Infof("Received shutdown signal - aborting https socket server startup")
+			n.log().Info("Received shutdown signal - aborting https socket server startup")
 		default:
 			// server.Serve always returns a non-nil error.
 			// http.ErrServerClosed is returned after server.Shutdown or server.Close.
 			// net.ErrClosed is returned if the listener is closed.
 			err := n.server.Serve(n.listener)
 			if errors.Is(err, http.ErrServerClosed) || errors.Is(err, net.ErrClosed) {
-				logger.Infof("Received shutdown signal - stopped serving https socket listener")
+				n.log().Info("Received shutdown signal - stopped serving https socket listener")
 			} else {
-				logger.Error("Failed to start server", logger.Ctx{"err": err})
+				n.log().Error("Failed to start server", slog.String("error", err.Error()))
 			}
 		}
 	}()
@@ -133,7 +140,7 @@ func (n *Network) Close() error {
 		return nil
 	}
 
-	logger.Info("Stopping REST API handler - closing https socket", logger.Ctx{"address": n.listener.Addr()})
+	n.log().Info("Stopping REST API handler - closing https socket", slog.String("address", n.listener.Addr().String()))
 	defer n.cancel()
 
 	// n.listener.Close() will mean that we'll no longer accept connections.
@@ -147,5 +154,5 @@ func (n *Network) Close() error {
 // Note that graceful shutdown will timeout if the connections do not finish (e.g.: a request caused the server
 // to Close the endpoints on the same goroutine).
 func (n *Network) Shutdown() error {
-	return shutdownServer(n.server, n.drainConnectionsTimeout)
+	return shutdownServer(n.ctx, n.server, n.drainConnectionsTimeout)
 }

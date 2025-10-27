@@ -2,11 +2,14 @@ package endpoints
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
 	"slices"
 	"sync"
 
 	"github.com/canonical/lxd/shared"
-	"github.com/canonical/lxd/shared/logger"
+
+	"github.com/canonical/microcluster/v3/internal/log"
 )
 
 // Endpoints represents all listeners and servers for the microcluster daemon REST API.
@@ -20,6 +23,12 @@ type Endpoints struct {
 // NewEndpoints aggregates the given endpoints so we can manage them from one source.
 func NewEndpoints(shutdownCtx context.Context, endpoints map[string]Endpoint) *Endpoints {
 	return &Endpoints{listeners: endpoints, shutdownCtx: shutdownCtx}
+}
+
+// log is a convenience to retrieve the internal logger from the shutdown context.
+// We always expect the logger to be present.
+func (e *Endpoints) log() *slog.Logger {
+	return e.shutdownCtx.Value(log.CtxLogger).(*slog.Logger) //nolint:revive
 }
 
 // Up calls Serve on each of the configured listeners.
@@ -87,7 +96,7 @@ func (e *Endpoints) up(listeners map[string]Endpoint) error {
 		go func() {
 			select {
 			case <-e.shutdownCtx.Done():
-				logger.Infof("Received shutdown signal - aborting endpoint startup for %s", listenerCopy.Type().String())
+				e.log().Info(fmt.Sprintf("Received shutdown signal - aborting endpoint startup for %s", listenerCopy.Type().String()))
 				return
 
 			default:

@@ -3,8 +3,6 @@ package cluster
 import (
 	"database/sql"
 	"fmt"
-
-	"github.com/canonical/lxd/shared/logger"
 )
 
 var stmts = map[int]string{}            // Statement code to statement SQL text
@@ -30,8 +28,6 @@ func RegisterStmt(sql string) int {
 
 // PrepareStmts prepares all registered statements and stores them in preparedStmts.
 func PrepareStmts(db *sql.DB, skipErrors bool) error {
-	logger.Infof("Preparing statements")
-
 	for code, stmt := range stmts {
 		preparedStmt, err := db.Prepare(stmt)
 		if err != nil && !skipErrors {

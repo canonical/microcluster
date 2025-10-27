@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 
 	"github.com/canonical/lxd/lxd/util"
 	"github.com/canonical/lxd/shared/api"
-	"github.com/canonical/lxd/shared/logger"
+
+	"github.com/canonical/microcluster/v3/internal/log"
 )
 
 // Init registers smart error mappings.
@@ -186,7 +188,12 @@ func ParseResponse(resp *http.Response) (*api.Response, error) {
 	defer resp.Body.Close()
 	_, err = io.Copy(io.Discard, resp.Body)
 	if err != nil {
-		logger.Error("Failed to read response body", logger.Ctx{"error": err})
+		logger, logErr := log.LoggerFromContext(resp.Request.Context())
+		if logErr != nil {
+			return nil, err
+		}
+
+		logger.Error("Failed to read response body", slog.String("error", err.Error()))
 	}
 
 	return &response, nil

@@ -4,11 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-
-	"github.com/canonical/lxd/shared/logger"
+	"log/slog"
 
 	"github.com/canonical/microcluster/v3/internal/db/query"
 	"github.com/canonical/microcluster/v3/internal/extensions"
+	"github.com/canonical/microcluster/v3/internal/log"
 )
 
 // PrepareUpdateV1 creates the temporary table `internal_cluster_members_new` if we have not yet run `updateFromV1`.
@@ -164,7 +164,12 @@ WHERE name IN ('api_extensions');
 	}
 
 	if count == 0 {
-		logger.Warn("Skipping API extension update, schema does not yet support it", logger.Ctx{"memberName": memberName})
+		logger, err := log.LoggerFromContext(ctx)
+		if err != nil {
+			return err
+		}
+
+		logger.Warn("Skipping API extension update, schema does not yet support it", slog.String("memberName", memberName))
 		return nil
 	}
 
@@ -203,7 +208,11 @@ func GetClusterMemberAPIExtensions(ctx context.Context, tx *sql.Tx) ([]extension
 	defer func() {
 		err := rows.Close()
 		if err != nil {
-			logger.Error("Failed to close rows after reading API extensions", logger.Ctx{"error": err})
+			// Try best effort: Do logging when the logger exists.
+			logger, logErr := log.LoggerFromContext(ctx)
+			if logErr == nil {
+				logger.Error("Failed to close rows after reading API extensions", slog.String("error", err.Error()))
+			}
 		}
 	}()
 

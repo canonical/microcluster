@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math/rand"
 	"net/http"
 	"os"
@@ -13,7 +14,6 @@ import (
 
 	"github.com/canonical/lxd/shared"
 	"github.com/canonical/lxd/shared/api"
-	"github.com/canonical/lxd/shared/logger"
 	"github.com/canonical/lxd/shared/revert"
 
 	"github.com/canonical/microcluster/v3/cluster"
@@ -46,7 +46,7 @@ func (db *DqliteDB) Open(ext extensions.Extensions, bootstrap bool) error {
 		// close the db if any of the following steps fail
 		closeErr := db.dqlite.Close()
 		if closeErr != nil {
-			logger.Error("Failed to close database", logger.Ctx{"address": db.listenAddr.String(), "error": closeErr})
+			db.log().Error("Failed to close database", slog.String("address", db.listenAddr.String()), slog.String("error", closeErr.Error()))
 		}
 
 		db.db = nil
@@ -68,6 +68,8 @@ func (db *DqliteDB) Open(ext extensions.Extensions, bootstrap bool) error {
 	if err != nil {
 		return err
 	}
+
+	db.log().Info("Preparing statements")
 
 	err = cluster.PrepareStmts(db.db, false)
 	if err != nil {
@@ -115,7 +117,7 @@ func (db *DqliteDB) waitUpgrade(bootstrap bool, ext extensions.Extensions) error
 	}
 
 	checkAPIExtensions := func(currentAPIExtensions extensions.Extensions, clusterMemberAPIExtensions []extensions.Extensions) (otherNodesBehind bool, err error) {
-		logger.Debugf("Local API extensions: %v, cluster members API extensions: %v", currentAPIExtensions, clusterMemberAPIExtensions)
+		db.log().Debug(fmt.Sprintf("Local API extensions: %v, cluster members API extensions: %v", currentAPIExtensions, clusterMemberAPIExtensions))
 
 		nodeIsBehind := false
 		for _, extensions := range clusterMemberAPIExtensions {
@@ -235,7 +237,7 @@ func (db *DqliteDB) waitUpgrade(bootstrap bool, ext extensions.Extensions) error
 		db.status = types.DatabaseWaiting
 		db.statusLock.Unlock()
 
-		logger.Warn("Waiting for other cluster members to upgrade their versions", logger.Ctx{"address": db.listenAddr.String()})
+		db.log().Warn("Waiting for other cluster members to upgrade their versions", slog.String("address", db.listenAddr.String()))
 		select {
 		case <-db.upgradeCh:
 		case <-time.After(30 * time.Second):
@@ -258,7 +260,7 @@ func (db *DqliteDB) Transaction(outerCtx context.Context, f func(context.Context
 			// If the query timed out it likely means that the leader has abruptly become unreachable.
 			// Now that this query has been cancelled, a leader election should have taken place by now.
 			// So let's retry the transaction once more in case the global database is now available again.
-			logger.Warn("Transaction timed out. Retrying once", logger.Ctx{"err": err})
+			db.log().Warn("Transaction timed out. Retrying once", slog.String("error", err.Error()))
 			return query.Transaction(ctx, db.db, f)
 		}
 
@@ -283,23 +285,23 @@ func (db *DqliteDB) Update() error {
 
 	updateExec := os.Getenv(sys.SchemaUpdate)
 	if updateExec == "" {
-		logger.Warn("No SCHEMA_UPDATE variable set, skipping auto-update")
+		db.log().Warn("No SCHEMA_UPDATE variable set, skipping auto-update")
 		return nil
 	}
 
 	// Wait a random amount of seconds (up to 30) to space out the update.
 	wait := time.Duration(rand.Intn(30)) * time.Second
-	logger.Info("Triggering cluster auto-update soon", logger.Ctx{"wait": wait, "updateExecutable": updateExec})
+	db.log().Info("Triggering cluster auto-update soon", slog.String("wait", wait.String()), slog.String("updateExecutable", updateExec))
 	time.Sleep(wait)
 
-	logger.Info("Triggering cluster auto-update now")
+	db.log().Info("Triggering cluster auto-update now")
 	_, err = shared.RunCommandContext(context.TODO(), updateExec)
 	if err != nil {
-		logger.Error("Triggering cluster update failed", logger.Ctx{"err": err})
+		db.log().Error("Triggering cluster update failed", slog.String("error", err.Error()))
 		return err
 	}
 
-	logger.Info("Triggering cluster auto-update succeeded")
+	db.log().Info("Triggering cluster auto-update succeeded")
 
 	return nil
 }

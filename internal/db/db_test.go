@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/canonical/microcluster/v3/internal/db/schema"
 	"github.com/canonical/microcluster/v3/internal/db/update"
 	"github.com/canonical/microcluster/v3/internal/extensions"
+	"github.com/canonical/microcluster/v3/internal/log"
 	"github.com/canonical/microcluster/v3/internal/sys"
 )
 
@@ -651,8 +653,11 @@ func (s *dbSuite) Test_waitUpgradeSchemaAndAPI() {
 // NewTedb returns a sqlite DB set up with the default microcluster schema.
 func NewTestDB(extensionsExternal []schema.Update) (*DqliteDB, error) {
 	var err error
+
+	ctx := context.WithValue(context.Background(), log.CtxLogger, slog.Default())
+
 	db := &DqliteDB{
-		ctx:        context.Background(),
+		ctx:        ctx,
 		memberName: func() string { return fmt.Sprintf("cluster-member-%d", 0) },
 		listenAddr: *api.NewURL().Host("10.0.0.0:8443"),
 		upgradeCh:  make(chan struct{}, 1),

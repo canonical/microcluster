@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -18,7 +19,6 @@ import (
 	"github.com/canonical/lxd/lxd/util"
 	"github.com/canonical/lxd/shared"
 	"github.com/canonical/lxd/shared/api"
-	"github.com/canonical/lxd/shared/logger"
 	"github.com/canonical/lxd/shared/revert"
 	"github.com/gorilla/mux"
 	"github.com/mattn/go-sqlite3"
@@ -30,6 +30,7 @@ import (
 	"github.com/canonical/microcluster/v3/internal/db/schema"
 	"github.com/canonical/microcluster/v3/internal/endpoints"
 	"github.com/canonical/microcluster/v3/internal/extensions"
+	internalLog "github.com/canonical/microcluster/v3/internal/log"
 	"github.com/canonical/microcluster/v3/internal/recover"
 	internalREST "github.com/canonical/microcluster/v3/internal/rest"
 	internalClient "github.com/canonical/microcluster/v3/internal/rest/client"
@@ -129,7 +130,7 @@ func NewDaemon() *Daemon {
 		if d.db != nil {
 			dqliteErr = d.db.Stop()
 			if dqliteErr != nil {
-				logger.Error("Failed shutting down database", logger.Ctx{"error": dqliteErr})
+				d.log().Error("Failed shutting down database", slog.String("error", dqliteErr.Error()))
 			}
 		}
 
@@ -145,6 +146,12 @@ func NewDaemon() *Daemon {
 	})
 
 	return d
+}
+
+// log is a convenience to retrieve the internal logger from the shutdown context.
+// We always expect the logger to be present.
+func (d *Daemon) log() *slog.Logger {
+	return d.shutdownCtx.Value(internalLog.CtxLogger).(*slog.Logger) //nolint:revive
 }
 
 // Run initializes the Daemon with the given configuration, starts the database,
@@ -189,11 +196,11 @@ func (d *Daemon) Run(ctx context.Context, stateDir string, args Args) error {
 	reverter.Add(func() {
 		err := d.stop()
 		if err != nil {
-			logger.Error("Failed to cleanly stop the daemon", logger.Ctx{"error": err})
+			d.log().Error("Failed to cleanly stop the daemon", slog.String("error", err.Error()))
 		}
 	})
 
-	err = recover.MaybeUnpackRecoveryTarball(d.os)
+	err = recover.MaybeUnpackRecoveryTarball(ctx, d.os)
 	if err != nil {
 		return fmt.Errorf("Database recovery failed: %w", err)
 	}
@@ -354,7 +361,7 @@ func (d *Daemon) init(listenAddress string, socketGroup string, heartbeatInterva
 		}
 
 	case types.DatabaseNotReady:
-		logger.Warn("Microcluster database is uninitialized")
+		d.log().Warn("Microcluster database is uninitialized")
 	}
 
 	err = d.trustStore.Refresh()
@@ -480,16 +487,16 @@ func (d *Daemon) initServer(resources ...rest.Resources) *http.Server {
 		w.Header().Set("Content-Type", "application/json")
 		err := response.SyncResponse(true, []string{"/1.0"}).Render(w, r)
 		if err != nil {
-			logger.Error("Failed to write HTTP response", logger.Ctx{"url": r.URL, "err": err})
+			d.log().Error("Failed to write HTTP response", slog.String("url", r.URL.String()), slog.String("error", err.Error()))
 		}
 	})
 
 	mux.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		logger.Info("Sending top level 404", logger.Ctx{"url": r.URL})
+		d.log().Info("Sending top level 404", slog.String("url", r.URL.String()))
 		w.Header().Set("Content-Type", "application/json")
 		err := response.NotFound(nil).Render(w, r)
 		if err != nil {
-			logger.Error("Failed to write HTTP response", logger.Ctx{"url": r.URL, "err": err})
+			d.log().Error("Failed to write HTTP response", slog.String("url", r.URL.String()), slog.String("error", err.Error()))
 		}
 	})
 
@@ -717,7 +724,7 @@ func (d *Daemon) StartAPI(ctx context.Context, bootstrap bool, initConfig map[st
 			err = internalClient.RunNewMemberHook(ctx, c.Client.UseTarget(remote.Name), internalTypes.HookNewMemberOptions{NewMember: localMemberInfo})
 			if err != nil && !api.StatusErrorCheck(err, http.StatusServiceUnavailable) {
 				// log error but continue with other nodes
-				logger.Warn("Failed running OnNewMember hook on node", logger.Ctx{"node": c.URL().URL.Host, "error": err})
+				d.log().Warn("Failed running OnNewMember hook on node", slog.String("node", c.URL().URL.Host), slog.String("error", err.Error()))
 				return nil
 			}
 		}
@@ -959,18 +966,18 @@ func (d *Daemon) sendUpgradeNotification(ctx context.Context, c *client.Client) 
 
 	resp, err := c.Do(upgradeRequest)
 	if err != nil {
-		logger.Error("Failed to send database upgrade request", logger.Ctx{"error": err})
+		d.log().Error("Failed to send database upgrade request", slog.String("error", err.Error()))
 		return nil
 	}
 
 	defer resp.Body.Close()
 	_, err = io.Copy(io.Discard, resp.Body)
 	if err != nil {
-		logger.Error("Failed to read upgrade notification response body", logger.Ctx{"error": err})
+		d.log().Error("Failed to read upgrade notification response body", slog.String("error", err.Error()))
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		logger.Errorf("Database upgrade notification failed: %s", resp.Status)
+		d.log().Error(fmt.Sprintf("Database upgrade notification failed: %s", resp.Status))
 	}
 
 	return nil

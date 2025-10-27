@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"net/netip"
 	"os"
 	"path"
@@ -18,12 +19,12 @@ import (
 
 	"github.com/canonical/go-dqlite/v3"
 	"github.com/canonical/lxd/shared/api"
-	"github.com/canonical/lxd/shared/logger"
 	"gopkg.in/yaml.v3"
 
 	"github.com/canonical/microcluster/v3/client"
 	"github.com/canonical/microcluster/v3/cluster"
 	"github.com/canonical/microcluster/v3/internal/config"
+	"github.com/canonical/microcluster/v3/internal/log"
 	internalTypes "github.com/canonical/microcluster/v3/internal/rest/types"
 	"github.com/canonical/microcluster/v3/internal/sys"
 	"github.com/canonical/microcluster/v3/internal/trust"
@@ -69,7 +70,7 @@ func GetDqliteClusterMembers(filesystem *sys.OS) ([]cluster.DqliteMember, error)
 // files, modifies the daemon and trust store, and writes a recovery tarball.
 // It does not check members to ensure that the new configuration is valid; use
 // ValidateMemberChanges to ensure that the inputs to this function are correct.
-func RecoverFromQuorumLoss(filesystem *sys.OS, members []cluster.DqliteMember) (string, error) {
+func RecoverFromQuorumLoss(ctx context.Context, filesystem *sys.OS, members []cluster.DqliteMember) (string, error) {
 	// Set up our new cluster configuration
 	nodeInfo := make([]dqlite.NodeInfo, 0, len(members))
 	for _, member := range members {
@@ -134,7 +135,7 @@ func RecoverFromQuorumLoss(filesystem *sys.OS, members []cluster.DqliteMember) (
 		return "", err
 	}
 
-	err = CreateDatabaseBackup(filesystem)
+	err = CreateDatabaseBackup(ctx, filesystem)
 	if err != nil {
 		return "", err
 	}
@@ -171,7 +172,7 @@ func RecoverFromQuorumLoss(filesystem *sys.OS, members []cluster.DqliteMember) (
 	}
 
 	// Tar up the m.FileSystem.DatabaseDir and write to `dbExportPath`
-	recoveryTarballPath, err := createRecoveryTarball(filesystem, members)
+	recoveryTarballPath, err := createRecoveryTarball(ctx, filesystem, members)
 	if err != nil {
 		return "", err
 	}
@@ -385,7 +386,7 @@ func writeGlobalMembersPatch(filesystem *sys.OS, members []cluster.DqliteMember)
 // go-dqlite's info.yaml is excluded from the tarball.
 // The new cluster configuration is included as `recovery.yaml`.
 // This function returns the path to the tarball.
-func createRecoveryTarball(filesystem *sys.OS, members []cluster.DqliteMember) (string, error) {
+func createRecoveryTarball(ctx context.Context, filesystem *sys.OS, members []cluster.DqliteMember) (string, error) {
 	tarballPath := path.Join(filesystem.StateDir, "recovery_db.tar.gz")
 	recoveryYamlPath := path.Join(filesystem.DatabaseDir, "recovery.yaml")
 
@@ -397,7 +398,7 @@ func createRecoveryTarball(filesystem *sys.OS, members []cluster.DqliteMember) (
 	// info.yaml is used by go-dqlite to keep track of the current cluster member's
 	// ID and address. We shouldn't replicate the recovery member's info.yaml
 	// to all other members, so exclude it from the tarball:
-	err = createTarball(tarballPath, filesystem.DatabaseDir, ".", []string{"info.yaml"})
+	err = createTarball(ctx, tarballPath, filesystem.DatabaseDir, ".", []string{"info.yaml"})
 
 	return tarballPath, err
 }
@@ -406,7 +407,7 @@ func createRecoveryTarball(filesystem *sys.OS, members []cluster.DqliteMember) (
 // fiesystem.StateDir. If it exists, unpack it into a temporary directory,
 // ensure that it is a valid microcluster recovery tarball, and replace the
 // existing filesystem.DatabaseDir.
-func MaybeUnpackRecoveryTarball(filesystem *sys.OS) error {
+func MaybeUnpackRecoveryTarball(ctx context.Context, filesystem *sys.OS) error {
 	tarballPath := path.Join(filesystem.StateDir, "recovery_db.tar.gz")
 	unpackDir := path.Join(filesystem.StateDir, "recovery_db")
 	recoveryYamlPath := path.Join(unpackDir, "recovery.yaml")
@@ -417,7 +418,12 @@ func MaybeUnpackRecoveryTarball(filesystem *sys.OS) error {
 		return nil
 	}
 
-	logger.Warn("Recovery tarball located; attempting DB recovery", logger.Ctx{"tarball": tarballPath})
+	logger, err := log.LoggerFromContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	logger.Warn("Recovery tarball located; attempting DB recovery", slog.String("tarball", tarballPath))
 
 	err = unpackTarball(tarballPath, unpackDir)
 	if err != nil {
@@ -466,7 +472,7 @@ func MaybeUnpackRecoveryTarball(filesystem *sys.OS) error {
 		return err
 	}
 
-	err = CreateDatabaseBackup(filesystem)
+	err = CreateDatabaseBackup(ctx, filesystem)
 	if err != nil {
 		return err
 	}
@@ -506,7 +512,7 @@ func MaybeUnpackRecoveryTarball(filesystem *sys.OS) error {
 // CreateDatabaseBackup writes a tarball of filesystem.DatabaseDir to
 // filesystem.StateDir as db_backup.TIMESTAMP.tar.gz. It does not check to
 // to ensure that the database is stopped.
-func CreateDatabaseBackup(filesystem *sys.OS) error {
+func CreateDatabaseBackup(ctx context.Context, filesystem *sys.OS) error {
 	// tar interprets `:` as a remote drive; ISO8601 allows a 'basic format'
 	// with the colons omitted (as opposed to time.RFC3339)
 	// https://en.wikipedia.org/wiki/ISO_8601
@@ -514,7 +520,12 @@ func CreateDatabaseBackup(filesystem *sys.OS) error {
 
 	backupFilePath := path.Join(filesystem.StateDir, backupFileName)
 
-	logger.Info("Creating database backup", logger.Ctx{"archive": backupFilePath})
+	logger, err := log.LoggerFromContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	logger.Info("Creating database backup", slog.String("archive", backupFilePath))
 
 	// For DB backups the tarball should contain the subdirs (usually `database/`)
 	// so that the user can easily untar the backup from the state dir.
@@ -523,15 +534,12 @@ func CreateDatabaseBackup(filesystem *sys.OS) error {
 
 	// Don't bother if DatabaseDir is not inside StateDir
 	if err != nil {
-		logger.Warn("DB backup: DatabaseDir (%q) not in StateDir (%q)", logger.Ctx{
-			"databaseDir": filesystem.DatabaseDir,
-			"stateDir":    filesystem.StateDir,
-		})
+		logger.Warn("DB backup: DatabaseDir (%q) not in StateDir (%q)", slog.String("databaseDir", filesystem.DatabaseDir), slog.String("stateDir", filesystem.StateDir))
 		rootDir = filesystem.DatabaseDir
 		walkDir = "."
 	}
 
-	err = createTarball(backupFilePath, rootDir, walkDir, []string{})
+	err = createTarball(ctx, backupFilePath, rootDir, walkDir, []string{})
 	if err != nil {
 		return fmt.Errorf("database backup: %w", err)
 	}
@@ -542,7 +550,7 @@ func CreateDatabaseBackup(filesystem *sys.OS) error {
 // createTarball creates tarball at tarballPath, rooted at rootDir and including
 // all files in walkDir except those paths found in excludeFiles.
 // walkDir and excludeFiles elements are relative to rootDir.
-func createTarball(tarballPath string, rootDir string, walkDir string, excludeFiles []string) error {
+func createTarball(ctx context.Context, tarballPath string, rootDir string, walkDir string, excludeFiles []string) error {
 	tarball, err := os.Create(tarballPath)
 	if err != nil {
 		return err
@@ -555,7 +563,12 @@ func createTarball(tarballPath string, rootDir string, walkDir string, excludeFi
 
 	err = fs.WalkDir(filesys, walkDir, func(filepath string, stat fs.DirEntry, err error) error {
 		if err != nil {
-			logger.Warn("Failed to read file while creating tarball; skipping", logger.Ctx{"file": filepath, "err": err})
+			logger, logErr := log.LoggerFromContext(ctx)
+			if err != nil {
+				return logErr
+			}
+
+			logger.Warn("Failed to read file while creating tarball; skipping", slog.String("file", filepath), slog.String("error", err.Error()))
 			return nil
 		}
 

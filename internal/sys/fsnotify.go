@@ -123,10 +123,9 @@ func (w *Watcher) handleEvents(ctx context.Context, logger *slog.Logger) {
 }
 
 // Watch adds a hook to be executed on create/remove events on files with the given extension under the given path.
-func (w *Watcher) Watch(path string, fileExt string, f func(path string, event fsnotify.Op) error) {
+func (w *Watcher) Watch(path string, fileExt string, f func(path string, event fsnotify.Op) error) error {
 	if !strings.HasPrefix(path, w.root) {
-		logger.Errorf("Path %q does not exist on watcher root path %q", path, w.root)
-		return
+		return fmt.Errorf("Path %q does not exist on watcher root path %q", path, w.root)
 	}
 
 	w.mu.Lock()
@@ -141,4 +140,5 @@ func (w *Watcher) Watch(path string, fileExt string, f func(path string, event f
 	}
 
 	w.watching[path] = fileExtHook
+	return nil
 }

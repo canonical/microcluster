@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -504,6 +505,11 @@ func (d *Daemon) initServer(resources ...rest.Resources) *http.Server {
 		Handler:     mux,
 		ConnContext: request.SaveConnectionInContext,
 		ErrorLog:    log.New(newLogFilter(d.log(), state.Remotes().Addresses), "", 0),
+		// Set a base context for the server.
+		// This allows passing the logger on the daemon's shutdown context on to each handler.
+		BaseContext: func(_ net.Listener) context.Context {
+			return d.shutdownCtx
+		},
 	}
 }
 

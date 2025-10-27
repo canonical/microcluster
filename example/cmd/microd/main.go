@@ -3,10 +3,11 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
 	"os"
 	"time"
 
-	"github.com/canonical/lxd/shared/logger"
 	"github.com/spf13/cobra"
 
 	"github.com/canonical/microcluster/v3/example/api"
@@ -17,27 +18,17 @@ import (
 	"github.com/canonical/microcluster/v3/state"
 )
 
-// Debug indicates whether to log debug messages or not.
-var Debug bool
-
-// Verbose indicates verbosity.
-var Verbose bool
-
 type cmdGlobal struct {
 	cmd *cobra.Command //nolint:unused // FIXME: Remove the nolint flag when this is in use.
 
 	flagHelp    bool
 	flagVersion bool
 
-	flagLogDebug   bool
-	flagLogVerbose bool
+	flagLogDebug bool
 }
 
 func (c *cmdGlobal) run(cmd *cobra.Command, args []string) error {
-	Debug = c.flagLogDebug
-	Verbose = c.flagLogVerbose
-
-	return logger.InitLogger("", "", c.flagLogVerbose, c.flagLogDebug, nil)
+	return nil
 }
 
 type cmdDaemon struct {
@@ -63,16 +54,26 @@ func (c *cmdDaemon) command() *cobra.Command {
 }
 
 func (c *cmdDaemon) run(cmd *cobra.Command, args []string) error {
+	logLevel := slog.LevelInfo
+	if c.global.flagLogDebug {
+		logLevel = slog.LevelDebug
+	}
+
+	// Create our own logging handler to modify the log level and output.
+	logHandler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: logLevel,
+	})
+
 	m, err := microcluster.App(microcluster.Args{
-		StateDir: c.flagStateDir,
+		// Pass the logger to Microcluster to be used for internal log messages.
+		LogHandler: logHandler,
+		StateDir:   c.flagStateDir,
 	})
 	if err != nil {
 		return err
 	}
 
 	dargs := microcluster.DaemonArgs{
-		Verbose: c.global.flagLogVerbose,
-		Debug:   c.global.flagLogDebug,
 		Version: version.Version(),
 
 		SocketGroup:       c.flagSocketGroup,
@@ -87,14 +88,13 @@ func (c *cmdDaemon) run(cmd *cobra.Command, args []string) error {
 	dargs.Hooks = &state.Hooks{
 		// PostBootstrap is run after the daemon is initialized and bootstrapped.
 		PostBootstrap: func(ctx context.Context, s state.State, initConfig map[string]string) error {
-			logCtx := logger.Ctx{}
-			for k, v := range initConfig {
-				logCtx[k] = v
-			}
+			// We can derive the logger using our custom handler from the app.
+			logger := m.LoggerFromContext(ctx)
 
 			// You can check your app extensions using the state.State object.
 			hasMissingExt := s.HasExtension("missing_extension")
 			if !hasMissingExt {
+				// Also use our custom logger for the hooks.
 				logger.Warn("The 'missing_extension' is not registered")
 			}
 
@@ -106,25 +106,24 @@ func (c *cmdDaemon) run(cmd *cobra.Command, args []string) error {
 			}
 
 			logger.Info("This is a hook that runs after the daemon is initialized and bootstrapped")
-			logger.Info("Here are the extra configuration keys that were passed into the init --bootstrap command", logCtx)
+			logger.Info("Here are the extra configuration keys that were passed into the init --bootstrap command", slog.Any("config", initConfig))
 
 			return nil
 		},
 
 		PreInit: func(ctx context.Context, s state.State, bootstrap bool, initConfig map[string]string) error {
-			logCtx := logger.Ctx{}
-			for k, v := range initConfig {
-				logCtx[k] = v
-			}
+			logger := m.LoggerFromContext(ctx)
 
 			logger.Info("This is a hook that runs before the daemon is initialized")
-			logger.Info("Here are the extra configuration keys that were passed into the init --bootstrap command", logCtx)
+			logger.Info("Here are the extra configuration keys that were passed into the init --bootstrap command", slog.Any("config", initConfig))
 
 			return nil
 		},
 
 		// OnStart is run after the daemon is started.
 		OnStart: func(ctx context.Context, s state.State) error {
+			logger := m.LoggerFromContext(ctx)
+
 			logger.Info("This is a hook that runs after the daemon first starts")
 
 			return nil
@@ -132,70 +131,73 @@ func (c *cmdDaemon) run(cmd *cobra.Command, args []string) error {
 
 		// PostJoin is run after the daemon is initialized and joins a cluster.
 		PostJoin: func(ctx context.Context, s state.State, initConfig map[string]string) error {
-			logCtx := logger.Ctx{}
-			for k, v := range initConfig {
-				logCtx[k] = v
-			}
+			logger := m.LoggerFromContext(ctx)
 
 			logger.Info("This is a hook that runs after the daemon is initialized and joins an existing cluster, after OnNewMember runs on all peers")
-			logger.Info("Here are the extra configuration keys that were passed into the init --join command", logCtx)
+			logger.Info("Here are the extra configuration keys that were passed into the init --join command", slog.Any("config", initConfig))
 
 			return nil
 		},
 
 		// PreJoin is run after the daemon is initialized and joins a cluster.
 		PreJoin: func(ctx context.Context, s state.State, initConfig map[string]string) error {
-			logCtx := logger.Ctx{}
-			for k, v := range initConfig {
-				logCtx[k] = v
-			}
+			logger := m.LoggerFromContext(ctx)
 
 			logger.Info("This is a hook that runs after the daemon is initialized and joins an existing cluster, before OnNewMember runs on all peers")
-			logger.Info("Here are the extra configuration keys that were passed into the init --join command", logCtx)
+			logger.Info("Here are the extra configuration keys that were passed into the init --join command", slog.Any("config", initConfig))
 
 			return nil
 		},
 
 		// PostRemove is run after the daemon is removed from a cluster.
 		PostRemove: func(ctx context.Context, s state.State, force bool) error {
-			logger.Infof("This is a hook that is run on peer %q after a cluster member is removed, with the force flag set to %v", s.Name(), force)
+			logger := m.LoggerFromContext(ctx)
+
+			logger.Info(fmt.Sprintf("This is a hook that is run on peer %q after a cluster member is removed, with the force flag set to %v", s.Name(), force))
 
 			return nil
 		},
 
 		// PreRemove is run before the daemon is removed from the cluster.
 		PreRemove: func(ctx context.Context, s state.State, force bool) error {
-			logger.Infof("This is a hook that is run on peer %q just before it is removed, with the force flag set to %v", s.Name(), force)
+			logger := m.LoggerFromContext(ctx)
+
+			logger.Info(fmt.Sprintf("This is a hook that is run on peer %q just before it is removed, with the force flag set to %v", s.Name(), force))
 
 			return nil
 		},
 
 		// OnHeartbeat is run after a successful heartbeat round.
 		OnHeartbeat: func(ctx context.Context, s state.State, roleStatus map[string]types.RoleStatus) error {
+			logger := m.LoggerFromContext(ctx)
+
 			logger.Info("This is a hook that is run on the dqlite leader after a successful heartbeat; role information for cluster members is available")
 
 			// You can check if the role of a cluster member has changed since the last heartbeat and determine
 			// its previous and current roles.
 			myStatus := roleStatus[s.Name()]
 			if myStatus.RoleChanged() {
-				logger.Infof("Role of cluster member %s changed from %s to %s", s.Name(), myStatus.Old, myStatus.New)
+				logger.Info(fmt.Sprintf("Role of cluster member %s changed from %s to %s", s.Name(), myStatus.Old, myStatus.New))
 				return nil
 			}
 
-			logger.Infof("Role of member %s remains unchanged as %s", s.Name(), myStatus.Old)
+			logger.Info(fmt.Sprintf("Role of member %s remains unchanged as %s", s.Name(), myStatus.Old))
 			return nil
 		},
 
 		// OnNewMember is run after a new member has joined.
 		OnNewMember: func(ctx context.Context, s state.State, newMember types.ClusterMemberLocal) error {
-			logger.Infof("This is a hook that is run on peer %q when the new cluster member %q has joined", s.Name(), newMember.Name)
+			logger := m.LoggerFromContext(ctx)
+
+			logger.Info(fmt.Sprintf("This is a hook that is run on peer %q when the new cluster member %q has joined", s.Name(), newMember.Name))
 
 			return nil
 		},
 
 		// OnDaemonConfigUpdate is run after the local daemon config of a cluster member got modified.
 		OnDaemonConfigUpdate: func(ctx context.Context, s state.State, config types.DaemonConfig) error {
-			logger.Infof("Running OnDaemonConfigUpdate triggered by %q", config.Name)
+			logger := m.LoggerFromContext(ctx)
+			logger.Info(fmt.Sprintf("Running OnDaemonConfigUpdate triggered by %q", config.Name))
 
 			return nil
 		},
@@ -213,7 +215,6 @@ func main() {
 	app.PersistentFlags().BoolVarP(&daemonCmd.global.flagHelp, "help", "h", false, "Print help")
 	app.PersistentFlags().BoolVar(&daemonCmd.global.flagVersion, "version", false, "Print version number")
 	app.PersistentFlags().BoolVarP(&daemonCmd.global.flagLogDebug, "debug", "d", false, "Show all debug messages")
-	app.PersistentFlags().BoolVarP(&daemonCmd.global.flagLogVerbose, "verbose", "v", false, "Show all information messages")
 
 	app.PersistentFlags().StringVar(&daemonCmd.flagStateDir, "state-dir", "", "Path to store state information"+"``")
 	app.PersistentFlags().StringVar(&daemonCmd.flagSocketGroup, "socket-group", "", "Group to set socket's group ownership to")

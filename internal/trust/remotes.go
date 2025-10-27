@@ -12,7 +12,6 @@ import (
 
 	"github.com/canonical/lxd/shared"
 	"github.com/canonical/lxd/shared/api"
-	"github.com/canonical/lxd/shared/logger"
 	"github.com/google/renameio"
 	"gopkg.in/yaml.v3"
 
@@ -105,8 +104,6 @@ func (r *Remotes) Load(dir string) error {
 	// If the refreshed truststore data is empty, and we already had data in the truststore,
 	// abort the refresh because an initialized system should always have truststore entries.
 	if len(remoteData) == 0 && len(r.data) != 0 {
-		logger.Warn("Failed to parse new remotes from truststore")
-
 		return nil
 	}
 

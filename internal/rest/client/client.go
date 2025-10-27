@@ -18,7 +18,6 @@ import (
 
 	"github.com/canonical/lxd/shared"
 	"github.com/canonical/lxd/shared/api"
-	"github.com/canonical/lxd/shared/logger"
 	"github.com/canonical/lxd/shared/tcp"
 	"github.com/gorilla/websocket"
 
@@ -231,9 +230,6 @@ func (c *Client) rawQuery(ctx context.Context, method string, url *api.URL, data
 
 			// Set the encoding accordingly
 			req.Header.Set("Content-Type", "application/json")
-
-			// Log the data
-			logger.Debugf("%v", data)
 		}
 	} else {
 		// No data to be sent along with the request
@@ -331,9 +327,6 @@ func (c *Client) QueryStructRaw(ctx context.Context, method string, endpointType
 		return nil, err
 	}
 
-	// Log the data.
-	// TODO: log pretty.
-	logger.Debug("Got raw response struct from microcluster daemon", logger.Ctx{"endpoint": localURL.String(), "method": method})
 	return resp, nil
 }
 
@@ -386,8 +379,6 @@ func (c *Client) RawWebsocket(ctx context.Context, endpointType types.EndpointPr
 
 		return nil, fmt.Errorf("Failed to establish websocket connection: %w", err)
 	}
-
-	logger.Debug("Established websocket connection", logger.Ctx{"endpoint": localURL.String()})
 
 	return conn, nil
 }

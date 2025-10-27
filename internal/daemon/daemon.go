@@ -503,7 +503,7 @@ func (d *Daemon) initServer(resources ...rest.Resources) *http.Server {
 	return &http.Server{
 		Handler:     mux,
 		ConnContext: request.SaveConnectionInContext,
-		ErrorLog:    log.New(newLogFilter(state.Remotes().Addresses), "", 0),
+		ErrorLog:    log.New(newLogFilter(d.log(), state.Remotes().Addresses), "", 0),
 	}
 }
 

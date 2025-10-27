@@ -4,7 +4,7 @@ go 1.24.8
 
 require (
 	github.com/canonical/go-dqlite/v3 v3.0.3
-	github.com/canonical/lxd v0.0.0-20251006151028-f9140addf608
+	github.com/canonical/lxd v0.0.0-20251023072259-136cea723888
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/google/renameio v1.0.1
 	github.com/gorilla/mux v1.8.1
@@ -19,9 +19,9 @@ require (
 
 require (
 	github.com/Rican7/retry v0.3.1 // indirect
-	github.com/armon/go-proxyproto v0.1.0 // indirect
 	github.com/canonical/go-dqlite/v2 v2.0.1 // indirect
-	github.com/clipperhouse/uax29/v2 v2.2.0 // indirect
+	github.com/clipperhouse/stringish v0.1.1 // indirect
+	github.com/clipperhouse/uax29/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/flosch/pongo2 v0.0.0-20200913210552-0d938eb266f3 // indirect
 	github.com/fvbommel/sortorder v1.1.0 // indirect
@@ -37,7 +37,7 @@ require (
 	github.com/mattn/go-runewidth v0.0.19 // indirect
 	github.com/muhlemmer/gu v0.3.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
-	github.com/pkg/sftp v1.13.9 // indirect
+	github.com/pkg/sftp v1.13.10 // indirect
 	github.com/pkg/xattr v0.4.12 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect

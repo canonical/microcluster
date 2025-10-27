@@ -47,9 +47,6 @@ import (
 
 // Args are the data needed to start a MicroCluster daemon.
 type Args struct {
-	Verbose bool
-	Debug   bool
-
 	// Consumers of MicroCluster are required to provide a version to serve at /cluster/1.0.
 	Version string
 

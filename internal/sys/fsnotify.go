@@ -3,14 +3,16 @@ package sys
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 
 	"github.com/canonical/lxd/shared"
-	"github.com/canonical/lxd/shared/logger"
 	"github.com/fsnotify/fsnotify"
+
+	"github.com/canonical/microcluster/v3/internal/log"
 )
 
 // Watcher represents an fsnotify watcher.
@@ -36,18 +38,23 @@ func NewWatcher(ctx context.Context, root string) (*Watcher, error) {
 		root:     root,
 	}
 
+	logger, err := log.LoggerFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	// Listen for events across the given root dir.
 	err = watcher.watchDir(root)
 	if err != nil {
 		closeErr := watcher.Close()
 		if closeErr != nil {
-			logger.Error("Failed to close filesystem watcher", logger.Ctx{"error": closeErr})
+			logger.Error("Failed to close filesystem watcher", slog.String("error", closeErr.Error()))
 		}
 
 		return nil, err
 	}
 
-	go watcher.handleEvents(ctx)
+	go watcher.handleEvents(ctx, logger)
 
 	return watcher, nil
 }
@@ -74,14 +81,14 @@ func (w *Watcher) watchDir(path string) error {
 	return err
 }
 
-func (w *Watcher) handleEvents(ctx context.Context) {
+func (w *Watcher) handleEvents(ctx context.Context, logger *slog.Logger) {
 	for {
 		select {
 		case <-ctx.Done():
 			logger.Info("Closing filesystem watcher")
 			err := w.Close()
 			if err != nil {
-				logger.Error("Failed to close filesystem watcher", logger.Ctx{"error": err})
+				logger.Error("Failed to close filesystem watcher", slog.String("error", err.Error()))
 			}
 
 			return
@@ -107,7 +114,7 @@ func (w *Watcher) handleEvents(ctx context.Context) {
 				// Event hook.
 				err = f(event.Name, event.Op)
 				if err != nil {
-					logger.Errorf("Error executing action on fsnotify event %q for path %q: %v", event.Op.String(), event.Name, err)
+					logger.Error("Failed executing action on fsnotify event", slog.String("event", event.Op.String()), slog.String("path", event.Name), slog.String("error", err.Error()))
 				}
 			}
 			w.mu.Unlock()

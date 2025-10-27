@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -12,9 +13,9 @@ import (
 	"github.com/canonical/lxd/lxd/util"
 	"github.com/canonical/lxd/shared"
 	"github.com/canonical/lxd/shared/api"
-	"github.com/canonical/lxd/shared/logger"
 	"github.com/canonical/lxd/shared/revert"
 
+	"github.com/canonical/microcluster/v3/internal/log"
 	internalClient "github.com/canonical/microcluster/v3/internal/rest/client"
 	internalTypes "github.com/canonical/microcluster/v3/internal/rest/types"
 	internalState "github.com/canonical/microcluster/v3/internal/state"
@@ -81,6 +82,11 @@ func controlPost(state state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
+	logger, err := log.LoggerFromContext(ctx)
+	if err != nil {
+		return response.InternalError(err)
+	}
+
 	certNameMatches := slices.Contains(serverCert.DNSNames, req.Name)
 	var joinInfo *internalTypes.TokenResponse
 	reverter.Add(func() {
@@ -93,7 +99,7 @@ func controlPost(state state.State, r *http.Request) response.Response {
 		// Run the pre-remove hook like we do for cluster node removals.
 		err := intState.Hooks.PreRemove(r.Context(), state, true)
 		if err != nil {
-			logger.Error("Failed to run pre-remove hook on initialization error", logger.Ctx{"error": err})
+			logger.Error("Failed to run pre-remove hook on initialization error", slog.String("error", err.Error()))
 		}
 
 		// Only send a request to delete the cluster member record if we are joining an existing cluster.
@@ -102,7 +108,7 @@ func controlPost(state state.State, r *http.Request) response.Response {
 		if joinInfo == nil || req.JoinToken == "" {
 			reExec, err := resetClusterMember(r.Context(), state, true)
 			if err != nil {
-				logger.Error("Failed to reset cluster member on bootstrap error", logger.Ctx{"error": err})
+				logger.Error("Failed to reset cluster member on bootstrap error", slog.String("error", err.Error()))
 				return
 			}
 
@@ -130,7 +136,7 @@ func controlPost(state state.State, r *http.Request) response.Response {
 			// Use `force=1` to ensure the node is fully removed, in case its listener hasn't been set up.
 			err = client.DeleteClusterMember(context.Background(), req.Name, true)
 			if err != nil {
-				logger.Error("Failed to clean up cluster state after join failure", logger.Ctx{"error": err})
+				logger.Error("Failed to clean up cluster state after join failure", slog.String("error", err.Error()))
 			}
 		}()
 	})
@@ -220,6 +226,11 @@ func joinWithToken(state state.State, r *http.Request, req *internalTypes.Contro
 		Extensions:            intState.Extensions,
 	}
 
+	logger, err := log.LoggerFromContext(r.Context())
+	if err != nil {
+		return nil, nil, err
+	}
+
 	// Get a client to the target address.
 	var lastErr error
 	var joinInfo *internalTypes.TokenResponse
@@ -228,7 +239,7 @@ func joinWithToken(state state.State, r *http.Request, req *internalTypes.Contro
 
 		cert, err := shared.GetRemoteCertificate(r.Context(), url.String(), "")
 		if err != nil {
-			logger.Warn("Failed to get certificate of cluster member", logger.Ctx{"address": url.String(), "error": err})
+			logger.Warn("Failed to get certificate of cluster member", slog.String("address", url.String()), slog.String("error", err.Error()))
 			lastErr = err
 			continue
 		}
@@ -248,7 +259,7 @@ func joinWithToken(state state.State, r *http.Request, req *internalTypes.Contro
 			break
 		}
 
-		logger.Error("Unable to complete cluster join request", logger.Ctx{"address": addr.String(), "error": err})
+		logger.Error("Unable to complete cluster join request", slog.String("address", addr.String()), slog.String("error", err.Error()))
 		lastErr = err
 	}
 

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"math/rand"
 	"net/http"
 	"net/url"
@@ -19,12 +20,12 @@ import (
 	dqliteClient "github.com/canonical/go-dqlite/v3/client"
 	"github.com/canonical/lxd/shared"
 	"github.com/canonical/lxd/shared/api"
-	"github.com/canonical/lxd/shared/logger"
 	"github.com/gorilla/mux"
 	"golang.org/x/sys/unix"
 
 	"github.com/canonical/microcluster/v3/client"
 	"github.com/canonical/microcluster/v3/cluster"
+	"github.com/canonical/microcluster/v3/internal/log"
 	internalClient "github.com/canonical/microcluster/v3/internal/rest/client"
 	internalTypes "github.com/canonical/microcluster/v3/internal/rest/types"
 	internalState "github.com/canonical/microcluster/v3/internal/state"
@@ -306,7 +307,12 @@ func clusterGet(s state.State, r *http.Request) response.Response {
 			if err == nil {
 				apiClusterMembers[i].Status = types.MemberOnline
 			} else {
-				logger.Warnf("Failed to get status of cluster member with address %q: %v", addr.String(), err)
+				logger, logErr := log.LoggerFromContext(r.Context())
+				if logErr != nil {
+					return response.InternalError(err)
+				}
+
+				logger.Warn(fmt.Sprintf("Failed to get status of cluster member with address %q: %v", addr.String(), err))
 			}
 		}
 	}
@@ -353,6 +359,11 @@ func resetClusterMember(ctx context.Context, s state.State, force bool) (reExec 
 		return nil, err
 	}
 
+	logger, err := log.LoggerFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	reExec = func() {
 		<-ctx.Done() // Wait until request has finished.
 
@@ -370,12 +381,12 @@ func resetClusterMember(ctx context.Context, s state.State, force bool) (reExec 
 		// a complete shutdown.
 		_, err := intState.Stop()
 		if err != nil && !force {
-			logger.Error("Failed shutting down", logger.Ctx{"err": err})
+			logger.Error("Failed shutting down", slog.String("error", err.Error()))
 		}
 
 		err = os.RemoveAll(s.FileSystem().StateDir)
 		if err != nil && !force {
-			logger.Error("Failed to remove the state directory", logger.Ctx{"err": err})
+			logger.Error("Failed to remove the state directory", slog.String("error", err.Error()))
 		}
 
 		// Wait until we can acquire the lock. This way if another request is holding the lock we won't
@@ -393,7 +404,7 @@ func resetClusterMember(ctx context.Context, s state.State, force bool) (reExec 
 		execPath = strings.TrimSuffix(execPath, " (deleted)")
 		err = unix.Exec(execPath, os.Args, os.Environ())
 		if err != nil {
-			logger.Error("Failed restarting daemon", logger.Ctx{"err": err})
+			logger.Error("Failed restarting daemon", slog.String("error", err.Error()))
 		}
 	}
 
@@ -427,6 +438,11 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
+	logger, err := log.LoggerFromContext(ctx)
+	if err != nil {
+		return response.InternalError(err)
+	}
+
 	// If we are not the leader, just forward the request.
 	if leaderInfo.Address != s.Address().URL.Host {
 		if allRemotes[name].Address.String() == s.Address().URL.Host {
@@ -435,12 +451,12 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 			// goes on to request clusterPutDisable back to ourselves it won't be actioned until we
 			// have returned this request back to the original client.
 			clusterDisableMu.Lock()
-			logger.Info("Acquired cluster self removal lock", logger.Ctx{"member": name})
+			logger.Info("Acquired cluster self removal lock", slog.String("member", name))
 
 			go func() {
 				<-r.Context().Done() // Wait until request is finished.
 
-				logger.Info("Releasing cluster self removal lock", logger.Ctx{"member": name})
+				logger.Info("Releasing cluster self removal lock", slog.String("member", name))
 				clusterDisableMu.Unlock()
 			}()
 		}
@@ -487,7 +503,7 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 
 	// If we can't find the node in dqlite, that means it failed to fully initialize. It still might have a record in our database so continue along anyway.
 	if index < 0 {
-		logger.Errorf("No dqlite record exists for %q, deleting from internal record instead", remote.Name)
+		logger.Error(fmt.Sprintf("No dqlite record exists for %q, deleting from internal record instead", remote.Name))
 	}
 
 	var clusterMembers []cluster.CoreClusterMember
@@ -558,13 +574,18 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 			return response.SmartError(err)
 		}
 
+		logger, logErr := log.LoggerFromContext(r.Context())
+		if logErr != nil {
+			return response.InternalError(err)
+		}
+
 		clusterDisableMu.Lock()
-		logger.Info("Acquired cluster self removal lock", logger.Ctx{"member": name})
+		logger.Info("Acquired cluster self removal lock", slog.String("member", name))
 
 		go func() {
 			<-r.Context().Done() // Wait until request is finished.
 
-			logger.Info("Releasing cluster self removal lock", logger.Ctx{"member": name})
+			logger.Info("Releasing cluster self removal lock", slog.String("member", name))
 			clusterDisableMu.Unlock()
 		}()
 

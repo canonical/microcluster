@@ -5,15 +5,16 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"path/filepath"
 
 	"github.com/canonical/lxd/shared/api"
-	"github.com/canonical/lxd/shared/logger"
 	"github.com/gorilla/mux"
 
 	"github.com/canonical/microcluster/v3/cluster"
+	"github.com/canonical/microcluster/v3/internal/log"
 	internalAccess "github.com/canonical/microcluster/v3/internal/rest/access"
 	"github.com/canonical/microcluster/v3/internal/rest/client"
 	internalState "github.com/canonical/microcluster/v3/internal/state"
@@ -71,9 +72,14 @@ func proxyTarget(action rest.EndpointAction, s state.State, r *http.Request) res
 		return action.Handler(s, r)
 	}
 
+	logger, err := log.LoggerFromContext(r.Context())
+	if err != nil {
+		return response.InternalError(err)
+	}
+
 	values, err := url.ParseQuery(r.URL.RawQuery)
 	if err != nil {
-		logger.Warnf("Failed to parse query string %q: %v", r.URL.RawQuery, err)
+		logger.Warn(fmt.Sprintf("Failed to parse query string %q: %v", r.URL.RawQuery, err))
 	}
 
 	var target string
@@ -116,7 +122,7 @@ func proxyTarget(action rest.EndpointAction, s state.State, r *http.Request) res
 	r.URL.Host = targetURL.URL.Host
 	r.Host = targetURL.URL.Host
 
-	logger.Info("Forwarding request to specified target", logger.Ctx{"source": s.Name(), "target": target})
+	logger.Info("Forwarding request to specified target", slog.String("source", s.Name()), slog.String("target", target))
 	resp, err := client.MakeRequest(r)
 	if err != nil {
 		return response.SmartError(fmt.Errorf("Failed to send request to target %q: %w", target, err))
@@ -191,11 +197,18 @@ func HandleEndpoint(state state.State, mux *mux.Router, version string, e rest.E
 		// Actually process the request.
 		var resp response.Response
 
+		logger, err := log.LoggerFromContext(r.Context())
+		if err != nil {
+			// Ignore the error as we cannot log it anyway.
+			_ = response.BadRequest(err).Render(w, r)
+			return
+		}
+
 		intState, err := internalState.ToInternal(state)
 		if err != nil {
 			err := response.BadRequest(err).Render(w, r)
 			if err != nil {
-				logger.Error("Failed to write HTTP response", logger.Ctx{"url": r.URL, "err": err})
+				logger.Error("Failed to write HTTP response", slog.String("url", r.URL.String()), slog.String("error", err.Error()))
 			}
 
 			return
@@ -205,7 +218,7 @@ func HandleEndpoint(state state.State, mux *mux.Router, version string, e rest.E
 		if intState.Context.Err() == context.Canceled && !e.AllowedDuringShutdown {
 			err := response.Unavailable(fmt.Errorf("Daemon is shutting down")).Render(w, r)
 			if err != nil {
-				logger.Error("Failed to write HTTP response", logger.Ctx{"url": r.URL, "err": err})
+				logger.Error("Failed to write HTTP response", slog.String("url", r.URL.String()), slog.String("error", err.Error()))
 			}
 
 			return
@@ -216,7 +229,7 @@ func HandleEndpoint(state state.State, mux *mux.Router, version string, e rest.E
 			if err != nil {
 				err := response.SmartError(err).Render(w, r)
 				if err != nil {
-					logger.Error("Failed to write HTTP response", logger.Ctx{"url": r.URL, "err": err})
+					logger.Error("Failed to write HTTP response", slog.String("url", r.URL.String()), slog.String("error", err.Error()))
 				}
 
 				return
@@ -262,7 +275,7 @@ func HandleEndpoint(state state.State, mux *mux.Router, version string, e rest.E
 			if err != nil {
 				err := response.InternalError(err).Render(w, r)
 				if err != nil {
-					logger.Error("Failed writing error for HTTP response", logger.Ctx{"url": url, "error": err})
+					logger.Error("Failed writing error for HTTP response", slog.String("url", url), slog.String("error", err.Error()))
 				}
 			}
 		}

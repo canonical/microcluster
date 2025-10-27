@@ -5,16 +5,17 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/canonical/lxd/shared/logger"
 	"github.com/gorilla/mux"
 
 	"github.com/canonical/microcluster/v3/client"
+	"github.com/canonical/microcluster/v3/internal/log"
 	internalState "github.com/canonical/microcluster/v3/internal/state"
 	"github.com/canonical/microcluster/v3/rest"
 	"github.com/canonical/microcluster/v3/rest/access"
@@ -46,7 +47,12 @@ func clusterCertificatesPut(s state.State, r *http.Request) response.Response {
 
 	err = s.Database().IsOpen(r.Context())
 	if err != nil {
-		logger.Warn(fmt.Sprintf("Database is offline, only updating local %q certificate", certificateName), logger.Ctx{"error": err})
+		logger, logErr := log.LoggerFromContext(r.Context())
+		if logErr != nil {
+			return response.InternalError(err)
+		}
+
+		logger.Warn(fmt.Sprintf("Database is offline, only updating local %q certificate", certificateName), slog.String("error", err.Error()))
 	}
 
 	// Forward the request to all other nodes if we are the first.

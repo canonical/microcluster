@@ -10,10 +10,10 @@ import (
 	"time"
 
 	"github.com/canonical/lxd/shared"
-	"github.com/canonical/lxd/shared/logger"
 	"github.com/gorilla/mux"
 
 	"github.com/canonical/microcluster/v3/cluster"
+	"github.com/canonical/microcluster/v3/internal/log"
 	internalTypes "github.com/canonical/microcluster/v3/internal/rest/types"
 	"github.com/canonical/microcluster/v3/internal/state"
 	"github.com/canonical/microcluster/v3/internal/utils"
@@ -67,8 +67,13 @@ func tokensPost(state state.State, r *http.Request) response.Response {
 		joinAddresses = append(joinAddresses, addr)
 	}
 
+	logger, err := log.LoggerFromContext(r.Context())
+	if err != nil {
+		return response.InternalError(err)
+	}
+
 	if len(joinAddresses) == 0 {
-		logger.Warnf("Failed to check trust store for eligible join addresses. Issuing token with join address %q", state.Address().URL.Host)
+		logger.Warn(fmt.Sprintf("Failed to check trust store for eligible join addresses. Issuing token with join address %q", state.Address().URL.Host))
 		joinAddresses, err = types.ParseAddrPorts([]string{state.Address().URL.Host})
 		if err != nil {
 			return response.SmartError(err)

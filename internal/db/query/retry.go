@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log/slog"
 	"math"
 	"math/rand/v2"
 	"net/http"
@@ -13,8 +14,9 @@ import (
 
 	"github.com/canonical/go-dqlite/v3/driver"
 	"github.com/canonical/lxd/shared/api"
-	"github.com/canonical/lxd/shared/logger"
 	"github.com/mattn/go-sqlite3"
+
+	"github.com/canonical/microcluster/v3/internal/log"
 )
 
 const maxRetries = 250
@@ -24,7 +26,10 @@ const maxRetries = 250
 // This should by typically used to wrap transactions.
 // This implementation matches LXD's Retry function.
 func Retry(ctx context.Context, f func(ctx context.Context) error) error {
-	var err error
+	logger, err := log.LoggerFromContext(ctx)
+	if err != nil {
+		return err
+	}
 
 	for i := range maxRetries {
 		err = f(ctx)
@@ -45,16 +50,16 @@ func Retry(ctx context.Context, f func(ctx context.Context) error) error {
 
 		// Process actual errors.
 		if !IsRetriableError(err) {
-			logger.Debug("Database error", logger.Ctx{"err": err})
+			logger.Debug("Database error", slog.String("error", err.Error()))
 			break
 		}
 
 		if i == maxRetries {
-			logger.Warn("Database error, giving up", logger.Ctx{"attempt": i, "err": err})
+			logger.Warn("Database error, giving up", slog.Int("attempt", i), slog.String("error", err.Error()))
 			break
 		}
 
-		logger.Debug("Database error, retrying", logger.Ctx{"attempt": i, "err": err})
+		logger.Debug("Database error, retrying", slog.Int("attempt", i), slog.String("error", err.Error()))
 		time.Sleep(jitterDeviation(0.8, 100*time.Millisecond))
 	}
 

@@ -5,10 +5,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
-	"github.com/canonical/lxd/shared/logger"
+	"github.com/canonical/microcluster/v3/internal/log"
 )
 
 // Transaction executes the given function within a database transaction with a 10s context timeout.
@@ -30,7 +31,7 @@ func Transaction(ctx context.Context, db *sql.DB, f func(context.Context, *sql.T
 
 	err = f(ctx, tx)
 	if err != nil {
-		return rollback(tx, err)
+		return rollback(ctx, tx, err)
 	}
 
 	err = tx.Commit()
@@ -45,10 +46,15 @@ func Transaction(ctx context.Context, db *sql.DB, f func(context.Context, *sql.T
 // succeeds the given error is returned, otherwise a new error that wraps it
 // gets generated and returned.
 // This implementation matches LXD's rollback function.
-func rollback(tx *sql.Tx, reason error) error {
-	err := Retry(context.TODO(), func(_ context.Context) error { return tx.Rollback() })
+func rollback(ctx context.Context, tx *sql.Tx, reason error) error {
+	err := Retry(ctx, func(_ context.Context) error { return tx.Rollback() })
 	if err != nil {
-		logger.Warnf("Failed to rollback transaction after error (%v): %v", reason, err)
+		logger, logErr := log.LoggerFromContext(ctx)
+		if logErr != nil {
+			return logErr
+		}
+
+		logger.Warn("Failed to rollback transaction after error", slog.String("reason", reason.Error()), slog.String("error", err.Error()))
 	}
 
 	return reason

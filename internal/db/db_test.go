@@ -163,15 +163,14 @@ func (s *dbSuite) Test_waitUpgradeSchema() {
 		db, err := NewTestDB([]schema.Update{})
 		s.NoError(err)
 
-		ctx := context.Background()
-		tx, err := db.db.BeginTx(ctx, nil)
+		tx, err := db.db.BeginTx(db.ctx, nil)
 		s.NoError(err)
 
 		apiExtensions, err := extensions.NewExtensionRegistry(true)
 		s.NoError(err)
 
 		// Generate a cluster member for the local node.
-		_, err = cluster.CreateCoreClusterMember(ctx, tx, cluster.CoreClusterMember{
+		_, err = cluster.CreateCoreClusterMember(db.ctx, tx, cluster.CoreClusterMember{
 			Name:           fmt.Sprintf("cluster-member-%d", 0),
 			Address:        fmt.Sprintf("10.0.0.%d:8443", 0),
 			Certificate:    fmt.Sprintf("test-cert-%d", 0),
@@ -186,7 +185,7 @@ func (s *dbSuite) Test_waitUpgradeSchema() {
 
 		// Generate a cluster member entry for all other expected nodes.
 		for j, clusterMember := range t.clusterMembers {
-			_, err = cluster.CreateCoreClusterMember(ctx, tx, cluster.CoreClusterMember{
+			_, err = cluster.CreateCoreClusterMember(db.ctx, tx, cluster.CoreClusterMember{
 				Name:           fmt.Sprintf("cluster-member-%d", j+1),
 				Address:        fmt.Sprintf("10.0.0.%d:8443", j+1),
 				Certificate:    fmt.Sprintf("test-cert-%d", j+1),
@@ -247,13 +246,13 @@ func (s *dbSuite) Test_waitUpgradeSchema() {
 			s.NoError(err)
 		}
 
-		tx, err = db.db.BeginTx(ctx, nil)
+		tx, err = db.db.BeginTx(db.ctx, nil)
 		s.NoError(err)
 
-		schemaInternal, err := query.SelectIntegers(ctx, tx, "SELECT schema_internal FROM core_cluster_members ORDER BY id")
+		schemaInternal, err := query.SelectIntegers(db.ctx, tx, "SELECT schema_internal FROM core_cluster_members ORDER BY id")
 		s.NoError(err)
 
-		schemaExternal, err := query.SelectIntegers(ctx, tx, "SELECT schema_external FROM core_cluster_members ORDER BY id")
+		schemaExternal, err := query.SelectIntegers(db.ctx, tx, "SELECT schema_external FROM core_cluster_members ORDER BY id")
 		s.NoError(err)
 
 		s.NoError(tx.Commit())
@@ -670,7 +669,7 @@ func NewTestDB(extensionsExternal []schema.Update) (*DqliteDB, error) {
 	}
 
 	db.SetSchema(extensionsExternal, nil)
-	_, err = db.schema.Ensure(db.db)
+	_, err = db.schema.Ensure(ctx, db.db)
 	if err != nil {
 		return nil, err
 	}

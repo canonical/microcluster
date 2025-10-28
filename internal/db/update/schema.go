@@ -73,13 +73,13 @@ func (s *SchemaUpdate) Version() (internalVersion uint64, externalVersion uint64
 //
 // If no error occurs, the integer returned by this method is the
 // initial version that the schema has been upgraded from.
-func (s *SchemaUpdate) Ensure(db *sql.DB) (int, error) {
+func (s *SchemaUpdate) Ensure(ctx context.Context, db *sql.DB) (int, error) {
 	var current int
 	aborted := false
 	versions := []int{0, 0}
 	var updateSchemaTable bool
 	var exists bool
-	err := query.Transaction(context.TODO(), db, func(ctx context.Context, tx *sql.Tx) error {
+	err := query.Transaction(ctx, db, func(ctx context.Context, tx *sql.Tx) error {
 		err := execFromFile(ctx, tx, s.path, s.hook)
 		if err != nil {
 			return fmt.Errorf("Failed to execute queries from %s: %w", s.path, err)
@@ -119,7 +119,7 @@ func (s *SchemaUpdate) Ensure(db *sql.DB) (int, error) {
 		}
 	}
 
-	err = query.Transaction(context.TODO(), db, func(ctx context.Context, tx *sql.Tx) error {
+	err = query.Transaction(ctx, db, func(ctx context.Context, tx *sql.Tx) error {
 		if exists && updateSchemaTable {
 			versions, err = query.SelectIntegers(ctx, tx, "SELECT COALESCE(MAX(version), 0) FROM schemas")
 			if err != nil {

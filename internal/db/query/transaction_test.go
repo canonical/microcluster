@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log/slog"
 	"testing"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -11,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/canonical/microcluster/v3/internal/db/query"
+	"github.com/canonical/microcluster/v3/internal/log"
 )
 
 // Any error happening when beginning the transaction will be propagated.
@@ -31,7 +33,11 @@ func TestTransaction_BeginError(t *testing.T) {
 // This test matches LXD's TestTransaction_FunctionError.
 func TestTransaction_FunctionError(t *testing.T) {
 	db := newDB(t)
-	err := query.Transaction(context.TODO(), db, func(ctx context.Context, tx *sql.Tx) error {
+
+	// Populate the context with the logger as this is required for a failing transaction.
+	ctx := context.WithValue(context.TODO(), log.CtxLogger, slog.Default())
+
+	err := query.Transaction(ctx, db, func(ctx context.Context, tx *sql.Tx) error {
 		_, err := tx.Exec("CREATE TABLE test (id INTEGER)")
 		assert.NoError(t, err)
 		return errors.New("boom")

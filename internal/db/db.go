@@ -191,8 +191,8 @@ func (db *DqliteDB) waitUpgrade(bootstrap bool, ext extensions.Extensions) error
 		newSchema.Check(checkVersions)
 	}
 
-	err := db.retry(context.TODO(), func(_ context.Context) error {
-		_, err := newSchema.Ensure(db.db)
+	err := db.retry(db.ctx, func(ctx context.Context) error {
+		_, err := newSchema.Ensure(ctx, db.db)
 		if err != nil {
 			return err
 		}
@@ -200,7 +200,7 @@ func (db *DqliteDB) waitUpgrade(bootstrap bool, ext extensions.Extensions) error
 		if !bootstrap {
 			otherNodesBehindAPI := false
 			// Perform the API extensions check.
-			err = query.Transaction(context.TODO(), db.db, func(ctx context.Context, tx *sql.Tx) error {
+			err = query.Transaction(ctx, db.db, func(ctx context.Context, tx *sql.Tx) error {
 				err := update.UpdateClusterMemberAPIExtensions(ctx, tx, ext, db.memberName())
 				if err != nil {
 					return fmt.Errorf("Failed to update API extensions when joining cluster: %w", err)

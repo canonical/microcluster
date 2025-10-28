@@ -56,7 +56,7 @@ func (s *updateSuite) Test_updateFromV1ClusterMembers() {
 	schemaMgr.AppendSchema([]schema.Update{dummyUpdate, dummyUpdate}, nil)
 
 	// Apply the updates the regular way.
-	_, err = schemaMgr.Schema().Ensure(db)
+	_, err = schemaMgr.Schema().Ensure(context.TODO(), db)
 	s.NoError(err)
 
 	tx, err = db.BeginTx(ctx, nil)
@@ -207,7 +207,7 @@ func (s *updateSuite) Test_updateFromV1() {
 		schema.updates[updateInternal] = append(schema.updates[updateInternal], t.upgradesInternal...)
 		schema.updates[updateExternal] = append(schema.updates[updateExternal], t.upgradesExternal...)
 
-		_, err = schema.Schema().Ensure(db)
+		_, err = schema.Schema().Ensure(context.TODO(), db)
 		s.NoError(err)
 
 		ctx := context.Background()
@@ -235,7 +235,7 @@ func NewTestDBWithSchema(schemaManager *SchemaUpdateManager) (*sql.DB, error) {
 	}
 
 	schema := schemaManager.Schema()
-	_, err = schema.Ensure(db)
+	_, err = schema.Ensure(context.TODO(), db)
 	if err != nil {
 		return nil, err
 	}

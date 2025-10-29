@@ -117,7 +117,7 @@ func (s *OS) DatabasePath() string {
 
 // ServerCert gets the local server certificate from the state directory.
 func (s *OS) ServerCert() (*shared.CertInfo, error) {
-	cert, err := shared.KeyPairAndCA(s.StateDir, "server", shared.CertServer, shared.CertOptions{})
+	cert, err := shared.KeyPairAndCA(s.StateDir, string(types.ServerCertificateName), shared.CertServer, shared.CertOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("Failed to load TLS certificate: %w", err)
 	}

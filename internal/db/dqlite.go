@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -20,7 +21,6 @@ import (
 	dqliteClient "github.com/canonical/go-dqlite/v3/client"
 	"github.com/canonical/lxd/shared"
 	"github.com/canonical/lxd/shared/api"
-	"github.com/canonical/lxd/shared/logger"
 	"github.com/canonical/lxd/shared/revert"
 	"github.com/canonical/lxd/shared/tcp"
 
@@ -28,6 +28,7 @@ import (
 	"github.com/canonical/microcluster/v3/internal/db/schema"
 	"github.com/canonical/microcluster/v3/internal/db/update"
 	"github.com/canonical/microcluster/v3/internal/extensions"
+	"github.com/canonical/microcluster/v3/internal/log"
 	internalClient "github.com/canonical/microcluster/v3/internal/rest/client"
 	internalTypes "github.com/canonical/microcluster/v3/internal/rest/types"
 	"github.com/canonical/microcluster/v3/internal/sys"
@@ -105,6 +106,12 @@ func NewDB(ctx context.Context, serverCert func() *shared.CertInfo, clusterCert 
 	}
 
 	return db, nil
+}
+
+// log is a convenience to retrieve the internal logger from the database's context.
+// We always expect the logger to be present.
+func (db *DqliteDB) log() *slog.Logger {
+	return db.ctx.Value(log.CtxLogger).(*slog.Logger) //nolint:revive
 }
 
 // SetSchema sets schema and API extensions on the DB.
@@ -197,7 +204,7 @@ func (db *DqliteDB) Join(extensions extensions.Extensions, addr api.URL, joinAdd
 
 		// If this is a graceful abort, then we should loop back and try to start the database again.
 		if errors.Is(err, update.ErrGracefulAbort) {
-			logger.Debug("Re-attempting schema upgrade and API extension checks", logger.Ctx{"address": db.listenAddr.String()})
+			db.log().Debug("Re-attempting schema upgrade and API extension checks", slog.String("address", db.listenAddr.String()))
 
 			continue
 		}
@@ -342,18 +349,18 @@ func (db *DqliteDB) heartbeat(leaderInfo dqliteClient.NodeInfo, servers []dqlite
 	defer db.heartbeatLock.Unlock()
 
 	if db.IsOpen(db.ctx) != nil {
-		logger.Debug("Database is not yet open, aborting heartbeat", logger.Ctx{"address": db.listenAddr.String()})
+		db.log().Debug("Database is not yet open, aborting heartbeat", slog.String("address", db.listenAddr.String()))
 		return nil
 	}
 
 	if leaderInfo.Address != db.listenAddr.URL.Host {
-		logger.Debug("Not performing heartbeat, this system is not the dqlite leader", logger.Ctx{"address": db.listenAddr.String()})
+		db.log().Debug("Not performing heartbeat, this system is not the dqlite leader", slog.String("address", db.listenAddr.String()))
 		return nil
 	}
 
 	client, err := internalClient.New(db.os.ControlSocket(), nil, nil, false)
 	if err != nil {
-		logger.Error("Failed to get local client", logger.Ctx{"address": db.listenAddr.String(), "error": err})
+		db.log().Error("Failed to get local client", slog.String("address", db.listenAddr.String()), slog.String("error", err.Error()))
 		return nil
 	}
 
@@ -370,7 +377,7 @@ func (db *DqliteDB) heartbeat(leaderInfo dqliteClient.NodeInfo, servers []dqlite
 
 	err = db.SendHeartbeat(db.ctx, client, hbInfo)
 	if err != nil && err.Error() != "Attempt to initiate heartbeat from non-leader" {
-		logger.Error("Failed to initiate heartbeat round", logger.Ctx{"address": db.dqlite.Address(), "error": err})
+		db.log().Error("Failed to initiate heartbeat round", slog.String("address", db.dqlite.Address()), slog.String("error", err.Error()))
 		return nil
 	}
 
@@ -426,20 +433,20 @@ func dqliteNetworkDial(ctx context.Context, addr string, db *DqliteDB) (net.Conn
 	revert.Add(func() {
 		err := conn.Close()
 		if err != nil {
-			logger.Error("Failed to close connection to dqlite", logger.Ctx{"error": err})
+			db.log().Error("Failed to close connection to dqlite", slog.String("error", err.Error()))
 		}
 	})
-	logCtx := logger.AddContext(logger.Ctx{"local": conn.LocalAddr().String(), "remote": conn.RemoteAddr().String()})
-	logCtx.Debug("Successfully established outbound dqlite connection")
+	slogGroup := slog.Group("peers", slog.String("local", conn.LocalAddr().String()), slog.String("remote", conn.RemoteAddr().String()))
+	db.log().Debug("Successfully established outbound dqlite connection", slogGroup)
 
 	// Set outbound timeouts.
 	remoteTCP, err := tcp.ExtractConn(conn)
 	if err != nil {
-		logCtx.Error("Failed extracting TCP connection from remote connection", logger.Ctx{"error": err})
+		db.log().Error("Failed extracting TCP connection from remote connection", slogGroup, slog.String("error", err.Error()))
 	} else {
 		err := tcp.SetTimeouts(remoteTCP, 0)
 		if err != nil {
-			logCtx.Error("Failed setting TCP timeouts on remote connection", logger.Ctx{"error": err})
+			db.log().Error("Failed setting TCP timeouts on remote connection", slogGroup, slog.String("error", err.Error()))
 		}
 	}
 
@@ -456,13 +463,13 @@ func dqliteNetworkDial(ctx context.Context, addr string, db *DqliteDB) (net.Conn
 	revert.Add(func() {
 		err := response.Body.Close()
 		if err != nil {
-			logCtx.Error("Failed to close dqlite response body", logger.Ctx{"error": err})
+			db.log().Error("Failed to close dqlite response body", slog.String("error", err.Error()))
 		}
 	})
 
 	_, err = io.Copy(io.Discard, response.Body)
 	if err != nil {
-		logger.Error("Failed to read dqlite response body", logger.Ctx{"error": err})
+		db.log().Error("Failed to read dqlite response body", slog.String("error", err.Error()))
 	}
 
 	// We are done reading the response body. Close it.

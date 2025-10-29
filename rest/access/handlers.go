@@ -3,12 +3,13 @@ package access
 import (
 	"crypto/x509"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/canonical/lxd/lxd/util"
-	"github.com/canonical/lxd/shared/logger"
 
 	"github.com/canonical/microcluster/v3/internal/endpoints"
+	"github.com/canonical/microcluster/v3/internal/log"
 	"github.com/canonical/microcluster/v3/internal/rest/access"
 	"github.com/canonical/microcluster/v3/internal/rest/client"
 	internalState "github.com/canonical/microcluster/v3/internal/state"
@@ -60,6 +61,11 @@ func Authenticate(state state.State, r *http.Request, hostAddress string, truste
 		return false, err
 	}
 
+	logger, err := log.LoggerFromContext(r.Context())
+	if err != nil {
+		return false, err
+	}
+
 	// Check if it's the core API listener and if it is using the server.crt.
 	// This indicates that the daemon is in a pre-init state and is listening on the PreInitListenAddress.
 	endpoint := intState.Endpoints.Get(endpoints.EndpointsCore)
@@ -83,8 +89,7 @@ func Authenticate(state state.State, r *http.Request, hostAddress string, truste
 			for _, cert := range r.TLS.PeerCertificates {
 				trusted, fingerprint := util.CheckMutualTLS(*cert, trustedCerts)
 				if trusted {
-					logger.Debugf("Trusting HTTP request to %q from %q with fingerprint %q", r.URL.String(), r.RemoteAddr, fingerprint)
-
+					logger.Debug("Authenticated request", slog.String("origin", r.RemoteAddr), slog.String("destination", r.URL.String()), slog.String("fingerprint", fingerprint))
 					return trusted, nil
 				}
 			}

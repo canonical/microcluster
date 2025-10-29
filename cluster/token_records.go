@@ -4,11 +4,12 @@ import (
 	"context"
 	"crypto/x509"
 	"database/sql"
+	"log/slog"
 	"time"
 
 	"github.com/canonical/lxd/shared"
-	"github.com/canonical/lxd/shared/logger"
 
+	"github.com/canonical/microcluster/v3/internal/log"
 	internalTypes "github.com/canonical/microcluster/v3/internal/rest/types"
 	"github.com/canonical/microcluster/v3/rest/types"
 )
@@ -78,6 +79,11 @@ func DeleteExpiredCoreTokenRecords(ctx context.Context, tx *sql.Tx) error {
 		return err
 	}
 
+	logger, err := log.LoggerFromContext(ctx)
+	if err != nil {
+		return err
+	}
+
 	for _, token := range tokens {
 		if token.Expired() {
 			err = DeleteCoreTokenRecord(ctx, tx, token.Name)
@@ -85,7 +91,7 @@ func DeleteExpiredCoreTokenRecords(ctx context.Context, tx *sql.Tx) error {
 				return err
 			}
 
-			logger.Info("Removed expired join token", logger.Ctx{"name": token.Name})
+			logger.Info("Removed expired join token", slog.String("name", token.Name))
 		}
 	}
 

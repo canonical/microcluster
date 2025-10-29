@@ -5,14 +5,14 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
 
-	"github.com/canonical/lxd/shared/logger"
-
 	"github.com/canonical/microcluster/v3/client"
 	"github.com/canonical/microcluster/v3/cluster"
+	"github.com/canonical/microcluster/v3/internal/log"
 	internalTypes "github.com/canonical/microcluster/v3/internal/rest/types"
 	internalState "github.com/canonical/microcluster/v3/internal/state"
 	"github.com/canonical/microcluster/v3/rest"
@@ -120,6 +120,11 @@ func beginHeartbeat(ctx context.Context, s state.State, hbReq internalTypes.Hear
 		return response.SmartError(err)
 	}
 
+	logger, err := log.LoggerFromContext(ctx)
+	if err != nil {
+		return response.InternalError(err)
+	}
+
 	// Get dqlite record of cluster members.
 	if len(clusterMembers) == 0 || len(hbReq.DqliteRoles) == 0 {
 		logger.Info("Skipping heartbeat as the cluster is still initializing")
@@ -138,7 +143,7 @@ func beginHeartbeat(ctx context.Context, s state.State, hbReq internalTypes.Hear
 
 		// If a cluster member is pending and dqlite does not have a record for it yet, then skip it this round.
 		if !ok && clusterMember.Role == string(cluster.Pending) {
-			logger.Debug("Skipping heartbeat for pending cluster member", logger.Ctx{"address": clusterMember.Address})
+			logger.Debug("Skipping heartbeat for pending cluster member", slog.String("address", clusterMember.Address.String()))
 			continue
 		}
 
@@ -155,12 +160,12 @@ func beginHeartbeat(ctx context.Context, s state.State, hbReq internalTypes.Hear
 	heartbeatInterval := time.Duration(intState.InternalDatabase.GetHeartbeatInterval())
 	timeSinceLast := time.Since(leaderEntry.LastHeartbeat)
 	if timeSinceLast < heartbeatInterval {
-		logger.Debugf("Heartbeat was already sent %q ago, skipping heartbeat round", timeSinceLast.String())
+		logger.Debug(fmt.Sprintf("Heartbeat was already sent %q ago, skipping heartbeat round", timeSinceLast.String()))
 
 		return response.EmptySyncResponse
 	}
 
-	logger.Debug("Beginning new heartbeat round", logger.Ctx{"address": s.Address().URL.Host})
+	logger.Debug("Beginning new heartbeat round", slog.String("address", s.Address().URL.Host))
 
 	// Update local record of cluster members from the database, including any pending nodes for authentication.
 	err = s.Remotes().Replace(s.FileSystem().TrustDir, clusterMembers...)
@@ -200,19 +205,19 @@ func beginHeartbeat(ctx context.Context, s state.State, hbReq internalTypes.Hear
 		currentMember, ok := hbInfo.ClusterMembers[addr]
 		mapLock.RUnlock()
 		if !ok {
-			logger.Warnf("Skipping heartbeat cluster member record with address %v due to pending status", addr)
+			logger.Warn(fmt.Sprintf("Skipping heartbeat cluster member record with address %v due to pending status", addr))
 			return nil
 		}
 
 		timeSinceLast := time.Since(currentMember.LastHeartbeat)
 		if timeSinceLast < time.Duration(intState.InternalDatabase.GetHeartbeatInterval()) {
-			logger.Warnf("Skipping heartbeat to %q, one was sent %q ago", currentMember.Name, timeSinceLast.String())
+			logger.Warn(fmt.Sprintf("Skipping heartbeat to %q, one was sent %q ago", currentMember.Name, timeSinceLast.String()))
 			return nil
 		}
 
 		err := intState.InternalDatabase.SendHeartbeat(ctx, &c.Client, hbInfo)
 		if err != nil {
-			logger.Error("Received error sending heartbeat to cluster member", logger.Ctx{"target": addr, "error": err})
+			logger.Error("Received error sending heartbeat to cluster member", slog.String("target", addr), slog.String("error", err.Error()))
 			return nil
 		}
 

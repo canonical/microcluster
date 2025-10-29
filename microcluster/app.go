@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -13,12 +14,12 @@ import (
 	"time"
 
 	"github.com/canonical/lxd/shared/api"
-	"github.com/canonical/lxd/shared/logger"
 	"golang.org/x/sys/unix"
 
 	"github.com/canonical/microcluster/v3/client"
 	"github.com/canonical/microcluster/v3/cluster"
 	"github.com/canonical/microcluster/v3/internal/daemon"
+	"github.com/canonical/microcluster/v3/internal/log"
 	"github.com/canonical/microcluster/v3/internal/recover"
 	internalClient "github.com/canonical/microcluster/v3/internal/rest/client"
 	internalTypes "github.com/canonical/microcluster/v3/internal/rest/types"
@@ -40,12 +41,22 @@ type MicroCluster struct {
 type Args struct {
 	StateDir string
 
+	// LogHandler can be used to pass a custom logging handler to Microcluster.
+	// The handler allows setting options like the log level and output.
+	// If none is provided a default handler is used.
+	LogHandler slog.Handler
+
 	Client *client.Client
 	Proxy  func(*http.Request) (*url.URL, error)
 }
 
 // App returns an instance of MicroCluster with a newly initialized filesystem if one does not exist.
 func App(args Args) (*MicroCluster, error) {
+	// Initialize the logging handler if none was provided.
+	if args.LogHandler == nil {
+		args.LogHandler = slog.NewTextHandler(os.Stdout, nil)
+	}
+
 	if args.StateDir == "" {
 		return nil, fmt.Errorf("Missing state directory")
 	}
@@ -69,11 +80,7 @@ func App(args Args) (*MicroCluster, error) {
 // Start starts up a brand new MicroCluster daemon. Only the local control socket will be available at this stage, no
 // database exists yet. Any api or schema extensions can be applied here.
 func (m *MicroCluster) Start(ctx context.Context, daemonArgs DaemonArgs) error {
-	// Initialize the logger.
-	err := logger.InitLogger(m.FileSystem.LogFile, "", daemonArgs.Verbose, daemonArgs.Debug, nil)
-	if err != nil {
-		return err
-	}
+	logger := m.LoggerFromContext(ctx)
 
 	// Start up a daemon with a basic control socket.
 	defer logger.Info("Daemon stopped")
@@ -85,7 +92,10 @@ func (m *MicroCluster) Start(ctx context.Context, daemonArgs DaemonArgs) error {
 	ctx, cancel := signal.NotifyContext(ctx, unix.SIGPWR, unix.SIGTERM, unix.SIGINT, unix.SIGQUIT)
 	defer cancel()
 
-	err = d.Run(ctx, m.FileSystem.StateDir, daemonArgs)
+	// Attach the logger to the parent context.
+	ctx = context.WithValue(ctx, log.CtxLogger, logger)
+
+	err := d.Run(ctx, m.FileSystem.StateDir, daemonArgs)
 	if err != nil {
 		return fmt.Errorf("Daemon stopped with error: %w", err)
 	}
@@ -112,6 +122,8 @@ func (m *MicroCluster) Status(ctx context.Context) (*internalTypes.Server, error
 // Ready waits for the daemon to report it has finished initial setup and is ready to be bootstrapped or join an
 // existing cluster.
 func (m *MicroCluster) Ready(ctx context.Context) error {
+	logger := slog.New(m.args.LogHandler)
+
 	finger := make(chan error, 1)
 	var errLast error
 	go func() {
@@ -127,14 +139,14 @@ func (m *MicroCluster) Ready(ctx context.Context) error {
 			}
 
 			if doLog {
-				logger.Debugf("Connecting to MicroCluster daemon (attempt %d)", i)
+				logger.Debug(fmt.Sprintf("Connecting to MicroCluster daemon (attempt %d)", i))
 			}
 
 			c, err := m.LocalClient()
 			if err != nil {
 				errLast = err
 				if doLog {
-					logger.Debugf("Failed connecting to MicroCluster daemon (attempt %d): %v", i, err)
+					logger.Debug(fmt.Sprintf("Failed connecting to MicroCluster daemon (attempt %d): %v", i, err))
 				}
 
 				time.Sleep(500 * time.Millisecond)
@@ -142,14 +154,14 @@ func (m *MicroCluster) Ready(ctx context.Context) error {
 			}
 
 			if doLog {
-				logger.Debugf("Checking if MicroCluster daemon is ready (attempt %d)", i)
+				logger.Debug(fmt.Sprintf("Checking if MicroCluster daemon is ready (attempt %d)", i))
 			}
 
 			err = c.CheckReady(ctx)
 			if err != nil {
 				errLast = err
 				if doLog {
-					logger.Debugf("Failed to check if MicroCluster daemon is ready (attempt %d): %v", i, err)
+					logger.Debug(fmt.Sprintf("Failed to check if MicroCluster daemon is ready (attempt %d): %v", i, err))
 				}
 
 				time.Sleep(500 * time.Millisecond)
@@ -238,7 +250,12 @@ func (m *MicroCluster) RecoverFromQuorumLoss(members []cluster.DqliteMember) (st
 		return "", err
 	}
 
-	return recover.RecoverFromQuorumLoss(m.FileSystem, members)
+	// Derive a new context with the central logger attached.
+	// As we don't have a running daemon at this stage, we cannot use its context.
+	// Instead we use the logger populated for the app which uses the custom handler if supplied.
+	ctx := context.WithValue(context.Background(), log.CtxLogger, m.LoggerFromContext(context.Background()))
+
+	return recover.RecoverFromQuorumLoss(ctx, m.FileSystem, members)
 }
 
 // NewJoinToken creates and records a new join token containing all the necessary credentials for joining a cluster.
@@ -393,4 +410,20 @@ func (m *MicroCluster) SQL(ctx context.Context, query string) (string, *internal
 	batch, err := internalClient.PostSQL(ctx, &c.Client, data)
 
 	return "", batch, err
+}
+
+// LoggerFromContext returns a logger instance using the provided logging handler.
+// A default handler is used if none is provided.
+// If the context doesn't contain a logger, a new one is returned instead.
+func (m *MicroCluster) LoggerFromContext(ctx context.Context) *slog.Logger {
+	logger, err := log.LoggerFromContext(ctx)
+	if err != nil {
+		logger := slog.New(m.args.LogHandler)
+		logger.Warn("Failed to get logger from context", slog.String("error", err.Error()))
+
+		// If the logger cannot be retrieved from the context, return a new logger with the defined logging handler.
+		return logger
+	}
+
+	return logger
 }

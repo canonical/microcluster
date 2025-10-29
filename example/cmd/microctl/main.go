@@ -2,6 +2,7 @@
 package main
 
 import (
+	"log/slog"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -14,11 +15,24 @@ import (
 type CmdControl struct {
 	cmd *cobra.Command //nolint:unused // FIXME: Remove the nolint flag when this is in use.
 
-	FlagHelp       bool
-	FlagVersion    bool
-	FlagLogDebug   bool
-	FlagLogVerbose bool
-	FlagStateDir   string
+	FlagHelp     bool
+	FlagVersion  bool
+	FlagLogDebug bool
+	FlagStateDir string
+}
+
+var logHandler slog.Handler
+
+func setLogger(c CmdControl) {
+	logLevel := slog.LevelInfo
+	if c.FlagLogDebug {
+		logLevel = slog.LevelDebug
+	}
+
+	// Create our own logging handler to modify the log level and output.
+	logHandler = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: logLevel,
+	})
 }
 
 func main() {
@@ -31,13 +45,17 @@ func main() {
 		Version:           version.Version(),
 		SilenceUsage:      true,
 		CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
+
+		// PersistentPreRun gets exected right before every command and allows setting up the logger for all commands.
+		PersistentPreRun: func(_ *cobra.Command, _ []string) {
+			setLogger(commonCmd)
+		},
 	}
 
 	app.PersistentFlags().StringVar(&commonCmd.FlagStateDir, "state-dir", "", "Path to store state information"+"``")
 	app.PersistentFlags().BoolVarP(&commonCmd.FlagHelp, "help", "h", false, "Print help")
 	app.PersistentFlags().BoolVar(&commonCmd.FlagVersion, "version", false, "Print version number")
 	app.PersistentFlags().BoolVarP(&commonCmd.FlagLogDebug, "debug", "d", false, "Show all debug messages")
-	app.PersistentFlags().BoolVarP(&commonCmd.FlagLogVerbose, "verbose", "v", false, "Show all information messages")
 
 	app.SetVersionTemplate("{{.Version}}\n")
 

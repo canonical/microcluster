@@ -41,7 +41,10 @@ func (c *cmdInit) run(cmd *cobra.Command, args []string) error {
 		return cmd.Help()
 	}
 
-	m, err := microcluster.App(microcluster.Args{StateDir: c.common.FlagStateDir})
+	m, err := microcluster.App(microcluster.Args{
+		LogHandler: logHandler,
+		StateDir:   c.common.FlagStateDir,
+	})
 	if err != nil {
 		return fmt.Errorf("Unable to configure MicroCluster: %w", err)
 	}

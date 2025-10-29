@@ -4,15 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"sync"
 	"time"
 
-	"github.com/canonical/lxd/shared/logger"
 	"github.com/gorilla/mux"
 
 	"github.com/canonical/microcluster/v3/client"
+	"github.com/canonical/microcluster/v3/internal/log"
 	internalClient "github.com/canonical/microcluster/v3/internal/rest/client"
 	"github.com/canonical/microcluster/v3/internal/trust"
 	"github.com/canonical/microcluster/v3/rest"
@@ -59,6 +60,11 @@ func trustPost(s state.State, r *http.Request) response.Response {
 			return response.SmartError(err)
 		}
 
+		logger, err := log.LoggerFromContext(ctx)
+		if err != nil {
+			return response.InternalError(err)
+		}
+
 		successCount := 0
 		attemptCount := 0
 		var counterMu sync.Mutex
@@ -78,7 +84,7 @@ func trustPost(s state.State, r *http.Request) response.Response {
 			err := internalClient.AddTrustStoreEntry(ctx, &c.Client, req)
 			if err != nil {
 				// log error but continue with other nodes
-				logger.Warn("Failed adding truststore entry to node", logger.Ctx{"node": c.URL().URL.Host, "error": err})
+				logger.Warn("Failed adding truststore entry to node", slog.String("node", c.URL().URL.Host), slog.String("error", err.Error()))
 				return nil
 			}
 

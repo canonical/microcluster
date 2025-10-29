@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"log/slog"
 	"path/filepath"
 	"testing"
 
@@ -13,6 +14,7 @@ import (
 
 	"github.com/canonical/microcluster/v3/internal/config"
 	"github.com/canonical/microcluster/v3/internal/endpoints"
+	"github.com/canonical/microcluster/v3/internal/log"
 	"github.com/canonical/microcluster/v3/internal/sys"
 	"github.com/canonical/microcluster/v3/internal/trust"
 	"github.com/canonical/microcluster/v3/rest"
@@ -187,12 +189,15 @@ func (t *daemonsSuite) Test_UpdateServers() {
 	for i, test := range tests {
 		t.T().Logf("%s (case %d)", test.name, i)
 
+		ctx := context.WithValue(context.TODO(), log.CtxLogger, slog.Default())
+		commonDir := t.T().TempDir()
+
 		// Create a temp watcher.
-		watcher, err := sys.NewWatcher(context.TODO(), t.T().TempDir())
+		watcher, err := sys.NewWatcher(ctx, commonDir)
 		require.NoError(t.T(), err)
 
 		// Create a temp trust store.
-		store, err := trust.Init(watcher, nil, t.T().TempDir())
+		store, err := trust.Init(watcher, nil, commonDir)
 		require.NoError(t.T(), err)
 
 		// Create a new daemon and set some defaults.
@@ -202,7 +207,7 @@ func (t *daemonsSuite) Test_UpdateServers() {
 		daemon.extensionServers = test.extensionServers
 		daemon.endpoints = endpoints.NewEndpoints(context.TODO(), map[string]endpoints.Endpoint{})
 		daemon.clusterCert = shared.TestingAltKeyPair()
-		daemon.shutdownCtx = context.TODO()
+		daemon.shutdownCtx = ctx
 		daemon.trustStore = store
 
 		daemon.os, err = sys.DefaultOS(filepath.Join(t.T().TempDir()), false)

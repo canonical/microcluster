@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -13,7 +14,8 @@ import (
 
 	"github.com/canonical/lxd/shared"
 	"github.com/canonical/lxd/shared/api"
-	"github.com/canonical/lxd/shared/logger"
+
+	"github.com/canonical/microcluster/v3/internal/log"
 )
 
 // Socket represents a unix socket with a given path.
@@ -43,6 +45,12 @@ func NewSocket(ctx context.Context, server *http.Server, path api.URL, group str
 
 		drainConnectionsTimeout: drainConnTimeout,
 	}
+}
+
+// log is a convenience to retrieve the internal logger from the socket's context.
+// We always expect the logger to be present.
+func (s *Socket) log() *slog.Logger {
+	return s.ctx.Value(log.CtxLogger).(*slog.Logger) //nolint:revive
 }
 
 // Type returns the type of the Endpoint.
@@ -76,7 +84,7 @@ func (s *Socket) Listen() error {
 	if err != nil {
 		closeErr := s.listener.Close()
 		if closeErr != nil {
-			logger.Error("Failed to close socket listener", logger.Ctx{"error": closeErr})
+			s.log().Error("Failed to close socket listener", slog.String("error", closeErr.Error()))
 		}
 
 		return err
@@ -91,22 +99,21 @@ func (s *Socket) Serve() {
 		return
 	}
 
-	ctx := logger.Ctx{"socket": s.listener.Addr()}
-	logger.Info(" - binding control socket", ctx)
+	s.log().Info("Binding control socket", slog.String("socket", s.listener.Addr().String()))
 
 	go func() {
 		select {
 		case <-s.ctx.Done():
-			logger.Infof("Received shutdown signal - aborting unix socket server startup")
+			s.log().Info("Received shutdown signal - aborting unix socket server startup")
 		default:
 			// server.Serve always returns a non-nil error.
 			// http.ErrServerClosed is returned after server.Shutdown or server.Close.
 			// net.ErrClosed is returned if the listener is closed.
 			err := s.server.Serve(s.listener)
 			if errors.Is(err, http.ErrServerClosed) || errors.Is(err, net.ErrClosed) {
-				logger.Infof("Received shutdown signal - stopped serving unix socket listener")
+				s.log().Info("Received shutdown signal - stopped serving unix socket listener")
 			} else {
-				logger.Error("Failed to start server", logger.Ctx{"err": err})
+				s.log().Error("Failed to start server", slog.String("error", err.Error()))
 			}
 		}
 	}()
@@ -118,7 +125,7 @@ func (s *Socket) Close() error {
 		return nil
 	}
 
-	logger.Info("Stopping REST API handler - closing socket", logger.Ctx{"socket": s.listener.Addr()})
+	s.log().Info("Stopping REST API handler - closing socket", slog.String("socket", s.listener.Addr().String()))
 	defer s.cancel()
 
 	// s.listener.Close() will mean that we'll no longer accept connections.
@@ -132,7 +139,7 @@ func (s *Socket) Close() error {
 // Note that graceful shutdown will timeout if the connections do not finish (e.g.: a request caused the server
 // to Close the endpoints on the same goroutine).
 func (s *Socket) Shutdown() error {
-	return shutdownServer(s.server, s.drainConnectionsTimeout)
+	return shutdownServer(s.ctx, s.server, s.drainConnectionsTimeout)
 }
 
 // Remove any stale socket file at the given path.
@@ -142,7 +149,7 @@ func (s *Socket) removeStale() error {
 		return nil
 	}
 
-	logger.Debugf("Detected stale control socket, deleting")
+	s.log().Debug("Detected stale control socket, deleting")
 	err := os.Remove(s.Path)
 	if err != nil {
 		return fmt.Errorf("Could not delete stale local socket: %w", err)

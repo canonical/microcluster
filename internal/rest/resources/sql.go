@@ -5,14 +5,14 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/canonical/lxd/shared/logger"
-
 	"github.com/canonical/microcluster/v3/internal/db/query"
+	"github.com/canonical/microcluster/v3/internal/log"
 	"github.com/canonical/microcluster/v3/internal/rest/types"
 	"github.com/canonical/microcluster/v3/internal/state"
 	"github.com/canonical/microcluster/v3/rest"
@@ -104,10 +104,15 @@ func sqlSelect(ctx context.Context, tx *sql.Tx, query string, result *types.SQLR
 		return fmt.Errorf("Failed to execute query: %w", err)
 	}
 
+	logger, err := log.LoggerFromContext(ctx)
+	if err != nil {
+		return err
+	}
+
 	defer func() {
 		err := rows.Close()
 		if err != nil {
-			logger.Error("Failed to close rows after SQL POST request", logger.Ctx{"error": err})
+			logger.Error("Failed to close rows after SQL POST request", slog.String("error", err.Error()))
 		}
 	}()
 

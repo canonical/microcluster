@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/canonical/lxd/lxd/util"
 	"github.com/canonical/lxd/shared/api"
 
 	"github.com/canonical/microcluster/v3/internal/log"
@@ -70,7 +69,9 @@ func (r *syncResponse) Render(w http.ResponseWriter, req *http.Request) error {
 		Metadata:   r.metadata,
 	}
 
-	return util.WriteJSON(w, resp, nil)
+	enc := json.NewEncoder(w)
+	enc.SetEscapeHTML(false)
+	return enc.Encode(resp)
 }
 
 func (r *syncResponse) String() string {

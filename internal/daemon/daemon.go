@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/canonical/go-dqlite/v3/driver"
-	"github.com/canonical/lxd/lxd/request"
 	"github.com/canonical/lxd/lxd/util"
 	"github.com/canonical/lxd/shared"
 	"github.com/canonical/lxd/shared/api"
@@ -502,9 +501,8 @@ func (d *Daemon) initServer(resources ...rest.Resources) *http.Server {
 	})
 
 	return &http.Server{
-		Handler:     mux,
-		ConnContext: request.SaveConnectionInContext,
-		ErrorLog:    log.New(newLogFilter(d.log(), state.Remotes().Addresses), "", 0),
+		Handler:  mux,
+		ErrorLog: log.New(newLogFilter(d.log(), state.Remotes().Addresses), "", 0),
 		// Set a base context for the server.
 		// This allows passing the logger on the daemon's shutdown context on to each handler.
 		BaseContext: func(_ net.Listener) context.Context {

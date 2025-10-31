@@ -15,7 +15,7 @@ func RunPreRemoveHook(ctx context.Context, c *Client, config internalTypes.HookR
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	return c.QueryStruct(queryCtx, "POST", internalTypes.InternalEndpoint, api.NewURL().Path("hooks", string(internalTypes.PreRemove)), config, nil)
+	return c.QueryStruct(queryCtx, "POST", internalTypes.InternalEndpoint, &api.NewURL().Path("hooks", string(internalTypes.PreRemove)).URL, config, nil)
 }
 
 // RunPostRemoveHook executes the PostRemove hook with the given configuration on the cluster member targeted by this client.
@@ -23,7 +23,7 @@ func RunPostRemoveHook(ctx context.Context, c *Client, config internalTypes.Hook
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	return c.QueryStruct(queryCtx, "POST", internalTypes.InternalEndpoint, api.NewURL().Path("hooks", string(internalTypes.PostRemove)), config, nil)
+	return c.QueryStruct(queryCtx, "POST", internalTypes.InternalEndpoint, &api.NewURL().Path("hooks", string(internalTypes.PostRemove)).URL, config, nil)
 }
 
 // RunNewMemberHook executes the OnNewMember hook with the given configuration on the cluster member targeted by this client.
@@ -31,7 +31,7 @@ func RunNewMemberHook(ctx context.Context, c *Client, config internalTypes.HookN
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	return c.QueryStruct(queryCtx, "POST", internalTypes.InternalEndpoint, api.NewURL().Path("hooks", string(internalTypes.OnNewMember)), config, nil)
+	return c.QueryStruct(queryCtx, "POST", internalTypes.InternalEndpoint, &api.NewURL().Path("hooks", string(internalTypes.OnNewMember)).URL, config, nil)
 }
 
 // RunOnDaemonConfigUpdateHook executes the OnDaemonConfigUpdate hook with the given configuration on the cluster member targeted by this client.
@@ -39,5 +39,5 @@ func RunOnDaemonConfigUpdateHook(ctx context.Context, c *Client, config *types.D
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	return c.QueryStruct(queryCtx, "POST", internalTypes.InternalEndpoint, api.NewURL().Path("hooks", string(internalTypes.OnDaemonConfigUpdate)), config, nil)
+	return c.QueryStruct(queryCtx, "POST", internalTypes.InternalEndpoint, &api.NewURL().Path("hooks", string(internalTypes.OnDaemonConfigUpdate)).URL, config, nil)
 }

@@ -14,5 +14,5 @@ func (c *Client) ShutdownDaemon(ctx context.Context) error {
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	return c.QueryStruct(queryCtx, "POST", types.ControlEndpoint, api.NewURL().Path("shutdown"), nil, nil)
+	return c.QueryStruct(queryCtx, "POST", types.ControlEndpoint, &api.NewURL().Path("shutdown").URL, nil, nil)
 }

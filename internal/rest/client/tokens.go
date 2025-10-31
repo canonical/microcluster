@@ -16,7 +16,7 @@ func (c *Client) RequestToken(ctx context.Context, name string, expireAfter time
 
 	var token string
 	tokenRecord := types.TokenRequest{Name: name, ExpireAfter: expireAfter}
-	err := c.QueryStruct(queryCtx, "POST", types.ControlEndpoint, api.NewURL().Path("tokens"), tokenRecord, &token)
+	err := c.QueryStruct(queryCtx, "POST", types.ControlEndpoint, &api.NewURL().Path("tokens").URL, tokenRecord, &token)
 
 	return token, err
 }
@@ -26,7 +26,7 @@ func (c *Client) DeleteTokenRecord(ctx context.Context, name string) error {
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	err := c.QueryStruct(queryCtx, "DELETE", types.PublicEndpoint, api.NewURL().Path("tokens", name), nil, nil)
+	err := c.QueryStruct(queryCtx, "DELETE", types.PublicEndpoint, &api.NewURL().Path("tokens", name).URL, nil, nil)
 
 	return err
 }
@@ -37,7 +37,7 @@ func (c *Client) GetTokenRecords(ctx context.Context) ([]types.TokenRecord, erro
 	defer cancel()
 
 	tokenRecords := []types.TokenRecord{}
-	err := c.QueryStruct(queryCtx, "GET", types.ControlEndpoint, api.NewURL().Path("tokens"), nil, &tokenRecords)
+	err := c.QueryStruct(queryCtx, "GET", types.ControlEndpoint, &api.NewURL().Path("tokens").URL, nil, &tokenRecords)
 
 	return tokenRecords, err
 }

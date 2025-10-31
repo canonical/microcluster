@@ -340,7 +340,7 @@ func (db *DqliteDB) SendHeartbeat(ctx context.Context, c *internalClient.Client,
 	queryCtx, cancel := context.WithTimeout(ctx, heartbeatTimeout)
 	defer cancel()
 
-	return c.QueryStruct(queryCtx, "POST", internalTypes.InternalEndpoint, api.NewURL().Path("heartbeat"), hbInfo, nil)
+	return c.QueryStruct(queryCtx, "POST", internalTypes.InternalEndpoint, &api.NewURL().Path("heartbeat").URL, hbInfo, nil)
 }
 
 func (db *DqliteDB) heartbeat(leaderInfo dqliteClient.NodeInfo, servers []dqliteClient.NodeInfo) error {

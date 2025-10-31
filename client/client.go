@@ -3,8 +3,8 @@ package client
 import (
 	"context"
 	"net/http"
+	"net/url"
 
-	"github.com/canonical/lxd/shared/api"
 	"github.com/gorilla/websocket"
 
 	"github.com/canonical/microcluster/v3/internal/rest/client"
@@ -23,7 +23,7 @@ func IsNotification(r *http.Request) bool {
 
 // Query is a helper for initiating a request on any endpoints defined external to microcluster. This function should be used for all client
 // methods defined externally from microcluster.
-func (c *Client) Query(ctx context.Context, method string, prefix types.EndpointPrefix, path *api.URL, in any, out any) error {
+func (c *Client) Query(ctx context.Context, method string, prefix types.EndpointPrefix, path *url.URL, in any, out any) error {
 	queryCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -32,7 +32,7 @@ func (c *Client) Query(ctx context.Context, method string, prefix types.Endpoint
 
 // QueryRaw is a helper for initiating a request on any endpoints defined external to microcluster.
 // Unlike Query it returns the raw HTTP response.
-func (c *Client) QueryRaw(ctx context.Context, method string, prefix types.EndpointPrefix, path *api.URL, in any) (*http.Response, error) {
+func (c *Client) QueryRaw(ctx context.Context, method string, prefix types.EndpointPrefix, path *url.URL, in any) (*http.Response, error) {
 	queryCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -41,7 +41,7 @@ func (c *Client) QueryRaw(ctx context.Context, method string, prefix types.Endpo
 
 // Websocket is a helper for upgrading a request to websocket on any endpoints defined external to microcluster.
 // This function should be used for all client methods defined externally from microcluster.
-func (c *Client) Websocket(ctx context.Context, prefix types.EndpointPrefix, path *api.URL) (*websocket.Conn, error) {
+func (c *Client) Websocket(ctx context.Context, prefix types.EndpointPrefix, path *url.URL) (*websocket.Conn, error) {
 	websocketCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 

@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/canonical/lxd/lxd/util"
 	"github.com/canonical/lxd/shared"
 	"github.com/canonical/lxd/shared/api"
 	"github.com/stretchr/testify/require"
@@ -15,6 +14,7 @@ import (
 	"github.com/canonical/microcluster/v3/internal/config"
 	"github.com/canonical/microcluster/v3/internal/endpoints"
 	"github.com/canonical/microcluster/v3/internal/log"
+	"github.com/canonical/microcluster/v3/internal/rest/client"
 	"github.com/canonical/microcluster/v3/internal/sys"
 	"github.com/canonical/microcluster/v3/internal/trust"
 	"github.com/canonical/microcluster/v3/rest"
@@ -228,19 +228,34 @@ func (t *daemonsSuite) Test_UpdateServers() {
 
 		// Check if servers are up.
 		for _, addr := range test.listeningOn {
-			client, err := util.HTTPClient(string(daemon.ClusterCert().PublicKey()), nil)
+			url := api.NewURL().Scheme("https").Host(addr.String())
+
+			// The remote server uses the cluster certificate.
+			remoteCert, err := daemon.ClusterCert().PublicKeyX509()
 			require.NoError(t.T(), err)
 
-			_, err = client.Get(api.NewURL().Scheme("https").Host(addr.String()).String())
+			// We also use the cluster certificate as a client certificate for this test.
+			client, err := client.New(*url, daemon.ClusterCert(), remoteCert, false)
+			require.NoError(t.T(), err)
+
+			// Use embedded Get from Go's HTTP client.
+			// It requires providing the URL a second time as it's detached from Microcluster's client struct.
+			// But we can rely on both client and server certificate being setup properly.
+			_, err = client.Get(url.String())
 			require.NoError(t.T(), err)
 		}
 
 		// Check if servers are down.
 		for _, addr := range test.notListeningOn {
-			client, err := util.HTTPClient(string(daemon.ClusterCert().PublicKey()), nil)
+			url := api.NewURL().Scheme("https").Host(addr.String())
+
+			remoteCert, err := daemon.ClusterCert().PublicKeyX509()
 			require.NoError(t.T(), err)
 
-			_, err = client.Get(api.NewURL().Scheme("https").Host(addr.String()).String())
+			client, err := client.New(*url, daemon.ClusterCert(), remoteCert, false)
+			require.NoError(t.T(), err)
+
+			_, err = client.Get(url.String())
 			require.Error(t.T(), err)
 		}
 

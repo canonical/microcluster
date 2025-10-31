@@ -117,11 +117,7 @@ func (s *OS) DatabasePath() string {
 
 // ServerCert gets the local server certificate from the state directory.
 func (s *OS) ServerCert() (*shared.CertInfo, error) {
-	if !shared.PathExists(filepath.Join(s.StateDir, "server.crt")) {
-		return nil, fmt.Errorf("Failed to get server.crt from directory %q", s.StateDir)
-	}
-
-	cert, err := shared.KeyPairAndCA(s.StateDir, "server", shared.CertServer, shared.CertOptions{})
+	cert, err := shared.KeyPairAndCA(s.StateDir, string(types.ServerCertificateName), shared.CertServer, shared.CertOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("Failed to load TLS certificate: %w", err)
 	}
@@ -131,10 +127,6 @@ func (s *OS) ServerCert() (*shared.CertInfo, error) {
 
 // ClusterCert gets the local cluster certificate from the state directory.
 func (s *OS) ClusterCert() (*shared.CertInfo, error) {
-	if !shared.PathExists(filepath.Join(s.StateDir, fmt.Sprintf("%s.crt", types.ClusterCertificateName))) {
-		return nil, fmt.Errorf("Failed to get %s.crt from directory %q", types.ClusterCertificateName, s.StateDir)
-	}
-
 	cert, err := shared.KeyPairAndCA(s.StateDir, string(types.ClusterCertificateName), shared.CertServer, shared.CertOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("Failed to load TLS certificate: %w", err)

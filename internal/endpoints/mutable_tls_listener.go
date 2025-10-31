@@ -2,10 +2,10 @@ package endpoints
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"net"
 	"sync"
 
-	"github.com/canonical/lxd/lxd/util"
 	"github.com/canonical/lxd/shared"
 )
 
@@ -50,9 +50,25 @@ func (l *mutableTLSListener) Accept() (net.Conn, error) {
 	return tls.Server(c, config), nil
 }
 
+// serverTLSConfig returns a new server-side tls.Config generated from the given certificate info.
+func (l *mutableTLSListener) serverTLSConfig(cert *shared.CertInfo) *tls.Config {
+	config := shared.InitTLSConfig()
+	config.ClientAuth = tls.RequestClientCert
+	config.Certificates = []tls.Certificate{cert.KeyPair()}
+
+	if cert.CA() != nil {
+		pool := x509.NewCertPool()
+		pool.AddCert(cert.CA())
+		config.RootCAs = pool
+		config.ClientCAs = pool
+	}
+
+	return config
+}
+
 // Config safely swaps the underlying TLS configuration.
 func (l *mutableTLSListener) Config(cert *shared.CertInfo) {
-	config := util.ServerTLSConfig(cert)
+	config := l.serverTLSConfig(cert)
 
 	l.mu.Lock()
 	defer l.mu.Unlock()

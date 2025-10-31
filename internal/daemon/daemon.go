@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/canonical/go-dqlite/v3/driver"
-	"github.com/canonical/lxd/lxd/util"
 	"github.com/canonical/lxd/shared"
 	"github.com/canonical/lxd/shared/api"
 	"github.com/canonical/lxd/shared/revert"
@@ -280,7 +279,7 @@ func (d *Daemon) init(listenAddress string, socketGroup string, heartbeatInterva
 		return err
 	}
 
-	d.serverCert, err = util.LoadServerCert(d.os.StateDir)
+	d.serverCert, err = d.os.ServerCert()
 	if err != nil {
 		return err
 	}

@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/canonical/lxd/lxd/util"
 	"github.com/canonical/lxd/shared"
 	"github.com/canonical/lxd/shared/api"
 
@@ -64,7 +63,7 @@ func (n *Network) Type() EndpointType {
 
 // Listen on the given address.
 func (n *Network) Listen() error {
-	listenAddress := util.CanonicalNetworkAddress(n.address.URL.Host, shared.HTTPSDefaultPort)
+	listenAddress := canonicalNetworkAddress(n.address.URL.Host, shared.HTTPSDefaultPort)
 	protocol := "tcp"
 
 	if strings.HasPrefix(listenAddress, "0.0.0.0") {

@@ -1,12 +1,15 @@
 package access
 
 import (
+	"context"
+	"crypto/subtle"
 	"crypto/x509"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
 
-	"github.com/canonical/lxd/lxd/util"
+	"github.com/canonical/lxd/shared/api"
 
 	"github.com/canonical/microcluster/v3/internal/endpoints"
 	"github.com/canonical/microcluster/v3/internal/log"
@@ -48,6 +51,46 @@ func AllowAuthenticated(state state.State, r *http.Request) (bool, response.Resp
 	return true, nil
 }
 
+// certificateInDate returns an error if the current time is before the certificates "not before", or after the
+// certificates "not after".
+func certificateInDate(cert x509.Certificate) error {
+	now := time.Now()
+	if now.Before(cert.NotBefore) {
+		return api.StatusErrorf(http.StatusUnauthorized, "Certificate is not yet valid")
+	}
+
+	if now.After(cert.NotAfter) {
+		return api.StatusErrorf(http.StatusUnauthorized, "Certificate has expired")
+	}
+
+	return nil
+}
+
+// checkMutualTLS checks whether the given certificate is valid and is present in the given trustedCerts map.
+// Returns true if the certificate is trusted, and the fingerprint of the certificate.
+func checkMutualTLS(ctx context.Context, cert x509.Certificate, trustedCerts map[string]x509.Certificate) (bool, string) {
+	err := certificateInDate(cert)
+	if err != nil {
+		return false, ""
+	}
+
+	logger, err := log.LoggerFromContext(ctx)
+	if err != nil {
+		// We failed to get the logger so we can't log the error.
+		return false, ""
+	}
+
+	// Check whether client certificate is in the map of trusted certs.
+	for fingerprint, v := range trustedCerts {
+		if subtle.ConstantTimeCompare(cert.Raw, v.Raw) == 1 {
+			logger.Debug("Matched trusted cert", slog.String("fingerprint", fingerprint), slog.String("subject", v.Subject.String()))
+			return true, fingerprint
+		}
+	}
+
+	return false, ""
+}
+
 // Authenticate ensures the request certificates are trusted against the given set of trusted certificates.
 // - Requests over the unix socket are always allowed.
 // - HTTP requests require the TLS Peer certificate to match an entry in the supplied map of certificates.
@@ -87,7 +130,7 @@ func Authenticate(state state.State, r *http.Request, hostAddress string, truste
 	case hostAddrPort.WithZone("").String():
 		if r.TLS != nil {
 			for _, cert := range r.TLS.PeerCertificates {
-				trusted, fingerprint := util.CheckMutualTLS(*cert, trustedCerts)
+				trusted, fingerprint := checkMutualTLS(r.Context(), *cert, trustedCerts)
 				if trusted {
 					logger.Debug("Authenticated request", slog.String("origin", r.RemoteAddr), slog.String("destination", r.URL.String()), slog.String("fingerprint", fingerprint))
 					return trusted, nil

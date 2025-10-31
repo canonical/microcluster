@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"slices"
 
-	"github.com/canonical/lxd/lxd/util"
 	"github.com/canonical/lxd/shared"
 	"github.com/canonical/lxd/shared/api"
 	"github.com/canonical/lxd/shared/revert"
@@ -270,9 +269,31 @@ func joinWithToken(state state.State, r *http.Request, req *internalTypes.Contro
 	return joinInfo, &localClusterMember, nil
 }
 
+// writeCert writes the given material to the appropriate certificate files in the given state directory.
+func writeCert(dir, prefix string, cert, key, ca []byte) error {
+	err := os.WriteFile(filepath.Join(dir, prefix+".crt"), cert, 0644)
+	if err != nil {
+		return err
+	}
+
+	err = os.WriteFile(filepath.Join(dir, prefix+".key"), key, 0600)
+	if err != nil {
+		return err
+	}
+
+	if ca != nil {
+		err = os.WriteFile(filepath.Join(dir, prefix+".ca"), ca, 0644)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func setupLocalMember(state state.State, localClusterMember *trust.Remote, joinInfo *internalTypes.TokenResponse) ([]string, error) {
 	// Set up cluster certificate.
-	err := util.WriteCert(state.FileSystem().StateDir, string(types.ClusterCertificateName), []byte(joinInfo.ClusterCert.String()), []byte(joinInfo.ClusterKey), nil)
+	err := writeCert(state.FileSystem().StateDir, string(types.ClusterCertificateName), []byte(joinInfo.ClusterCert.String()), []byte(joinInfo.ClusterKey), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -285,7 +306,7 @@ func setupLocalMember(state state.State, localClusterMember *trust.Remote, joinI
 			ca = []byte(cert.CA)
 		}
 
-		err := util.WriteCert(state.FileSystem().CertificatesDir, name, []byte(cert.Cert), []byte(cert.Key), ca)
+		err := writeCert(state.FileSystem().CertificatesDir, name, []byte(cert.Cert), []byte(cert.Key), ca)
 		if err != nil {
 			return nil, err
 		}

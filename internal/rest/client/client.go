@@ -189,7 +189,7 @@ func IsForwardedRequest(r *http.Request) bool {
 	return r.Header.Get("User-Agent") == UserAgentNotifier
 }
 
-func (c *Client) rawQuery(ctx context.Context, method string, url *api.URL, data any) (*http.Response, error) {
+func (c *Client) rawQuery(ctx context.Context, method string, url *url.URL, data any) (*http.Response, error) {
 	var req *http.Request
 	var err error
 
@@ -266,17 +266,17 @@ func (c *Client) MakeRequest(r *http.Request) (*api.Response, error) {
 	return parsedResponse, nil
 }
 
-func (c *Client) mergeURL(endpointType types.EndpointPrefix, endpoint *api.URL) *api.URL {
-	localURL := api.NewURL()
+func (c *Client) mergeURL(endpointType types.EndpointPrefix, endpoint *url.URL) *url.URL {
+	localURL := &url.URL{}
 	if endpoint != nil {
 		// Get a new local struct to avoid modifying the provided one.
 		newURL := *endpoint
 		localURL = &newURL
 	}
 
-	localURL.URL.Host = c.url.URL.Host
-	localURL.URL.Scheme = c.url.URL.Scheme
-	localURL.URL.Path = filepath.Join("/", string(endpointType), localURL.URL.Path)
+	localURL.Host = c.url.URL.Host
+	localURL.Scheme = c.url.URL.Scheme
+	localURL.Path = filepath.Join("/", string(endpointType), localURL.Path)
 	localURL.RawPath = filepath.Join("/", string(endpointType), localURL.RawPath)
 
 	localQuery := localURL.Query()
@@ -293,7 +293,7 @@ func (c *Client) mergeURL(endpointType types.EndpointPrefix, endpoint *api.URL) 
 // The response gets unpacked into the target struct. POST requests can optionally provide raw data to be sent through.
 //
 // The final URL is that provided as the endpoint combined with the applicable prefix for the endpointType and the scheme and host from the client.
-func (c *Client) QueryStruct(ctx context.Context, method string, endpointType types.EndpointPrefix, endpoint *api.URL, data any, target any) error {
+func (c *Client) QueryStruct(ctx context.Context, method string, endpointType types.EndpointPrefix, endpoint *url.URL, data any, target any) error {
 	resp, err := c.QueryStructRaw(ctx, method, endpointType, endpoint, data)
 	if err != nil {
 		return err
@@ -317,7 +317,7 @@ func (c *Client) QueryStruct(ctx context.Context, method string, endpointType ty
 // The raw response is returned. POST requests can optionally provide raw data to be sent through.
 //
 // The final URL is that provided as the endpoint combined with the applicable prefix for the endpointType and the scheme and host from the client.
-func (c *Client) QueryStructRaw(ctx context.Context, method string, endpointType types.EndpointPrefix, endpoint *api.URL, data any) (*http.Response, error) {
+func (c *Client) QueryStructRaw(ctx context.Context, method string, endpointType types.EndpointPrefix, endpoint *url.URL, data any) (*http.Response, error) {
 	// Merge the provided URL with the one we have for the client.
 	localURL := c.mergeURL(endpointType, endpoint)
 
@@ -333,15 +333,15 @@ func (c *Client) QueryStructRaw(ctx context.Context, method string, endpointType
 // RawWebsocket dials the provided endpoint and tries to upgrade the connection.
 //
 // The final URL is that provided as the endpoint combined with the applicable prefix for the endpointType and the scheme and host from the client.
-func (c *Client) RawWebsocket(ctx context.Context, endpointType types.EndpointPrefix, endpoint *api.URL) (*websocket.Conn, error) {
+func (c *Client) RawWebsocket(ctx context.Context, endpointType types.EndpointPrefix, endpoint *url.URL) (*websocket.Conn, error) {
 	// Merge the provided URL with the one we have for the client.
 	localURL := c.mergeURL(endpointType, endpoint)
 
 	// Pick the right scheme based on the client configuration.
 	if c.url.URL.Scheme == "http" {
-		localURL.URL.Scheme = "ws"
+		localURL.Scheme = "ws"
 	} else {
-		localURL.URL.Scheme = "wss"
+		localURL.Scheme = "wss"
 	}
 
 	// Get the transport configuration from the HTTP client.

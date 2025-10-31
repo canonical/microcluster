@@ -5,12 +5,12 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/canonical/microcluster/v3/internal/db/schema"
+	"github.com/canonical/microcluster/v3/cluster/db"
 )
 
 // SchemaExtensions is a list of schema extensions that can be passed to the MicroCluster daemon.
 // Each entry will increase the database schema version by one, and will be applied after internal schema updates.
-var SchemaExtensions = []schema.Update{
+var SchemaExtensions = []db.Update{
 	schemaAppend1,
 	schemaAppend2,
 }

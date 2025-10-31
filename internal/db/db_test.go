@@ -13,8 +13,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/canonical/microcluster/v3/cluster"
-	"github.com/canonical/microcluster/v3/internal/db/query"
-	"github.com/canonical/microcluster/v3/internal/db/schema"
+	clusterDB "github.com/canonical/microcluster/v3/cluster/db"
 	"github.com/canonical/microcluster/v3/internal/db/update"
 	"github.com/canonical/microcluster/v3/internal/extensions"
 	"github.com/canonical/microcluster/v3/internal/log"
@@ -160,7 +159,7 @@ func (s *dbSuite) Test_waitUpgradeSchema() {
 	for i, t := range tests {
 		s.T().Logf("%s (case %d)", t.name, i)
 
-		db, err := NewTestDB([]schema.Update{})
+		db, err := NewTestDB([]clusterDB.Update{})
 		s.NoError(err)
 
 		tx, err := db.db.BeginTx(db.ctx, nil)
@@ -209,7 +208,7 @@ func (s *dbSuite) Test_waitUpgradeSchema() {
 
 		// Apply the local updates to the schema table.
 		manager := &update.SchemaUpdateManager{}
-		updates := []schema.Update{}
+		updates := []clusterDB.Update{}
 		for j := 0; j < int(t.upgradedLocalInfo.schemaInt)+1; j++ {
 			_, err = db.db.Exec(stmt, j, 0)
 			s.NoError(err)
@@ -219,7 +218,7 @@ func (s *dbSuite) Test_waitUpgradeSchema() {
 
 		manager.SetInternalUpdates(updates)
 
-		updates = []schema.Update{}
+		updates = []clusterDB.Update{}
 		for j := 0; j < int(t.upgradedLocalInfo.schemaExt)+1; j++ {
 			_, err = db.db.Exec(stmt, j, 1)
 			s.NoError(err)
@@ -249,10 +248,10 @@ func (s *dbSuite) Test_waitUpgradeSchema() {
 		tx, err = db.db.BeginTx(db.ctx, nil)
 		s.NoError(err)
 
-		schemaInternal, err := query.SelectIntegers(db.ctx, tx, "SELECT schema_internal FROM core_cluster_members ORDER BY id")
+		schemaInternal, err := clusterDB.SelectIntegers(db.ctx, tx, "SELECT schema_internal FROM core_cluster_members ORDER BY id")
 		s.NoError(err)
 
-		schemaExternal, err := query.SelectIntegers(db.ctx, tx, "SELECT schema_external FROM core_cluster_members ORDER BY id")
+		schemaExternal, err := clusterDB.SelectIntegers(db.ctx, tx, "SELECT schema_external FROM core_cluster_members ORDER BY id")
 		s.NoError(err)
 
 		s.NoError(tx.Commit())
@@ -338,7 +337,7 @@ func (s *dbSuite) Test_waitUpgradeAPI() {
 	for i, t := range tests {
 		s.T().Logf("%s (case %d)", t.name, i)
 
-		db, err := NewTestDB([]schema.Update{})
+		db, err := NewTestDB([]clusterDB.Update{})
 		s.NoError(err)
 
 		ctx := context.Background()
@@ -388,12 +387,12 @@ func (s *dbSuite) Test_waitUpgradeAPI() {
 
 		_, err = db.db.Exec(stmt, 0, 0)
 		s.NoError(err)
-		updates := []schema.Update{func(ctx context.Context, tx *sql.Tx) error { return nil }}
+		updates := []clusterDB.Update{func(ctx context.Context, tx *sql.Tx) error { return nil }}
 		manager.SetInternalUpdates(updates)
 
 		_, err = db.db.Exec(stmt, 0, 1)
 		s.NoError(err)
-		updates = []schema.Update{func(ctx context.Context, tx *sql.Tx) error { return nil }}
+		updates = []clusterDB.Update{func(ctx context.Context, tx *sql.Tx) error { return nil }}
 		manager.SetExternalUpdates(updates)
 
 		if t.expectWait {
@@ -416,7 +415,7 @@ func (s *dbSuite) Test_waitUpgradeAPI() {
 		tx, err = db.db.BeginTx(ctx, nil)
 		s.NoError(err)
 
-		res, err := query.SelectStrings(ctx, tx, "SELECT api_extensions FROM core_cluster_members ORDER BY id")
+		res, err := clusterDB.SelectStrings(ctx, tx, "SELECT api_extensions FROM core_cluster_members ORDER BY id")
 		s.NoError(err)
 		allExtensions := make([]extensions.Extensions, 0)
 		for _, r := range res {
@@ -505,7 +504,7 @@ func (s *dbSuite) Test_waitUpgradeSchemaAndAPI() {
 	for i, t := range tests {
 		s.T().Logf("%s (case %d)", t.name, i)
 
-		db, err := NewTestDB([]schema.Update{})
+		db, err := NewTestDB([]clusterDB.Update{})
 		s.NoError(err)
 
 		ctx := context.Background()
@@ -552,7 +551,7 @@ func (s *dbSuite) Test_waitUpgradeSchemaAndAPI() {
 
 		// Apply the local updates to the schema table.
 		manager := &update.SchemaUpdateManager{}
-		updates := []schema.Update{}
+		updates := []clusterDB.Update{}
 		for j := 0; j < int(t.upgradedLocalInfo.schemaInt)+1; j++ {
 			_, err = db.db.Exec(stmt, j, 0)
 			s.NoError(err)
@@ -562,7 +561,7 @@ func (s *dbSuite) Test_waitUpgradeSchemaAndAPI() {
 
 		manager.SetInternalUpdates(updates)
 
-		updates = []schema.Update{}
+		updates = []clusterDB.Update{}
 		for j := 0; j < int(t.upgradedLocalInfo.schemaExt)+1; j++ {
 			_, err = db.db.Exec(stmt, j, 1)
 			s.NoError(err)
@@ -592,13 +591,13 @@ func (s *dbSuite) Test_waitUpgradeSchemaAndAPI() {
 		tx, err = db.db.BeginTx(ctx, nil)
 		s.NoError(err)
 
-		schemaInternal, err := query.SelectIntegers(ctx, tx, "SELECT schema_internal FROM core_cluster_members ORDER BY id")
+		schemaInternal, err := clusterDB.SelectIntegers(ctx, tx, "SELECT schema_internal FROM core_cluster_members ORDER BY id")
 		s.NoError(err)
 
-		schemaExternal, err := query.SelectIntegers(ctx, tx, "SELECT schema_external FROM core_cluster_members ORDER BY id")
+		schemaExternal, err := clusterDB.SelectIntegers(ctx, tx, "SELECT schema_external FROM core_cluster_members ORDER BY id")
 		s.NoError(err)
 
-		res, err := query.SelectStrings(ctx, tx, "SELECT api_extensions FROM core_cluster_members ORDER BY id")
+		res, err := clusterDB.SelectStrings(ctx, tx, "SELECT api_extensions FROM core_cluster_members ORDER BY id")
 		s.NoError(err)
 		allExtensions := make([]extensions.Extensions, 0)
 		for _, r := range res {
@@ -650,7 +649,7 @@ func (s *dbSuite) Test_waitUpgradeSchemaAndAPI() {
 }
 
 // NewTedb returns a sqlite DB set up with the default microcluster schema.
-func NewTestDB(extensionsExternal []schema.Update) (*DqliteDB, error) {
+func NewTestDB(extensionsExternal []clusterDB.Update) (*DqliteDB, error) {
 	var err error
 
 	ctx := context.WithValue(context.Background(), log.CtxLogger, slog.Default())

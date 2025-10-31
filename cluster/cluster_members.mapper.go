@@ -10,7 +10,7 @@ import (
 
 	"github.com/canonical/lxd/shared/api"
 
-	"github.com/canonical/microcluster/v3/internal/db/query"
+	"github.com/canonical/microcluster/v3/cluster/db"
 )
 
 var _ = api.ServerEnvironment{}
@@ -71,7 +71,7 @@ func getCoreClusterMembers(ctx context.Context, stmt *sql.Stmt, args ...any) ([]
 		return nil
 	}
 
-	err := query.SelectObjects(ctx, stmt, dest, args...)
+	err := db.SelectObjects(ctx, stmt, dest, args...)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to fetch from \"core_cluster_members\" table: %w", err)
 	}
@@ -95,7 +95,7 @@ func getCoreClusterMembersRaw(ctx context.Context, tx *sql.Tx, sql string, args 
 		return nil
 	}
 
-	err := query.Scan(ctx, tx, sql, dest, args...)
+	err := db.Scan(ctx, tx, sql, dest, args...)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to fetch from \"core_cluster_members\" table: %w", err)
 	}

@@ -1,4 +1,4 @@
-package query_test
+package db_test
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/canonical/microcluster/v3/internal/db/query"
+	"github.com/canonical/microcluster/v3/cluster/db"
 )
 
 // Exercise possible failure modes.
@@ -16,7 +16,7 @@ func TestStrings_Error(t *testing.T) {
 	for _, c := range testStringsErrorCases {
 		t.Run(c.query, func(t *testing.T) {
 			tx := newTxForSlices(t)
-			values, err := query.SelectStrings(context.Background(), tx, c.query)
+			values, err := db.SelectStrings(context.Background(), tx, c.query)
 			assert.EqualError(t, err, c.error)
 			assert.Nil(t, values)
 		})
@@ -34,7 +34,7 @@ var testStringsErrorCases = []struct {
 // All values yield by the query are returned.
 func TestStrings(t *testing.T) {
 	tx := newTxForSlices(t)
-	values, err := query.SelectStrings(context.Background(), tx, "SELECT name FROM test ORDER BY name")
+	values, err := db.SelectStrings(context.Background(), tx, "SELECT name FROM test ORDER BY name")
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"bar", "foo"}, values)
 }
@@ -44,7 +44,7 @@ func TestIntegers_Error(t *testing.T) {
 	for _, c := range testIntegersErrorCases {
 		t.Run(c.query, func(t *testing.T) {
 			tx := newTxForSlices(t)
-			values, err := query.SelectIntegers(context.Background(), tx, c.query)
+			values, err := db.SelectIntegers(context.Background(), tx, c.query)
 			assert.EqualError(t, err, c.error)
 			assert.Nil(t, values)
 		})
@@ -62,7 +62,7 @@ var testIntegersErrorCases = []struct {
 // All values yield by the query are returned.
 func TestIntegers(t *testing.T) {
 	tx := newTxForSlices(t)
-	values, err := query.SelectIntegers(context.Background(), tx, "SELECT id FROM test ORDER BY id")
+	values, err := db.SelectIntegers(context.Background(), tx, "SELECT id FROM test ORDER BY id")
 	assert.NoError(t, err)
 	assert.Equal(t, []int{0, 1}, values)
 }

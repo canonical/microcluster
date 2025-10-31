@@ -4,9 +4,8 @@ package client
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"time"
-
-	"github.com/canonical/lxd/shared/api"
 
 	"github.com/canonical/microcluster/v3/client"
 	"github.com/canonical/microcluster/v3/example/api/types"
@@ -19,8 +18,12 @@ func ExtendedPostCmd(ctx context.Context, c *client.Client, data *types.Extended
 	queryCtx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
 
+	path := url.URL{
+		Path: "extended",
+	}
+
 	var outStr string
-	err := c.Query(queryCtx, "POST", types.ExtendedPathPrefix, api.NewURL().Path("extended"), data, &outStr)
+	err := c.Query(queryCtx, "POST", types.ExtendedPathPrefix, &path, data, &outStr)
 	if err != nil {
 		clientURL := c.URL()
 		return "", fmt.Errorf("Failed performing action on %q: %w", clientURL.String(), err)

@@ -26,7 +26,7 @@ func AddClusterMember(ctx context.Context, c *Client, args types.ClusterMember) 
 	defer cancel()
 
 	tokenResponse := internalTypes.TokenResponse{}
-	err := c.QueryStruct(queryCtx, "POST", internalTypes.InternalEndpoint, api.NewURL().Path("cluster"), args, &tokenResponse)
+	err := c.QueryStruct(queryCtx, "POST", internalTypes.InternalEndpoint, &api.NewURL().Path("cluster").URL, args, &tokenResponse)
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +44,7 @@ func ResetClusterMember(ctx context.Context, c *Client, name string, force bool)
 		endpoint = endpoint.WithQuery("force", "1")
 	}
 
-	return c.QueryStruct(queryCtx, "PUT", internalTypes.InternalEndpoint, endpoint, nil, nil)
+	return c.QueryStruct(queryCtx, "PUT", internalTypes.InternalEndpoint, &endpoint.URL, nil, nil)
 }
 
 // GetClusterMembers returns the database record of cluster members.
@@ -53,7 +53,7 @@ func (c *Client) GetClusterMembers(ctx context.Context) ([]types.ClusterMember, 
 	defer cancel()
 
 	clusterMembers := []types.ClusterMember{}
-	err := c.QueryStruct(queryCtx, "GET", internalTypes.PublicEndpoint, api.NewURL().Path("cluster"), nil, &clusterMembers)
+	err := c.QueryStruct(queryCtx, "GET", internalTypes.PublicEndpoint, &api.NewURL().Path("cluster").URL, nil, &clusterMembers)
 
 	return clusterMembers, err
 }
@@ -68,7 +68,7 @@ func (c *Client) DeleteClusterMember(ctx context.Context, name string, force boo
 		endpoint = endpoint.WithQuery("force", "1")
 	}
 
-	return c.QueryStruct(queryCtx, "DELETE", internalTypes.PublicEndpoint, endpoint, nil, nil)
+	return c.QueryStruct(queryCtx, "DELETE", internalTypes.PublicEndpoint, &endpoint.URL, nil, nil)
 }
 
 // UpdateCertificate sets a new keypair and CA.
@@ -77,5 +77,5 @@ func (c *Client) UpdateCertificate(ctx context.Context, name types.CertificateNa
 	defer cancel()
 
 	endpoint := api.NewURL().Path("cluster", "certificates", string(name))
-	return c.QueryStruct(queryCtx, "PUT", internalTypes.PublicEndpoint, endpoint, args, nil)
+	return c.QueryStruct(queryCtx, "PUT", internalTypes.PublicEndpoint, &endpoint.URL, args, nil)
 }

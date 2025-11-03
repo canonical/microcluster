@@ -24,17 +24,16 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/canonical/microcluster/v3/client"
-	"github.com/canonical/microcluster/v3/cluster"
+	"github.com/canonical/microcluster/v3/internal/cluster"
 	"github.com/canonical/microcluster/v3/internal/log"
+	"github.com/canonical/microcluster/v3/internal/rest/access"
 	internalClient "github.com/canonical/microcluster/v3/internal/rest/client"
-	internalTypes "github.com/canonical/microcluster/v3/internal/rest/types"
 	internalState "github.com/canonical/microcluster/v3/internal/state"
 	"github.com/canonical/microcluster/v3/internal/trust"
 	"github.com/canonical/microcluster/v3/internal/utils"
-	"github.com/canonical/microcluster/v3/rest"
-	"github.com/canonical/microcluster/v3/rest/access"
-	"github.com/canonical/microcluster/v3/rest/response"
-	"github.com/canonical/microcluster/v3/rest/types"
+	"github.com/canonical/microcluster/v3/microcluster/rest"
+	"github.com/canonical/microcluster/v3/microcluster/rest/response"
+	"github.com/canonical/microcluster/v3/microcluster/types"
 	"github.com/canonical/microcluster/v3/state"
 )
 
@@ -182,7 +181,7 @@ func clusterPost(s state.State, r *http.Request) response.Response {
 	}
 
 	localRemote := remotes.RemotesByName()[s.Name()]
-	tokenResponse := internalTypes.TokenResponse{
+	tokenResponse := types.TokenResponse{
 		ClusterCert: types.X509Certificate{Certificate: clusterCert},
 		ClusterKey:  string(s.ClusterCert().PrivateKey()),
 
@@ -623,7 +622,7 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 	}
 
 	// Tell the cluster member to run its PreRemove hook and return.
-	err = internalClient.RunPreRemoveHook(ctx, c.UseTarget(name), internalTypes.HookRemoveMemberOptions{Force: force})
+	err = internalClient.RunPreRemoveHook(ctx, c.UseTarget(name), types.HookRemoveMemberOptions{Force: force})
 	if err != nil && !force {
 		return response.SmartError(err)
 	}
@@ -696,7 +695,7 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 			return fmt.Errorf("No remote found at address %q run the post-remove hook", c.URL().URL.Host)
 		}
 
-		return internalClient.RunPostRemoveHook(ctx, c.Client.UseTarget(remote.Name), internalTypes.HookRemoveMemberOptions{Force: force})
+		return internalClient.RunPostRemoveHook(ctx, c.Client.UseTarget(remote.Name), types.HookRemoveMemberOptions{Force: force})
 	})
 	if err != nil {
 		return response.SmartError(err)

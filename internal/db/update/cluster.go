@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/canonical/microcluster/v3/cluster/db"
 	"github.com/canonical/microcluster/v3/internal/extensions"
 	"github.com/canonical/microcluster/v3/internal/log"
+	clusterDB "github.com/canonical/microcluster/v3/microcluster/db"
 )
 
 // PrepareUpdateV1 creates the temporary table `internal_cluster_members_new` if we have not yet run `updateFromV1`.
@@ -134,7 +134,7 @@ func GetClusterMemberSchemaVersions(ctx context.Context, tx *sql.Tx) (internalSc
 		return nil
 	}
 
-	err = db.Scan(ctx, tx, sql, dest)
+	err = clusterDB.Scan(ctx, tx, sql, dest)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -240,7 +240,7 @@ func GetClusterMemberAPIExtensions(ctx context.Context, tx *sql.Tx) ([]extension
 // Since we need to check this table to perform the update that renames it, we can use this function to dynamically determine its name.
 func getClusterTableName(ctx context.Context, tx *sql.Tx) (string, error) {
 	stmt := "SELECT name FROM sqlite_master WHERE name = 'internal_cluster_members' OR name = 'core_cluster_members'"
-	tables, err := db.SelectStrings(ctx, tx, stmt)
+	tables, err := clusterDB.SelectStrings(ctx, tx, stmt)
 	if err != nil {
 		return "", err
 	}

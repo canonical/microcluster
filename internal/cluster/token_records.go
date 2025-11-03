@@ -10,8 +10,7 @@ import (
 	"github.com/canonical/lxd/shared"
 
 	"github.com/canonical/microcluster/v3/internal/log"
-	internalTypes "github.com/canonical/microcluster/v3/internal/rest/types"
-	"github.com/canonical/microcluster/v3/rest/types"
+	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
 // Code generation directives.
@@ -48,8 +47,8 @@ type CoreTokenRecordFilter struct {
 }
 
 // ToAPI converts the CoreTokenRecord to a full token and returns an API compatible struct.
-func (t *CoreTokenRecord) ToAPI(clusterCert *x509.Certificate, joinAddresses []types.AddrPort) (*internalTypes.TokenRecord, error) {
-	token := internalTypes.Token{
+func (t *CoreTokenRecord) ToAPI(clusterCert *x509.Certificate, joinAddresses []types.AddrPort) (*types.TokenRecord, error) {
+	token := types.Token{
 		Secret:        t.Secret,
 		Fingerprint:   shared.CertFingerprint(clusterCert),
 		JoinAddresses: joinAddresses,
@@ -60,7 +59,7 @@ func (t *CoreTokenRecord) ToAPI(clusterCert *x509.Certificate, joinAddresses []t
 		return nil, err
 	}
 
-	return &internalTypes.TokenRecord{
+	return &types.TokenRecord{
 		Token:     tokenString,
 		Name:      t.Name,
 		ExpiresAt: t.ExpiryDate.Time,

@@ -15,15 +15,14 @@ import (
 	"github.com/canonical/lxd/shared/revert"
 
 	"github.com/canonical/microcluster/v3/internal/log"
+	"github.com/canonical/microcluster/v3/internal/rest/access"
 	internalClient "github.com/canonical/microcluster/v3/internal/rest/client"
-	internalTypes "github.com/canonical/microcluster/v3/internal/rest/types"
 	internalState "github.com/canonical/microcluster/v3/internal/state"
 	"github.com/canonical/microcluster/v3/internal/trust"
 	"github.com/canonical/microcluster/v3/internal/utils"
-	"github.com/canonical/microcluster/v3/rest"
-	"github.com/canonical/microcluster/v3/rest/access"
-	"github.com/canonical/microcluster/v3/rest/response"
-	"github.com/canonical/microcluster/v3/rest/types"
+	"github.com/canonical/microcluster/v3/microcluster/rest"
+	"github.com/canonical/microcluster/v3/microcluster/rest/response"
+	"github.com/canonical/microcluster/v3/microcluster/types"
 	"github.com/canonical/microcluster/v3/state"
 )
 
@@ -39,7 +38,7 @@ func controlPost(state state.State, r *http.Request) response.Response {
 		return response.SmartError(fmt.Errorf("Unable to initialize cluster: %s", status))
 	}
 
-	req := &internalTypes.Control{}
+	req := &types.Control{}
 	// Parse the request.
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
@@ -87,7 +86,7 @@ func controlPost(state state.State, r *http.Request) response.Response {
 	}
 
 	certNameMatches := slices.Contains(serverCert.DNSNames, req.Name)
-	var joinInfo *internalTypes.TokenResponse
+	var joinInfo *types.TokenResponse
 	reverter.Add(func() {
 		// When joining, don't attempt to reset the cluster member if we never received authorization from any cluster members.
 		// This is because we won't have changed any state yet, so resetting the cluster member won't help, and may have its own side-effects.
@@ -188,8 +187,8 @@ func controlPost(state state.State, r *http.Request) response.Response {
 	return response.EmptySyncResponse
 }
 
-func joinWithToken(state state.State, r *http.Request, req *internalTypes.Control) (*internalTypes.TokenResponse, *trust.Remote, error) {
-	token, err := internalTypes.DecodeToken(req.JoinToken)
+func joinWithToken(state state.State, r *http.Request, req *types.Control) (*types.TokenResponse, *trust.Remote, error) {
+	token, err := types.DecodeToken(req.JoinToken)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -232,7 +231,7 @@ func joinWithToken(state state.State, r *http.Request, req *internalTypes.Contro
 
 	// Get a client to the target address.
 	var lastErr error
-	var joinInfo *internalTypes.TokenResponse
+	var joinInfo *types.TokenResponse
 	for _, addr := range token.JoinAddresses {
 		url := api.NewURL().Scheme("https").Host(addr.String())
 
@@ -291,7 +290,7 @@ func writeCert(dir, prefix string, cert, key, ca []byte) error {
 	return nil
 }
 
-func setupLocalMember(state state.State, localClusterMember *trust.Remote, joinInfo *internalTypes.TokenResponse) ([]string, error) {
+func setupLocalMember(state state.State, localClusterMember *trust.Remote, joinInfo *types.TokenResponse) ([]string, error) {
 	// Set up cluster certificate.
 	err := writeCert(state.FileSystem().StateDir, string(types.ClusterCertificateName), []byte(joinInfo.ClusterCert.String()), []byte(joinInfo.ClusterKey), nil)
 	if err != nil {

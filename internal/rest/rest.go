@@ -13,14 +13,13 @@ import (
 	"github.com/canonical/lxd/shared/api"
 	"github.com/gorilla/mux"
 
-	"github.com/canonical/microcluster/v3/cluster"
+	"github.com/canonical/microcluster/v3/internal/cluster"
 	"github.com/canonical/microcluster/v3/internal/log"
-	internalAccess "github.com/canonical/microcluster/v3/internal/rest/access"
+	"github.com/canonical/microcluster/v3/internal/rest/access"
 	"github.com/canonical/microcluster/v3/internal/rest/client"
 	internalState "github.com/canonical/microcluster/v3/internal/state"
-	"github.com/canonical/microcluster/v3/rest"
-	"github.com/canonical/microcluster/v3/rest/access"
-	"github.com/canonical/microcluster/v3/rest/response"
+	"github.com/canonical/microcluster/v3/microcluster/rest"
+	"github.com/canonical/microcluster/v3/microcluster/rest/response"
 	"github.com/canonical/microcluster/v3/state"
 )
 
@@ -137,7 +136,7 @@ func handleDatabaseRequest(action rest.EndpointAction, state state.State, w http
 		return response.Forbidden(nil)
 	}
 
-	trustedReq, ok := trusted.(internalAccess.TrustedRequest)
+	trustedReq, ok := trusted.(access.TrustedRequest)
 	if !ok {
 		return response.Forbidden(nil)
 	}
@@ -246,7 +245,7 @@ func HandleEndpoint(state state.State, mux *mux.Router, version string, e rest.E
 		if err != nil && !errors.As(err, &access.ErrInvalidHost{}) {
 			resp = response.Forbidden(fmt.Errorf("Failed to authenticate request: %w", err))
 		} else {
-			r = internalAccess.SetRequestAuthentication(r, trusted)
+			r = access.SetRequestAuthentication(r, trusted)
 
 			switch r.Method {
 			case "GET":

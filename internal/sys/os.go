@@ -9,7 +9,7 @@ import (
 	"github.com/canonical/lxd/shared"
 	"github.com/canonical/lxd/shared/api"
 
-	"github.com/canonical/microcluster/v3/rest/types"
+	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
 // OS contains fields and methods for interacting with the state directory.

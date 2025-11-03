@@ -11,13 +11,12 @@ import (
 	"time"
 
 	"github.com/canonical/microcluster/v3/client"
-	"github.com/canonical/microcluster/v3/cluster"
+	"github.com/canonical/microcluster/v3/internal/cluster"
 	"github.com/canonical/microcluster/v3/internal/log"
-	internalTypes "github.com/canonical/microcluster/v3/internal/rest/types"
 	internalState "github.com/canonical/microcluster/v3/internal/state"
-	"github.com/canonical/microcluster/v3/rest"
-	"github.com/canonical/microcluster/v3/rest/response"
-	"github.com/canonical/microcluster/v3/rest/types"
+	"github.com/canonical/microcluster/v3/microcluster/rest"
+	"github.com/canonical/microcluster/v3/microcluster/rest/response"
+	"github.com/canonical/microcluster/v3/microcluster/types"
 	"github.com/canonical/microcluster/v3/state"
 )
 
@@ -28,7 +27,7 @@ var heartbeatCmd = rest.Endpoint{
 }
 
 func heartbeatPost(s state.State, r *http.Request) response.Response {
-	var hbInfo internalTypes.HeartbeatInfo
+	var hbInfo types.HeartbeatInfo
 	err := json.NewDecoder(r.Body).Decode(&hbInfo)
 	if err != nil {
 		return response.SmartError(err)
@@ -91,7 +90,7 @@ func heartbeatPost(s state.State, r *http.Request) response.Response {
 
 // beginHeartbeat initiates a heartbeat from the leader node to all other cluster members, if we haven't sent one out
 // recently.
-func beginHeartbeat(ctx context.Context, s state.State, hbReq internalTypes.HeartbeatInfo) response.Response {
+func beginHeartbeat(ctx context.Context, s state.State, hbReq types.HeartbeatInfo) response.Response {
 	if s.Address().URL.Host != hbReq.LeaderAddress {
 		return response.SmartError(fmt.Errorf("Attempt to initiate heartbeat from non-leader"))
 	}
@@ -178,7 +177,7 @@ func beginHeartbeat(ctx context.Context, s state.State, hbReq internalTypes.Hear
 	clusterMap[s.Address().URL.Host] = leaderEntry
 
 	// Record the maximum schema version discovered.
-	hbInfo := internalTypes.HeartbeatInfo{ClusterMembers: clusterMap}
+	hbInfo := types.HeartbeatInfo{ClusterMembers: clusterMap}
 	for _, node := range clusterMembers {
 		if node.SchemaInternalVersion > hbInfo.MaxSchemaInternal {
 			hbInfo.MaxSchemaInternal = node.SchemaInternalVersion

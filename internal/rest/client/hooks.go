@@ -6,32 +6,31 @@ import (
 
 	"github.com/canonical/lxd/shared/api"
 
-	internalTypes "github.com/canonical/microcluster/v3/internal/rest/types"
-	"github.com/canonical/microcluster/v3/rest/types"
+	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
 // RunPreRemoveHook executes the PreRemove hook with the given configuration on the cluster member targeted by this client.
-func RunPreRemoveHook(ctx context.Context, c *Client, config internalTypes.HookRemoveMemberOptions) error {
+func RunPreRemoveHook(ctx context.Context, c *Client, config types.HookRemoveMemberOptions) error {
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	return c.QueryStruct(queryCtx, "POST", internalTypes.InternalEndpoint, &api.NewURL().Path("hooks", string(internalTypes.PreRemove)).URL, config, nil)
+	return c.QueryStruct(queryCtx, "POST", types.InternalEndpoint, &api.NewURL().Path("hooks", string(types.PreRemove)).URL, config, nil)
 }
 
 // RunPostRemoveHook executes the PostRemove hook with the given configuration on the cluster member targeted by this client.
-func RunPostRemoveHook(ctx context.Context, c *Client, config internalTypes.HookRemoveMemberOptions) error {
+func RunPostRemoveHook(ctx context.Context, c *Client, config types.HookRemoveMemberOptions) error {
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	return c.QueryStruct(queryCtx, "POST", internalTypes.InternalEndpoint, &api.NewURL().Path("hooks", string(internalTypes.PostRemove)).URL, config, nil)
+	return c.QueryStruct(queryCtx, "POST", types.InternalEndpoint, &api.NewURL().Path("hooks", string(types.PostRemove)).URL, config, nil)
 }
 
 // RunNewMemberHook executes the OnNewMember hook with the given configuration on the cluster member targeted by this client.
-func RunNewMemberHook(ctx context.Context, c *Client, config internalTypes.HookNewMemberOptions) error {
+func RunNewMemberHook(ctx context.Context, c *Client, config types.HookNewMemberOptions) error {
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	return c.QueryStruct(queryCtx, "POST", internalTypes.InternalEndpoint, &api.NewURL().Path("hooks", string(internalTypes.OnNewMember)).URL, config, nil)
+	return c.QueryStruct(queryCtx, "POST", types.InternalEndpoint, &api.NewURL().Path("hooks", string(types.OnNewMember)).URL, config, nil)
 }
 
 // RunOnDaemonConfigUpdateHook executes the OnDaemonConfigUpdate hook with the given configuration on the cluster member targeted by this client.
@@ -39,5 +38,5 @@ func RunOnDaemonConfigUpdateHook(ctx context.Context, c *Client, config *types.D
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	return c.QueryStruct(queryCtx, "POST", internalTypes.InternalEndpoint, &api.NewURL().Path("hooks", string(internalTypes.OnDaemonConfigUpdate)).URL, config, nil)
+	return c.QueryStruct(queryCtx, "POST", types.InternalEndpoint, &api.NewURL().Path("hooks", string(types.OnDaemonConfigUpdate)).URL, config, nil)
 }

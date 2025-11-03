@@ -10,40 +10,39 @@ import (
 
 	"github.com/canonical/lxd/shared/api"
 
-	"github.com/canonical/microcluster/v3/cluster"
-	"github.com/canonical/microcluster/v3/cluster/db"
+	"github.com/canonical/microcluster/v3/microcluster/db"
 )
 
 var _ = api.ServerEnvironment{}
 
-var extendedTableObjects = cluster.RegisterStmt(`
+var extendedTableObjects = db.RegisterStmt(`
 SELECT extended_table.id, extended_table.key, extended_table.value
   FROM extended_table
   ORDER BY extended_table.key
 `)
 
-var extendedTableObjectsByKey = cluster.RegisterStmt(`
+var extendedTableObjectsByKey = db.RegisterStmt(`
 SELECT extended_table.id, extended_table.key, extended_table.value
   FROM extended_table
   WHERE ( extended_table.key = ? )
   ORDER BY extended_table.key
 `)
 
-var extendedTableID = cluster.RegisterStmt(`
+var extendedTableID = db.RegisterStmt(`
 SELECT extended_table.id FROM extended_table
   WHERE extended_table.key = ?
 `)
 
-var extendedTableCreate = cluster.RegisterStmt(`
+var extendedTableCreate = db.RegisterStmt(`
 INSERT INTO extended_table (key, value)
   VALUES (?, ?)
 `)
 
-var extendedTableDeleteByKey = cluster.RegisterStmt(`
+var extendedTableDeleteByKey = db.RegisterStmt(`
 DELETE FROM extended_table WHERE key = ?
 `)
 
-var extendedTableUpdate = cluster.RegisterStmt(`
+var extendedTableUpdate = db.RegisterStmt(`
 UPDATE extended_table
   SET key = ?, value = ?
  WHERE id = ?
@@ -63,7 +62,7 @@ func GetExtendedTables(ctx context.Context, tx *sql.Tx, filters ...ExtendedTable
 	queryParts := [2]string{}
 
 	if len(filters) == 0 {
-		sqlStmt, err = cluster.Stmt(tx, extendedTableObjects)
+		sqlStmt, err = db.Stmt(tx, extendedTableObjects)
 		if err != nil {
 			return nil, fmt.Errorf("Failed to get \"extendedTableObjects\" prepared statement: %w", err)
 		}
@@ -73,7 +72,7 @@ func GetExtendedTables(ctx context.Context, tx *sql.Tx, filters ...ExtendedTable
 		if filter.Key != nil {
 			args = append(args, []any{filter.Key}...)
 			if len(filters) == 1 {
-				sqlStmt, err = cluster.Stmt(tx, extendedTableObjectsByKey)
+				sqlStmt, err = db.Stmt(tx, extendedTableObjectsByKey)
 				if err != nil {
 					return nil, fmt.Errorf("Failed to get \"extendedTableObjectsByKey\" prepared statement: %w", err)
 				}
@@ -81,7 +80,7 @@ func GetExtendedTables(ctx context.Context, tx *sql.Tx, filters ...ExtendedTable
 				break
 			}
 
-			query, err := cluster.StmtString(extendedTableObjectsByKey)
+			query, err := db.StmtString(extendedTableObjectsByKey)
 			if err != nil {
 				return nil, fmt.Errorf("Failed to get \"extendedTableObjects\" prepared statement: %w", err)
 			}
@@ -153,7 +152,7 @@ func GetExtendedTable(ctx context.Context, tx *sql.Tx, key string) (*ExtendedTab
 // GetExtendedTableID return the ID of the extended_table with the given key.
 // generator: extended_table ID
 func GetExtendedTableID(ctx context.Context, tx *sql.Tx, key string) (int64, error) {
-	stmt, err := cluster.Stmt(tx, extendedTableID)
+	stmt, err := db.Stmt(tx, extendedTableID)
 	if err != nil {
 		return -1, fmt.Errorf("Failed to get \"extendedTableID\" prepared statement: %w", err)
 	}
@@ -207,7 +206,7 @@ func CreateExtendedTable(ctx context.Context, tx *sql.Tx, object ExtendedTable) 
 	args[1] = object.Value
 
 	// Prepared statement to use.
-	stmt, err := cluster.Stmt(tx, extendedTableCreate)
+	stmt, err := db.Stmt(tx, extendedTableCreate)
 	if err != nil {
 		return -1, fmt.Errorf("Failed to get \"extendedTableCreate\" prepared statement: %w", err)
 	}
@@ -229,7 +228,7 @@ func CreateExtendedTable(ctx context.Context, tx *sql.Tx, object ExtendedTable) 
 // DeleteExtendedTable deletes the extended_table matching the given key parameters.
 // generator: extended_table DeleteOne-by-Key
 func DeleteExtendedTable(ctx context.Context, tx *sql.Tx, key string) error {
-	stmt, err := cluster.Stmt(tx, extendedTableDeleteByKey)
+	stmt, err := db.Stmt(tx, extendedTableDeleteByKey)
 	if err != nil {
 		return fmt.Errorf("Failed to get \"extendedTableDeleteByKey\" prepared statement: %w", err)
 	}
@@ -261,7 +260,7 @@ func UpdateExtendedTable(ctx context.Context, tx *sql.Tx, key string, object Ext
 		return err
 	}
 
-	stmt, err := cluster.Stmt(tx, extendedTableUpdate)
+	stmt, err := db.Stmt(tx, extendedTableUpdate)
 	if err != nil {
 		return fmt.Errorf("Failed to get \"extendedTableUpdate\" prepared statement: %w", err)
 	}

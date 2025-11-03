@@ -12,12 +12,12 @@ import (
 	"github.com/canonical/lxd/shared/api"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/canonical/microcluster/v3/cluster"
-	clusterDB "github.com/canonical/microcluster/v3/cluster/db"
+	"github.com/canonical/microcluster/v3/internal/cluster"
 	"github.com/canonical/microcluster/v3/internal/db/update"
 	"github.com/canonical/microcluster/v3/internal/extensions"
 	"github.com/canonical/microcluster/v3/internal/log"
 	"github.com/canonical/microcluster/v3/internal/sys"
+	clusterDB "github.com/canonical/microcluster/v3/microcluster/db"
 )
 
 type dbSuite struct {
@@ -673,7 +673,7 @@ func NewTestDB(extensionsExternal []clusterDB.Update) (*DqliteDB, error) {
 		return nil, err
 	}
 
-	err = cluster.PrepareStmts(db.db, false)
+	err = clusterDB.PrepareStmts(db.db, false)
 	if err != nil {
 		return nil, err
 	}

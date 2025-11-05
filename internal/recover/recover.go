@@ -24,15 +24,14 @@ import (
 	"github.com/canonical/microcluster/v3/client"
 	"github.com/canonical/microcluster/v3/internal/config"
 	"github.com/canonical/microcluster/v3/internal/log"
-	"github.com/canonical/microcluster/v3/internal/sys"
 	"github.com/canonical/microcluster/v3/internal/trust"
 	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
 // GetDqliteClusterMembers parses the trust store and
 // path.Join(filesystem.DatabaseDir, "cluster.yaml").
-func GetDqliteClusterMembers(filesystem *sys.OS) ([]types.DqliteMember, error) {
-	storePath := path.Join(filesystem.DatabaseDir, "cluster.yaml")
+func GetDqliteClusterMembers(filesystem types.OS) ([]types.DqliteMember, error) {
+	storePath := path.Join(filesystem.DatabaseDir(), "cluster.yaml")
 
 	var nodeInfo []dqlite.NodeInfo
 	err := readYaml(storePath, &nodeInfo)
@@ -40,7 +39,7 @@ func GetDqliteClusterMembers(filesystem *sys.OS) ([]types.DqliteMember, error) {
 		return nil, err
 	}
 
-	remotes, err := readTrustStore(filesystem.TrustDir)
+	remotes, err := readTrustStore(filesystem.TrustDir())
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +67,7 @@ func GetDqliteClusterMembers(filesystem *sys.OS) ([]types.DqliteMember, error) {
 // files, modifies the daemon and trust store, and writes a recovery tarball.
 // It does not check members to ensure that the new configuration is valid; use
 // ValidateMemberChanges to ensure that the inputs to this function are correct.
-func RecoverFromQuorumLoss(ctx context.Context, filesystem *sys.OS, members []types.DqliteMember) (string, error) {
+func RecoverFromQuorumLoss(ctx context.Context, filesystem types.OS, members []types.DqliteMember) (string, error) {
 	// Set up our new cluster configuration
 	nodeInfo := make([]dqlite.NodeInfo, 0, len(members))
 	for _, member := range members {
@@ -93,7 +92,7 @@ func RecoverFromQuorumLoss(ctx context.Context, filesystem *sys.OS, members []ty
 	// Check each cluster member's /1.0 to ensure that they are unreachable.
 	// This is a sanity check to ensure that we're not reconfiguring a cluster
 	// that's still partially up.
-	remotes, err := readTrustStore(filesystem.TrustDir)
+	remotes, err := readTrustStore(filesystem.TrustDir())
 	if err != nil {
 		return "", err
 	}
@@ -138,13 +137,13 @@ func RecoverFromQuorumLoss(ctx context.Context, filesystem *sys.OS, members []ty
 		return "", err
 	}
 
-	err = dqlite.ReconfigureMembershipExt(filesystem.DatabaseDir, nodeInfo)
+	err = dqlite.ReconfigureMembershipExt(filesystem.DatabaseDir(), nodeInfo)
 	if err != nil {
 		return "", fmt.Errorf("Dqlite recovery: %w", err)
 	}
 
 	// Update local info.yaml with our new address
-	localInfoYamlPath := path.Join(filesystem.DatabaseDir, "info.yaml")
+	localInfoYamlPath := path.Join(filesystem.DatabaseDir(), "info.yaml")
 
 	var localInfo dqlite.NodeInfo
 	err = readYaml(localInfoYamlPath, &localInfo)
@@ -164,7 +163,7 @@ func RecoverFromQuorumLoss(ctx context.Context, filesystem *sys.OS, members []ty
 		return "", err
 	}
 
-	err = writeDqliteClusterYaml(path.Join(filesystem.DatabaseDir, "cluster.yaml"), members)
+	err = writeDqliteClusterYaml(path.Join(filesystem.DatabaseDir(), "cluster.yaml"), members)
 	if err != nil {
 		return "", err
 	}
@@ -180,7 +179,7 @@ func RecoverFromQuorumLoss(ctx context.Context, filesystem *sys.OS, members []ty
 		return recoveryTarballPath, err
 	}
 
-	err = updateTrustStore(filesystem.TrustDir, members)
+	err = updateTrustStore(filesystem.TrustDir(), members)
 	if err != nil {
 		return recoveryTarballPath, fmt.Errorf("Failed to update trust store: %w", err)
 	}
@@ -235,13 +234,13 @@ func writeDqliteClusterYaml(path string, members []types.DqliteMember) error {
 	return writeYaml(path, &nodeInfo)
 }
 
-func updateDaemonAddress(filesystem *sys.OS, address string) error {
+func updateDaemonAddress(filesystem types.OS, address string) error {
 	newAddress, err := types.ParseAddrPort(address)
 	if err != nil {
 		return fmt.Errorf("Failed to update daemon.yaml: %w", err)
 	}
 
-	daemonConfig := config.NewDaemonConfig(path.Join(filesystem.StateDir, "daemon.yaml"))
+	daemonConfig := config.NewDaemonConfig(path.Join(filesystem.StateDir(), "daemon.yaml"))
 	err = daemonConfig.Load()
 	if err != nil {
 		return fmt.Errorf("Failed to load daemon.yaml: %w", err)
@@ -350,14 +349,14 @@ func ValidateMemberChanges(oldMembers []types.DqliteMember, newMembers []types.D
 	return nil
 }
 
-func writeGlobalMembersPatch(filesystem *sys.OS, members []types.DqliteMember) error {
+func writeGlobalMembersPatch(filesystem types.OS, members []types.DqliteMember) error {
 	sql := ""
 	for _, member := range members {
 		sql += fmt.Sprintf("UPDATE core_cluster_members SET address = %q WHERE name = %q;\n", member.Address, member.Name)
 	}
 
 	if len(sql) > 0 {
-		patchPath := path.Join(filesystem.StateDir, "patch.global.sql")
+		patchPath := path.Join(filesystem.StateDir(), "patch.global.sql")
 		patchFile, err := os.OpenFile(patchPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			return err
@@ -384,9 +383,9 @@ func writeGlobalMembersPatch(filesystem *sys.OS, members []types.DqliteMember) e
 // go-dqlite's info.yaml is excluded from the tarball.
 // The new cluster configuration is included as `recovery.yaml`.
 // This function returns the path to the tarball.
-func createRecoveryTarball(ctx context.Context, filesystem *sys.OS, members []types.DqliteMember) (string, error) {
-	tarballPath := path.Join(filesystem.StateDir, "recovery_db.tar.gz")
-	recoveryYamlPath := path.Join(filesystem.DatabaseDir, "recovery.yaml")
+func createRecoveryTarball(ctx context.Context, filesystem types.OS, members []types.DqliteMember) (string, error) {
+	tarballPath := path.Join(filesystem.StateDir(), "recovery_db.tar.gz")
+	recoveryYamlPath := path.Join(filesystem.DatabaseDir(), "recovery.yaml")
 
 	err := writeYaml(recoveryYamlPath, members)
 	if err != nil {
@@ -396,7 +395,7 @@ func createRecoveryTarball(ctx context.Context, filesystem *sys.OS, members []ty
 	// info.yaml is used by go-dqlite to keep track of the current cluster member's
 	// ID and address. We shouldn't replicate the recovery member's info.yaml
 	// to all other members, so exclude it from the tarball:
-	err = createTarball(ctx, tarballPath, filesystem.DatabaseDir, ".", []string{"info.yaml"})
+	err = createTarball(ctx, tarballPath, filesystem.DatabaseDir(), ".", []string{"info.yaml"})
 
 	return tarballPath, err
 }
@@ -405,9 +404,9 @@ func createRecoveryTarball(ctx context.Context, filesystem *sys.OS, members []ty
 // fiesystem.StateDir. If it exists, unpack it into a temporary directory,
 // ensure that it is a valid microcluster recovery tarball, and replace the
 // existing filesystem.DatabaseDir.
-func MaybeUnpackRecoveryTarball(ctx context.Context, filesystem *sys.OS) error {
-	tarballPath := path.Join(filesystem.StateDir, "recovery_db.tar.gz")
-	unpackDir := path.Join(filesystem.StateDir, "recovery_db")
+func MaybeUnpackRecoveryTarball(ctx context.Context, filesystem types.OS) error {
+	tarballPath := path.Join(filesystem.StateDir(), "recovery_db.tar.gz")
+	unpackDir := path.Join(filesystem.StateDir(), "recovery_db")
 	recoveryYamlPath := path.Join(unpackDir, "recovery.yaml")
 
 	// Determine if the recovery tarball exists
@@ -430,7 +429,7 @@ func MaybeUnpackRecoveryTarball(ctx context.Context, filesystem *sys.OS) error {
 
 	// We need to set the local info.yaml address with the (possibly changed)
 	// incoming address for this member.
-	localInfoYamlPath := path.Join(filesystem.DatabaseDir, "info.yaml")
+	localInfoYamlPath := path.Join(filesystem.DatabaseDir(), "info.yaml")
 	recoveryInfoYamlPath := path.Join(unpackDir, "info.yaml")
 
 	var localInfo dqlite.NodeInfo
@@ -465,7 +464,7 @@ func MaybeUnpackRecoveryTarball(ctx context.Context, filesystem *sys.OS) error {
 	}
 
 	// Update the local trust store with the incoming cluster configuration
-	err = updateTrustStore(filesystem.TrustDir, incomingMembers)
+	err = updateTrustStore(filesystem.TrustDir(), incomingMembers)
 	if err != nil {
 		return err
 	}
@@ -477,7 +476,7 @@ func MaybeUnpackRecoveryTarball(ctx context.Context, filesystem *sys.OS) error {
 
 	// Now that we're as sure as we can be that the recovery DB is valid, we can
 	// replace the existing DB
-	err = os.RemoveAll(filesystem.DatabaseDir)
+	err = os.RemoveAll(filesystem.DatabaseDir())
 	if err != nil {
 		return err
 	}
@@ -487,7 +486,7 @@ func MaybeUnpackRecoveryTarball(ctx context.Context, filesystem *sys.OS) error {
 		return err
 	}
 
-	err = os.Rename(unpackDir, filesystem.DatabaseDir)
+	err = os.Rename(unpackDir, filesystem.DatabaseDir())
 	if err != nil {
 		return err
 	}
@@ -510,13 +509,13 @@ func MaybeUnpackRecoveryTarball(ctx context.Context, filesystem *sys.OS) error {
 // CreateDatabaseBackup writes a tarball of filesystem.DatabaseDir to
 // filesystem.StateDir as db_backup.TIMESTAMP.tar.gz. It does not check to
 // to ensure that the database is stopped.
-func CreateDatabaseBackup(ctx context.Context, filesystem *sys.OS) error {
+func CreateDatabaseBackup(ctx context.Context, filesystem types.OS) error {
 	// tar interprets `:` as a remote drive; ISO8601 allows a 'basic format'
 	// with the colons omitted (as opposed to time.RFC3339)
 	// https://en.wikipedia.org/wiki/ISO_8601
 	backupFileName := fmt.Sprintf("db_backup.%s.tar.gz", time.Now().Format("2006-01-02T150405Z0700"))
 
-	backupFilePath := path.Join(filesystem.StateDir, backupFileName)
+	backupFilePath := path.Join(filesystem.StateDir(), backupFileName)
 
 	logger, err := log.LoggerFromContext(ctx)
 	if err != nil {
@@ -527,13 +526,13 @@ func CreateDatabaseBackup(ctx context.Context, filesystem *sys.OS) error {
 
 	// For DB backups the tarball should contain the subdirs (usually `database/`)
 	// so that the user can easily untar the backup from the state dir.
-	rootDir := filesystem.StateDir
-	walkDir, err := filepath.Rel(filesystem.StateDir, filesystem.DatabaseDir)
+	rootDir := filesystem.StateDir()
+	walkDir, err := filepath.Rel(filesystem.StateDir(), filesystem.DatabaseDir())
 
 	// Don't bother if DatabaseDir is not inside StateDir
 	if err != nil {
-		logger.Warn("DB backup: DatabaseDir (%q) not in StateDir (%q)", slog.String("databaseDir", filesystem.DatabaseDir), slog.String("stateDir", filesystem.StateDir))
-		rootDir = filesystem.DatabaseDir
+		logger.Warn("DB backup: DatabaseDir (%q) not in StateDir (%q)", slog.String("databaseDir", filesystem.DatabaseDir()), slog.String("stateDir", filesystem.StateDir()))
+		rootDir = filesystem.DatabaseDir()
 		walkDir = "."
 	}
 

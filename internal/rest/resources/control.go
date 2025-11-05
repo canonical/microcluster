@@ -141,18 +141,18 @@ func controlPost(state state.State, r *http.Request) response.Response {
 
 	// Replace the server keypair if the cluster member name has changed upon initialization.
 	if !certNameMatches {
-		err := os.Remove(filepath.Join(state.FileSystem().StateDir, "server.crt"))
+		err := os.Remove(filepath.Join(state.FileSystem().StateDir(), "server.crt"))
 		if err != nil {
 			return response.SmartError(err)
 		}
 
-		err = os.Remove(filepath.Join(state.FileSystem().StateDir, "server.key"))
+		err = os.Remove(filepath.Join(state.FileSystem().StateDir(), "server.key"))
 		if err != nil {
 			return response.SmartError(err)
 		}
 
 		// Generate a new keypair with the new subject name.
-		_, err = shared.KeyPairAndCA(state.FileSystem().StateDir, string(types.ServerCertificateName), shared.CertServer, shared.CertOptions{AddHosts: true, CommonName: req.Name})
+		_, err = shared.KeyPairAndCA(state.FileSystem().StateDir(), string(types.ServerCertificateName), shared.CertServer, shared.CertOptions{AddHosts: true, CommonName: req.Name})
 		if err != nil {
 			return response.SmartError(err)
 		}
@@ -292,7 +292,7 @@ func writeCert(dir, prefix string, cert, key, ca []byte) error {
 
 func setupLocalMember(state state.State, localClusterMember *trust.Remote, joinInfo *types.TokenResponse) ([]string, error) {
 	// Set up cluster certificate.
-	err := writeCert(state.FileSystem().StateDir, string(types.ClusterCertificateName), []byte(joinInfo.ClusterCert.String()), []byte(joinInfo.ClusterKey), nil)
+	err := writeCert(state.FileSystem().StateDir(), string(types.ClusterCertificateName), []byte(joinInfo.ClusterCert.String()), []byte(joinInfo.ClusterKey), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -305,7 +305,7 @@ func setupLocalMember(state state.State, localClusterMember *trust.Remote, joinI
 			ca = []byte(cert.CA)
 		}
 
-		err := writeCert(state.FileSystem().CertificatesDir, name, []byte(cert.Cert), []byte(cert.Key), ca)
+		err := writeCert(state.FileSystem().CertificatesDir(), name, []byte(cert.Cert), []byte(cert.Key), ca)
 		if err != nil {
 			return nil, err
 		}
@@ -324,7 +324,7 @@ func setupLocalMember(state state.State, localClusterMember *trust.Remote, joinI
 	}
 
 	clusterMembers = append(clusterMembers, *localClusterMember)
-	err = state.Remotes().Add(state.FileSystem().TrustDir, clusterMembers...)
+	err = state.Remotes().Add(state.FileSystem().TrustDir(), clusterMembers...)
 	if err != nil {
 		return nil, err
 	}

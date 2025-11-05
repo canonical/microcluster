@@ -195,7 +195,7 @@ func clusterPost(s state.State, r *http.Request) response.Response {
 	}
 
 	// Add the cluster member to our local store for authentication.
-	err = s.Remotes().Add(s.FileSystem().TrustDir, newRemote)
+	err = s.Remotes().Add(s.FileSystem().TrustDir(), newRemote)
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -203,7 +203,7 @@ func clusterPost(s state.State, r *http.Request) response.Response {
 	tokenResponse.ClusterAdditionalCerts = make(map[string]types.KeyPair)
 
 	// Load the list of custom certificates from its state directory.
-	err = filepath.WalkDir(s.FileSystem().CertificatesDir, func(path string, d fs.DirEntry, err error) error {
+	err = filepath.WalkDir(s.FileSystem().CertificatesDir(), func(path string, d fs.DirEntry, err error) error {
 		// Skip directories
 		if d.IsDir() {
 			return nil
@@ -213,7 +213,7 @@ func clusterPost(s state.State, r *http.Request) response.Response {
 		splittedPath := strings.Split(filepath.Base(path), ".")
 		if len(splittedPath) == 2 && splittedPath[1] == "crt" {
 			// Load the certificate
-			cert, err := shared.KeyPairAndCA(s.FileSystem().CertificatesDir, splittedPath[0], shared.CertServer, shared.CertOptions{})
+			cert, err := shared.KeyPairAndCA(s.FileSystem().CertificatesDir(), splittedPath[0], shared.CertServer, shared.CertOptions{})
 			if err != nil {
 				return fmt.Errorf("Failed to load certificate for additional server %q: %w", splittedPath[0], err)
 			}
@@ -383,7 +383,7 @@ func resetClusterMember(ctx context.Context, s state.State, force bool) (reExec 
 			logger.Error("Failed shutting down", slog.String("error", err.Error()))
 		}
 
-		err = os.RemoveAll(s.FileSystem().StateDir)
+		err = os.RemoveAll(s.FileSystem().StateDir())
 		if err != nil && !force {
 			logger.Error("Failed to remove the state directory", slog.String("error", err.Error()))
 		}
@@ -643,7 +643,10 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 		}
 	}
 
-	localClient, err := internalClient.New(s.FileSystem().ControlSocket(), nil, nil, false)
+	url := api.NewURL()
+	url.URL = *s.FileSystem().ControlSocket()
+
+	localClient, err := internalClient.New(*url, nil, nil, false)
 	if err != nil {
 		return response.SmartError(err)
 	}

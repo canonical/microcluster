@@ -81,7 +81,7 @@ type Daemon struct {
 
 	config *internalConfig.DaemonConfig // Local daemon's configuration from daemon.yaml file.
 
-	os         *sys.OS
+	os         types.OS
 	serverCert *shared.CertInfo
 
 	clusterMu   sync.RWMutex
@@ -186,7 +186,7 @@ func (d *Daemon) Run(ctx context.Context, stateDir string, args Args) error {
 	d.drainConnectionsTimeout = args.DrainConnectionsTimeout
 
 	// Setup the deamon's internal config.
-	d.config = internalConfig.NewDaemonConfig(filepath.Join(d.os.StateDir, "daemon.yaml"))
+	d.config = internalConfig.NewDaemonConfig(filepath.Join(d.os.StateDir(), "daemon.yaml"))
 
 	// Clean up the daemon state on an error during init.
 	reverter := revert.New()
@@ -446,12 +446,12 @@ func (d *Daemon) reload() error {
 
 func (d *Daemon) initStore() error {
 	var err error
-	d.fsWatcher, err = sys.NewWatcher(d.shutdownCtx, d.os.StateDir)
+	d.fsWatcher, err = sys.NewWatcher(d.shutdownCtx, d.os.StateDir())
 	if err != nil {
 		return err
 	}
 
-	d.trustStore, err = trust.Init(d.fsWatcher, nil, d.os.TrustDir)
+	d.trustStore, err = trust.Init(d.fsWatcher, nil, d.os.TrustDir())
 	if err != nil {
 		return err
 	}
@@ -541,7 +541,7 @@ func (d *Daemon) StartAPI(ctx context.Context, bootstrap bool, initConfig map[st
 	}
 
 	if bootstrap {
-		err = d.trustStore.Remotes().Add(d.os.TrustDir, localNode)
+		err = d.trustStore.Remotes().Add(d.os.TrustDir(), localNode)
 		if err != nil {
 			return fmt.Errorf("Failed to initialize local remote entry: %w", err)
 		}
@@ -838,7 +838,11 @@ func (d *Daemon) UpdateServers() error {
 // startUnixServer starts up the core unix listener with the given resources.
 func (d *Daemon) startUnixServer(serverEndpoints []rest.Resources, socketGroup string) error {
 	ctlServer := d.initServer(serverEndpoints...)
-	ctl := endpoints.NewSocket(d.shutdownCtx, ctlServer, d.os.ControlSocket(), socketGroup, d.drainConnectionsTimeout)
+
+	url := api.NewURL()
+	url.URL = *d.os.ControlSocket()
+
+	ctl := endpoints.NewSocket(d.shutdownCtx, ctlServer, *url, socketGroup, d.drainConnectionsTimeout)
 	d.endpoints = endpoints.NewEndpoints(d.shutdownCtx, map[string]endpoints.Endpoint{
 		endpoints.EndpointsUnix: ctl,
 	})
@@ -920,7 +924,7 @@ func (d *Daemon) addExtensionServers(preInit bool, fallbackCert *shared.CertInfo
 			continue
 		}
 
-		customCertExists := shared.PathExists(filepath.Join(d.os.CertificatesDir, fmt.Sprintf("%s.crt", serverName)))
+		customCertExists := shared.PathExists(filepath.Join(d.os.CertificatesDir(), fmt.Sprintf("%s.crt", serverName)))
 
 		var err error
 		var cert *shared.CertInfo
@@ -930,7 +934,7 @@ func (d *Daemon) addExtensionServers(preInit bool, fallbackCert *shared.CertInfo
 		} else {
 			// Generate a dedicated certificate or load the custom one if it exists.
 			// When updating the additional listeners the dedicated certificate from before will be reused.
-			cert, err = shared.KeyPairAndCA(d.os.CertificatesDir, serverName, shared.CertServer, shared.CertOptions{AddHosts: true, CommonName: serverName})
+			cert, err = shared.KeyPairAndCA(d.os.CertificatesDir(), serverName, shared.CertServer, shared.CertOptions{AddHosts: true, CommonName: serverName})
 			if err != nil {
 				return fmt.Errorf("Failed to setup dedicated certificate for additional server %q: %w", serverName, err)
 			}
@@ -1000,9 +1004,9 @@ func (d *Daemon) ReloadCert(name types.CertificateName) error {
 
 	var dir string
 	if name == types.ClusterCertificateName || name == types.ServerCertificateName {
-		dir = d.os.StateDir
+		dir = d.os.StateDir()
 	} else {
-		dir = d.os.CertificatesDir
+		dir = d.os.CertificatesDir()
 	}
 
 	cert, err := shared.KeyPairAndCA(dir, string(name), shared.CertServer, shared.CertOptions{AddHosts: true, CommonName: d.Name()})
@@ -1035,7 +1039,7 @@ func (d *Daemon) ReloadCert(name types.CertificateName) error {
 		// - and cannot load a custom certificate which shares their name
 		d.extensionServersMu.RLock()
 		for name, server := range d.extensionServers {
-			certExists := shared.PathExists(filepath.Join(d.os.CertificatesDir, fmt.Sprintf("%s.crt", name)))
+			certExists := shared.PathExists(filepath.Join(d.os.CertificatesDir(), fmt.Sprintf("%s.crt", name)))
 			if !server.CoreAPI && !server.DedicatedCertificate && !certExists {
 				d.endpoints.UpdateTLSByName(name, cert)
 			}
@@ -1099,8 +1103,8 @@ func (d *Daemon) ExtensionServers() []string {
 }
 
 // FileSystem returns the filesystem structure for the daemon.
-func (d *Daemon) FileSystem() *sys.OS {
-	copyOS := *d.os
+func (d *Daemon) FileSystem() types.OS {
+	copyOS := *(d.os.(*sys.OS))
 	return &copyOS
 }
 

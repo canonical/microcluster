@@ -39,7 +39,7 @@ type State interface {
 	ClusterCert() *shared.CertInfo
 
 	// Database.
-	Database() db.DB
+	Database() types.DB
 
 	// Returns a connector for interconnection with the cluster.
 	Connect() types.Connector
@@ -135,7 +135,7 @@ func (s *InternalState) ClusterCert() *shared.CertInfo {
 }
 
 // Database allows access to the dqlite database.
-func (s *InternalState) Database() db.DB {
+func (s *InternalState) Database() types.DB {
 	return s.InternalDatabase
 }
 

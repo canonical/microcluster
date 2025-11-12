@@ -1,16 +1,12 @@
 package types
 
-import (
-	"github.com/canonical/microcluster/v3/internal/extensions"
-)
-
 // Server represents server status information.
 type Server struct {
-	Name       string                `json:"name"    yaml:"name"`
-	Address    AddrPort              `json:"address" yaml:"address"`
-	Version    string                `json:"version" yaml:"version"`
-	Ready      bool                  `json:"ready"   yaml:"ready"`
-	Extensions extensions.Extensions `json:"extensions" yaml:"extensions"`
+	Name       string     `json:"name"    yaml:"name"`
+	Address    AddrPort   `json:"address" yaml:"address"`
+	Version    string     `json:"version" yaml:"version"`
+	Ready      bool       `json:"ready"   yaml:"ready"`
+	Extensions Extensions `json:"extensions" yaml:"extensions"`
 }
 
 const (

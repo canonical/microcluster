@@ -18,7 +18,6 @@ import (
 
 	"github.com/canonical/microcluster/v3/internal/db/query"
 	"github.com/canonical/microcluster/v3/internal/db/update"
-	"github.com/canonical/microcluster/v3/internal/extensions"
 	"github.com/canonical/microcluster/v3/internal/sys"
 	clusterDB "github.com/canonical/microcluster/v3/microcluster/db"
 	"github.com/canonical/microcluster/v3/microcluster/types"
@@ -26,7 +25,7 @@ import (
 
 // Open opens the dqlite database and loads the schema.
 // Returns true if we need to wait for other nodes to catch up to our version.
-func (db *DqliteDB) Open(ext extensions.Extensions, bootstrap bool) error {
+func (db *DqliteDB) Open(ext types.Extensions, bootstrap bool) error {
 	// Allow dqlite up to 2 minutes to become ready when starting up.
 	// This is to allow for unready/dead nodes to time out.
 	ctx, cancel := context.WithTimeout(db.ctx, 120*time.Second)
@@ -88,7 +87,7 @@ func (db *DqliteDB) Open(ext extensions.Extensions, bootstrap bool) error {
 // waitUpgrade compares the version information of all cluster members in the database to the local version.
 // If this node's version is ahead of others, then it will block on the `db.upgradeCh` or up to a minute.
 // If this node's version is behind others, then it returns an error.
-func (db *DqliteDB) waitUpgrade(bootstrap bool, ext extensions.Extensions) error {
+func (db *DqliteDB) waitUpgrade(bootstrap bool, ext types.Extensions) error {
 	checkSchemaVersion := func(schemaVersion uint64, clusterMemberVersions []uint64) (otherNodesBehind bool, err error) {
 		nodeIsBehind := false
 		for _, version := range clusterMemberVersions {
@@ -116,7 +115,7 @@ func (db *DqliteDB) waitUpgrade(bootstrap bool, ext extensions.Extensions) error
 		return nodeIsBehind, nil
 	}
 
-	checkAPIExtensions := func(currentAPIExtensions extensions.Extensions, clusterMemberAPIExtensions []extensions.Extensions) (otherNodesBehind bool, err error) {
+	checkAPIExtensions := func(currentAPIExtensions types.Extensions, clusterMemberAPIExtensions []types.Extensions) (otherNodesBehind bool, err error) {
 		db.log().Debug(fmt.Sprintf("Local API extensions: %v, cluster members API extensions: %v", currentAPIExtensions, clusterMemberAPIExtensions))
 
 		nodeIsBehind := false

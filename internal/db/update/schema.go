@@ -11,8 +11,8 @@ import (
 
 	"github.com/canonical/microcluster/v3/internal/db/query"
 	"github.com/canonical/microcluster/v3/internal/db/schema"
-	"github.com/canonical/microcluster/v3/internal/extensions"
 	clusterDB "github.com/canonical/microcluster/v3/microcluster/db"
+	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
 // updateType represents whether the update is an internal or external schema update.
@@ -29,7 +29,7 @@ const (
 // SchemaUpdate holds the configuration for executing schema updates.
 type SchemaUpdate struct {
 	updates       map[updateType][]clusterDB.Update // Ordered series of internal and external updates making up the schema
-	apiExtensions extensions.Extensions
+	apiExtensions types.Extensions
 	hook          schema.Hook  // Optional hook to execute whenever a update gets applied
 	fresh         string       // Optional SQL statement used to create schema from scratch
 	check         schema.Check // Optional callback invoked before doing any update
@@ -58,7 +58,7 @@ func (s *SchemaUpdate) Check(check schema.Check) {
 }
 
 // Version returns the internal and external schema update versions, corresponding to the number of updates that have occurred.
-func (s *SchemaUpdate) Version() (internalVersion uint64, externalVersion uint64, apiExtensions extensions.Extensions) {
+func (s *SchemaUpdate) Version() (internalVersion uint64, externalVersion uint64, apiExtensions types.Extensions) {
 	return uint64(len(s.updates[updateInternal])), uint64(len(s.updates[updateExternal])), s.apiExtensions
 }
 

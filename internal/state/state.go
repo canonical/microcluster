@@ -13,7 +13,6 @@ import (
 	internalConfig "github.com/canonical/microcluster/v3/internal/config"
 	"github.com/canonical/microcluster/v3/internal/db"
 	"github.com/canonical/microcluster/v3/internal/endpoints"
-	"github.com/canonical/microcluster/v3/internal/extensions"
 	internalClient "github.com/canonical/microcluster/v3/internal/rest/client"
 	"github.com/canonical/microcluster/v3/internal/trust"
 	"github.com/canonical/microcluster/v3/microcluster/types"
@@ -88,7 +87,7 @@ type InternalState struct {
 	Stop func() (exit func(), stopErr error)
 
 	// Runtime extensions.
-	Extensions extensions.Extensions
+	Extensions types.Extensions
 
 	// Hooks contain external implementations that are triggered by specific cluster actions.
 	Hooks *Hooks

@@ -72,7 +72,7 @@ func trustPost(s state.State, r *http.Request) response.Response {
 		// We don't fail the entire operation if some nodes are unreachable.
 		err = clients.Query(ctx, true, func(ctx context.Context, c types.Client) error {
 			// No need to send a request to ourselves, or to the node we are adding.
-			if s.Address().URL.Host == c.URL().Host || req.Address.String() == c.URL().Host {
+			if s.Address().Host == c.URL().Host || req.Address.String() == c.URL().Host {
 				return nil
 			}
 
@@ -138,7 +138,7 @@ func trustDelete(s state.State, r *http.Request) response.Response {
 
 		err = clients.Query(ctx, true, func(ctx context.Context, c types.Client) error {
 			// No need to send a request to ourselves, or to the node we are adding.
-			if s.Address().URL.Host == c.URL().Host || nodeToRemove.URL().URL.Host == c.URL().Host {
+			if s.Address().Host == c.URL().Host || nodeToRemove.URL().URL.Host == c.URL().Host {
 				return nil
 			}
 

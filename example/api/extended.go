@@ -33,9 +33,9 @@ func cmdPost(state state.State, r *http.Request) response.Response {
 
 		messages := make([]string, 0, len(clients))
 		err = clients.Query(r.Context(), true, func(ctx context.Context, c types.Client) error {
-			addrPort, err := types.ParseAddrPort(state.Address().URL.Host)
+			addrPort, err := types.ParseAddrPort(state.Address().Host)
 			if err != nil {
-				return fmt.Errorf("Failed to parse addr:port of listen address %q: %w", state.Address().URL.Host, err)
+				return fmt.Errorf("Failed to parse addr:port of listen address %q: %w", state.Address().Host, err)
 			}
 
 			// Our payload in this case is defined by us as ExtendedType.
@@ -76,7 +76,7 @@ func cmdPost(state state.State, r *http.Request) response.Response {
 	}
 
 	// Return some identifying information.
-	message := fmt.Sprintf("cluster member at address %q received message %q from cluster member at address %q", state.Address().URL.Host, info.Message, info.Sender.String())
+	message := fmt.Sprintf("cluster member at address %q received message %q from cluster member at address %q", state.Address().Host, info.Message, info.Sender.String())
 
 	return response.SyncResponse(true, message)
 }

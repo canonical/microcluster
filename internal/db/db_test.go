@@ -657,7 +657,7 @@ func NewTestDB(extensionsExternal []clusterDB.Update) (*DqliteDB, error) {
 	db := &DqliteDB{
 		ctx:        ctx,
 		memberName: func() string { return fmt.Sprintf("cluster-member-%d", 0) },
-		listenAddr: *api.NewURL().Host("10.0.0.0:8443"),
+		listenAddr: &api.NewURL().Host("10.0.0.0:8443").URL,
 		upgradeCh:  make(chan struct{}, 1),
 		os:         &sys.OS{},
 	}

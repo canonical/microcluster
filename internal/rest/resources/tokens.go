@@ -72,8 +72,8 @@ func tokensPost(state state.State, r *http.Request) response.Response {
 	}
 
 	if len(joinAddresses) == 0 {
-		logger.Warn(fmt.Sprintf("Failed to check trust store for eligible join addresses. Issuing token with join address %q", state.Address().URL.Host))
-		joinAddresses, err = types.ParseAddrPorts([]string{state.Address().URL.Host})
+		logger.Warn(fmt.Sprintf("Failed to check trust store for eligible join addresses. Issuing token with join address %q", state.Address().Host))
+		joinAddresses, err = types.ParseAddrPorts([]string{state.Address().Host})
 		if err != nil {
 			return response.SmartError(err)
 		}

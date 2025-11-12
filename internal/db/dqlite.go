@@ -39,7 +39,7 @@ type DqliteDB struct {
 	memberName  func() string           // Local cluster member name
 	clusterCert func() *shared.CertInfo // Cluster certificate for dqlite authentication.
 	serverCert  func() *shared.CertInfo // Server certificate for dqlite authentication.
-	listenAddr  api.URL                 // Listen address for this dqlite node.
+	listenAddr  *url.URL                // Listen address for this dqlite node.
 
 	dbName string // This is db.bin.
 	os     types.OS
@@ -146,11 +146,11 @@ func (db *DqliteDB) isInitialized() (bool, error) {
 }
 
 // Bootstrap dqlite.
-func (db *DqliteDB) Bootstrap(extensions extensions.Extensions, addr api.URL, clusterRecord cluster.CoreClusterMember) error {
+func (db *DqliteDB) Bootstrap(extensions extensions.Extensions, addr *url.URL, clusterRecord cluster.CoreClusterMember) error {
 	var err error
 	db.listenAddr = addr
 	db.dqlite, err = dqlite.New(db.os.DatabaseDir(),
-		dqlite.WithAddress(db.listenAddr.URL.Host),
+		dqlite.WithAddress(db.listenAddr.Host),
 		dqlite.WithRolesAdjustmentFrequency(db.heartbeatInterval),
 		dqlite.WithRolesAdjustmentHook(db.heartbeat),
 		dqlite.WithConcurrentLeaderConns(&db.maxConns),
@@ -180,14 +180,14 @@ func (db *DqliteDB) Bootstrap(extensions extensions.Extensions, addr api.URL, cl
 }
 
 // Join a dqlite cluster with the address of a member.
-func (db *DqliteDB) Join(extensions extensions.Extensions, addr api.URL, joinAddresses ...string) error {
+func (db *DqliteDB) Join(extensions extensions.Extensions, addr *url.URL, joinAddresses ...string) error {
 	var err error
 	db.listenAddr = addr
 	db.dqlite, err = dqlite.New(db.os.DatabaseDir(),
 		dqlite.WithCluster(joinAddresses),
 		dqlite.WithRolesAdjustmentFrequency(db.heartbeatInterval),
 		dqlite.WithRolesAdjustmentHook(db.heartbeat),
-		dqlite.WithAddress(db.listenAddr.URL.Host),
+		dqlite.WithAddress(db.listenAddr.Host),
 		dqlite.WithConcurrentLeaderConns(&db.maxConns),
 		dqlite.WithExternalConn(db.dialFunc(), db.acceptCh),
 		dqlite.WithUnixSocket(os.Getenv(sys.DqliteSocket)))
@@ -215,7 +215,7 @@ func (db *DqliteDB) Join(extensions extensions.Extensions, addr api.URL, joinAdd
 }
 
 // StartWithCluster starts up dqlite and joins the cluster.
-func (db *DqliteDB) StartWithCluster(extensions extensions.Extensions, addr api.URL, clusterMembers map[string]types.AddrPort) error {
+func (db *DqliteDB) StartWithCluster(extensions extensions.Extensions, addr *url.URL, clusterMembers map[string]types.AddrPort) error {
 	allClusterAddrs := []string{}
 	for _, clusterMemberAddrs := range clusterMembers {
 		allClusterAddrs = append(allClusterAddrs, clusterMemberAddrs.String())
@@ -286,7 +286,7 @@ func (db *DqliteDB) IsOpen(ctx context.Context) error {
 			}
 
 			for _, member := range allMembers {
-				if member.Address == db.listenAddr.URL.Host {
+				if member.Address == db.listenAddr.Host {
 					continue
 				}
 
@@ -352,7 +352,7 @@ func (db *DqliteDB) heartbeat(leaderInfo dqliteClient.NodeInfo, servers []dqlite
 		return nil
 	}
 
-	if leaderInfo.Address != db.listenAddr.URL.Host {
+	if leaderInfo.Address != db.listenAddr.Host {
 		db.log().Debug("Not performing heartbeat, this system is not the dqlite leader", slog.String("address", db.listenAddr.String()))
 		return nil
 	}

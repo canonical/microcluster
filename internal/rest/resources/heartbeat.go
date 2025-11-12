@@ -13,15 +13,14 @@ import (
 	"github.com/canonical/microcluster/v3/internal/cluster"
 	"github.com/canonical/microcluster/v3/internal/log"
 	internalState "github.com/canonical/microcluster/v3/internal/state"
-	"github.com/canonical/microcluster/v3/microcluster/rest"
 	"github.com/canonical/microcluster/v3/microcluster/rest/response"
 	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
-var heartbeatCmd = rest.Endpoint{
+var heartbeatCmd = types.Endpoint{
 	Path: "heartbeat",
 
-	Post: rest.EndpointAction{Handler: heartbeatPost, AllowUntrusted: true},
+	Post: types.EndpointAction{Handler: heartbeatPost, AllowUntrusted: true},
 }
 
 func heartbeatPost(s types.State, r *http.Request) response.Response {

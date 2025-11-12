@@ -10,16 +10,15 @@ import (
 	"github.com/canonical/microcluster/v3/internal/rest/access"
 	internalClient "github.com/canonical/microcluster/v3/internal/rest/client"
 	internalState "github.com/canonical/microcluster/v3/internal/state"
-	"github.com/canonical/microcluster/v3/microcluster/rest"
 	"github.com/canonical/microcluster/v3/microcluster/rest/response"
 	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
-var daemonCmd = rest.Endpoint{
+var daemonCmd = types.Endpoint{
 	Path: "daemon/servers",
 
-	Get: rest.EndpointAction{Handler: daemonServersGet, AccessHandler: access.AllowAuthenticated},
-	Put: rest.EndpointAction{Handler: daemonServersPut, AccessHandler: access.AllowAuthenticated},
+	Get: types.EndpointAction{Handler: daemonServersGet, AccessHandler: access.AllowAuthenticated},
+	Put: types.EndpointAction{Handler: daemonServersPut, AccessHandler: access.AllowAuthenticated},
 }
 
 func daemonServersGet(s types.State, r *http.Request) response.Response {

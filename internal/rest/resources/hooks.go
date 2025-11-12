@@ -11,15 +11,14 @@ import (
 
 	"github.com/canonical/microcluster/v3/internal/rest/access"
 	internalState "github.com/canonical/microcluster/v3/internal/state"
-	"github.com/canonical/microcluster/v3/microcluster/rest"
 	"github.com/canonical/microcluster/v3/microcluster/rest/response"
 	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
-var hooksCmd = rest.Endpoint{
+var hooksCmd = types.Endpoint{
 	Path: "hooks/{hookType}",
 
-	Post: rest.EndpointAction{Handler: hooksPost, AccessHandler: access.AllowAuthenticated, ProxyTarget: true},
+	Post: types.EndpointAction{Handler: hooksPost, AccessHandler: access.AllowAuthenticated, ProxyTarget: true},
 }
 
 func hooksPost(s types.State, r *http.Request) response.Response {

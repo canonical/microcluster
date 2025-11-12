@@ -17,23 +17,22 @@ import (
 	internalClient "github.com/canonical/microcluster/v3/internal/rest/client"
 	internalState "github.com/canonical/microcluster/v3/internal/state"
 	"github.com/canonical/microcluster/v3/internal/trust"
-	"github.com/canonical/microcluster/v3/microcluster/rest"
 	"github.com/canonical/microcluster/v3/microcluster/rest/response"
 	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
-var trustCmd = rest.Endpoint{
+var trustCmd = types.Endpoint{
 	Path:              "truststore",
 	AllowedBeforeInit: true,
 
-	Post: rest.EndpointAction{Handler: trustPost, AccessHandler: access.AllowAuthenticated},
+	Post: types.EndpointAction{Handler: trustPost, AccessHandler: access.AllowAuthenticated},
 }
 
-var trustEntryCmd = rest.Endpoint{
+var trustEntryCmd = types.Endpoint{
 	Path:              "truststore/{name}",
 	AllowedBeforeInit: true,
 
-	Delete: rest.EndpointAction{Handler: trustDelete, AccessHandler: access.AllowAuthenticated},
+	Delete: types.EndpointAction{Handler: trustDelete, AccessHandler: access.AllowAuthenticated},
 }
 
 func trustPost(s types.State, r *http.Request) response.Response {

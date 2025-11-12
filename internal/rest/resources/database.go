@@ -6,17 +6,16 @@ import (
 	"strconv"
 
 	"github.com/canonical/microcluster/v3/internal/state"
-	"github.com/canonical/microcluster/v3/microcluster/rest"
 	"github.com/canonical/microcluster/v3/microcluster/rest/response"
 	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
-var databaseCmd = rest.Endpoint{
+var databaseCmd = types.Endpoint{
 	AllowedBeforeInit: true,
 	Path:              "database",
 
-	Post:  rest.EndpointAction{Handler: databasePost},
-	Patch: rest.EndpointAction{Handler: databasePatch},
+	Post:  types.EndpointAction{Handler: databasePost},
+	Patch: types.EndpointAction{Handler: databasePatch},
 }
 
 func databasePost(state types.State, r *http.Request) response.Response {

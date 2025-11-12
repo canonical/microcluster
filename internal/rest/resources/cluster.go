@@ -30,35 +30,34 @@ import (
 	internalState "github.com/canonical/microcluster/v3/internal/state"
 	"github.com/canonical/microcluster/v3/internal/trust"
 	"github.com/canonical/microcluster/v3/internal/utils"
-	"github.com/canonical/microcluster/v3/microcluster/rest"
 	"github.com/canonical/microcluster/v3/microcluster/rest/response"
 	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
-var clusterCmd = rest.Endpoint{
+var clusterCmd = types.Endpoint{
 	Path:              "cluster",
 	AllowedBeforeInit: true,
 
-	Get: rest.EndpointAction{Handler: clusterGet, AccessHandler: access.AllowAuthenticated},
+	Get: types.EndpointAction{Handler: clusterGet, AccessHandler: access.AllowAuthenticated},
 }
 
-var clusterInternalCmd = rest.Endpoint{
+var clusterInternalCmd = types.Endpoint{
 	Path:              "cluster",
 	AllowedBeforeInit: true,
 
-	Post: rest.EndpointAction{Handler: clusterPost, AllowUntrusted: true},
+	Post: types.EndpointAction{Handler: clusterPost, AllowUntrusted: true},
 }
 
-var clusterMemberCmd = rest.Endpoint{
+var clusterMemberCmd = types.Endpoint{
 	Path: "cluster/{name}",
 
-	Delete: rest.EndpointAction{Handler: clusterMemberDelete, AccessHandler: access.AllowAuthenticated},
+	Delete: types.EndpointAction{Handler: clusterMemberDelete, AccessHandler: access.AllowAuthenticated},
 }
 
-var clusterMemberInternalCmd = rest.Endpoint{
+var clusterMemberInternalCmd = types.Endpoint{
 	Path: "cluster/{name}",
 
-	Put: rest.EndpointAction{Handler: clusterMemberPut, AccessHandler: access.AllowAuthenticated},
+	Put: types.EndpointAction{Handler: clusterMemberPut, AccessHandler: access.AllowAuthenticated},
 }
 
 func clusterPost(s types.State, r *http.Request) response.Response {

@@ -14,16 +14,15 @@ import (
 	"github.com/canonical/microcluster/v3/internal/db/query"
 	"github.com/canonical/microcluster/v3/internal/log"
 	"github.com/canonical/microcluster/v3/internal/rest/access"
-	"github.com/canonical/microcluster/v3/microcluster/rest"
 	"github.com/canonical/microcluster/v3/microcluster/rest/response"
 	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
-var sqlCmd = rest.Endpoint{
+var sqlCmd = types.Endpoint{
 	Path: "sql",
 
-	Get:  rest.EndpointAction{Handler: sqlGet, AccessHandler: access.AllowAuthenticated},
-	Post: rest.EndpointAction{Handler: sqlPost, AccessHandler: access.AllowAuthenticated},
+	Get:  types.EndpointAction{Handler: sqlGet, AccessHandler: access.AllowAuthenticated},
+	Post: types.EndpointAction{Handler: sqlPost, AccessHandler: access.AllowAuthenticated},
 }
 
 // Perform a database dump.

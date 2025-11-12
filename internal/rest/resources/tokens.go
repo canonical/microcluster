@@ -17,22 +17,21 @@ import (
 	"github.com/canonical/microcluster/v3/internal/rest/access"
 	internalState "github.com/canonical/microcluster/v3/internal/state"
 	"github.com/canonical/microcluster/v3/internal/utils"
-	"github.com/canonical/microcluster/v3/microcluster/rest"
 	"github.com/canonical/microcluster/v3/microcluster/rest/response"
 	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
-var tokensCmd = rest.Endpoint{
+var tokensCmd = types.Endpoint{
 	Path: "tokens",
 
-	Post: rest.EndpointAction{Handler: tokensPost, AccessHandler: access.AllowAuthenticated},
-	Get:  rest.EndpointAction{Handler: tokensGet, AccessHandler: access.AllowAuthenticated},
+	Post: types.EndpointAction{Handler: tokensPost, AccessHandler: access.AllowAuthenticated},
+	Get:  types.EndpointAction{Handler: tokensGet, AccessHandler: access.AllowAuthenticated},
 }
 
-var tokenCmd = rest.Endpoint{
+var tokenCmd = types.Endpoint{
 	Path: "tokens/{name}",
 
-	Delete: rest.EndpointAction{Handler: tokenDelete, AccessHandler: access.AllowAuthenticated},
+	Delete: types.EndpointAction{Handler: tokenDelete, AccessHandler: access.AllowAuthenticated},
 }
 
 func tokensPost(state types.State, r *http.Request) response.Response {

@@ -18,16 +18,15 @@ import (
 	"github.com/canonical/microcluster/v3/internal/rest/access"
 	internalClient "github.com/canonical/microcluster/v3/internal/rest/client"
 	internalState "github.com/canonical/microcluster/v3/internal/state"
-	"github.com/canonical/microcluster/v3/microcluster/rest"
 	"github.com/canonical/microcluster/v3/microcluster/rest/response"
 	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
-var clusterCertificatesCmd = rest.Endpoint{
+var clusterCertificatesCmd = types.Endpoint{
 	AllowedBeforeInit: true,
 	Path:              "cluster/certificates/{name}",
 
-	Put: rest.EndpointAction{Handler: clusterCertificatesPut, AccessHandler: access.AllowAuthenticated},
+	Put: types.EndpointAction{Handler: clusterCertificatesPut, AccessHandler: access.AllowAuthenticated},
 }
 
 func clusterCertificatesPut(s types.State, r *http.Request) response.Response {

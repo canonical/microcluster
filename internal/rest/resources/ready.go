@@ -6,16 +6,15 @@ import (
 
 	"github.com/canonical/microcluster/v3/internal/rest/access"
 	internalState "github.com/canonical/microcluster/v3/internal/state"
-	"github.com/canonical/microcluster/v3/microcluster/rest"
 	"github.com/canonical/microcluster/v3/microcluster/rest/response"
 	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
-var readyCmd = rest.Endpoint{
+var readyCmd = types.Endpoint{
 	AllowedBeforeInit: true,
 	Path:              "ready",
 
-	Get: rest.EndpointAction{Handler: getWaitReady, AccessHandler: access.AllowAuthenticated},
+	Get: types.EndpointAction{Handler: getWaitReady, AccessHandler: access.AllowAuthenticated},
 }
 
 func getWaitReady(state types.State, r *http.Request) response.Response {

@@ -6,16 +6,15 @@ import (
 
 	"github.com/canonical/microcluster/v3/internal/rest/access"
 	internalState "github.com/canonical/microcluster/v3/internal/state"
-	"github.com/canonical/microcluster/v3/microcluster/rest"
 	"github.com/canonical/microcluster/v3/microcluster/rest/response"
 	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
-var shutdownCmd = rest.Endpoint{
+var shutdownCmd = types.Endpoint{
 	AllowedBeforeInit: true,
 	Path:              "shutdown",
 
-	Post: rest.EndpointAction{Handler: shutdownPost, AccessHandler: access.AllowAuthenticated},
+	Post: types.EndpointAction{Handler: shutdownPost, AccessHandler: access.AllowAuthenticated},
 }
 
 func shutdownPost(state types.State, r *http.Request) response.Response {

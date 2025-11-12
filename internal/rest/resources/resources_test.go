@@ -3,16 +3,16 @@ package resources
 import (
 	"testing"
 
-	"github.com/canonical/microcluster/v3/microcluster/rest"
+	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
-var validServers = map[string]rest.Server{
+var validServers = map[string]types.Server{
 	"coreConsumer": {
 		CoreAPI: true,
-		Resources: []rest.Resources{
+		Resources: []types.Resources{
 			{
 				PathPrefix: "core_consumer",
-				Endpoints: []rest.Endpoint{
+				Endpoints: []types.Endpoint{
 					{
 						Path: "hello",
 					},
@@ -29,19 +29,19 @@ func TestValidateEndpointsValidServers(t *testing.T) {
 	}
 }
 
-var invalidServers = map[string]rest.Server{
+var invalidServers = map[string]types.Server{
 	"emptyResources": {
 		CoreAPI: true,
 	},
 	"emptyEndpoints": {
 		CoreAPI:   true,
-		Resources: []rest.Resources{},
+		Resources: []types.Resources{},
 	},
 	"duplicate": {
-		Resources: []rest.Resources{
+		Resources: []types.Resources{
 			{
 				PathPrefix: "dup",
-				Endpoints: []rest.Endpoint{
+				Endpoints: []types.Endpoint{
 					{
 						Path: "duplicate",
 					},
@@ -49,7 +49,7 @@ var invalidServers = map[string]rest.Server{
 			},
 			{
 				PathPrefix: "dup",
-				Endpoints: []rest.Endpoint{
+				Endpoints: []types.Endpoint{
 					{
 						Path: "duplicate",
 					},
@@ -59,10 +59,10 @@ var invalidServers = map[string]rest.Server{
 	},
 	"overlapCore": {
 		CoreAPI: true,
-		Resources: []rest.Resources{
+		Resources: []types.Resources{
 			{
 				PathPrefix: "core",
-				Endpoints: []rest.Endpoint{
+				Endpoints: []types.Endpoint{
 					{
 						Path: "hello",
 					},
@@ -72,10 +72,10 @@ var invalidServers = map[string]rest.Server{
 	},
 	"overlapCoreMultipart": {
 		CoreAPI: true,
-		Resources: []rest.Resources{
+		Resources: []types.Resources{
 			{
 				PathPrefix: "core/subpoint",
-				Endpoints: []rest.Endpoint{
+				Endpoints: []types.Endpoint{
 					{
 						Path: "hello",
 					},
@@ -85,9 +85,9 @@ var invalidServers = map[string]rest.Server{
 	},
 	"overlapCoreEndpoint": {
 		CoreAPI: true,
-		Resources: []rest.Resources{
+		Resources: []types.Resources{
 			{
-				Endpoints: []rest.Endpoint{
+				Endpoints: []types.Endpoint{
 					{
 						Path: "core/subpoint",
 					},
@@ -99,7 +99,7 @@ var invalidServers = map[string]rest.Server{
 
 func TestValidateEndpointsInvalidServers(t *testing.T) {
 	for serverName, server := range invalidServers {
-		servers := map[string]rest.Server{
+		servers := map[string]types.Server{
 			serverName: server,
 		}
 

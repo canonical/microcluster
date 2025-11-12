@@ -17,7 +17,6 @@ import (
 	"github.com/canonical/microcluster/v3/internal/rest/client"
 	"github.com/canonical/microcluster/v3/internal/sys"
 	"github.com/canonical/microcluster/v3/internal/trust"
-	"github.com/canonical/microcluster/v3/microcluster/rest"
 	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
@@ -38,7 +37,7 @@ func (t *daemonsSuite) Test_UpdateServers() {
 
 	tests := []struct {
 		name                  string
-		extensionServers      map[string]rest.Server
+		extensionServers      map[string]types.Server
 		extensionServerConfig map[string]types.ServerConfig
 		modifier              func(daemon *Daemon)
 		listeningOn           []types.AddrPort
@@ -47,7 +46,7 @@ func (t *daemonsSuite) Test_UpdateServers() {
 	}{
 		{
 			name: "Configure a single server",
-			extensionServers: map[string]rest.Server{
+			extensionServers: map[string]types.Server{
 				"server": {},
 			},
 			extensionServerConfig: map[string]types.ServerConfig{
@@ -59,7 +58,7 @@ func (t *daemonsSuite) Test_UpdateServers() {
 		},
 		{
 			name: "Configure multiple servers",
-			extensionServers: map[string]rest.Server{
+			extensionServers: map[string]types.Server{
 				"server":  {},
 				"server2": {},
 			},
@@ -75,7 +74,7 @@ func (t *daemonsSuite) Test_UpdateServers() {
 		},
 		{
 			name: "Shutdown a single running server",
-			extensionServers: map[string]rest.Server{
+			extensionServers: map[string]types.Server{
 				"server":  {},
 				"server2": {},
 			},
@@ -100,7 +99,7 @@ func (t *daemonsSuite) Test_UpdateServers() {
 		},
 		{
 			name: "Shutdown all running servers",
-			extensionServers: map[string]rest.Server{
+			extensionServers: map[string]types.Server{
 				"server":  {},
 				"server2": {},
 			},
@@ -120,7 +119,7 @@ func (t *daemonsSuite) Test_UpdateServers() {
 		},
 		{
 			name: "Rerunning an update on the same config is idempotent",
-			extensionServers: map[string]rest.Server{
+			extensionServers: map[string]types.Server{
 				"server":  {},
 				"server2": {},
 			},
@@ -147,7 +146,7 @@ func (t *daemonsSuite) Test_UpdateServers() {
 		},
 		{
 			name: "Fail to start servers with conflicting addresses",
-			extensionServers: map[string]rest.Server{
+			extensionServers: map[string]types.Server{
 				"server":  {},
 				"server2": {},
 			},
@@ -163,7 +162,7 @@ func (t *daemonsSuite) Test_UpdateServers() {
 		},
 		{
 			name: "Fail to start servers with conflicting addresses if one is already running",
-			extensionServers: map[string]rest.Server{
+			extensionServers: map[string]types.Server{
 				"server":  {},
 				"server2": {},
 			},

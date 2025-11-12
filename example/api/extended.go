@@ -8,15 +8,14 @@ import (
 
 	extendedTypes "github.com/canonical/microcluster/v3/example/api/types"
 	extendedClient "github.com/canonical/microcluster/v3/example/client"
-	"github.com/canonical/microcluster/v3/microcluster/rest"
 	"github.com/canonical/microcluster/v3/microcluster/rest/response"
 	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
 // This is an example extended endpoint reachable at /1.0/extended.
-var extendedCmd = rest.Endpoint{
+var extendedCmd = types.Endpoint{
 	Path: "extended",
-	Post: rest.EndpointAction{Handler: cmdPost, AllowUntrusted: true},
+	Post: types.EndpointAction{Handler: cmdPost, AllowUntrusted: true},
 }
 
 // This is the POST handler for the /1.0/extended endpoint.

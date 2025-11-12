@@ -20,15 +20,14 @@ import (
 	internalState "github.com/canonical/microcluster/v3/internal/state"
 	"github.com/canonical/microcluster/v3/internal/trust"
 	"github.com/canonical/microcluster/v3/internal/utils"
-	"github.com/canonical/microcluster/v3/microcluster/rest"
 	"github.com/canonical/microcluster/v3/microcluster/rest/response"
 	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
-var controlCmd = rest.Endpoint{
+var controlCmd = types.Endpoint{
 	AllowedBeforeInit: true,
 
-	Post: rest.EndpointAction{Handler: controlPost, AccessHandler: access.AllowAuthenticated},
+	Post: types.EndpointAction{Handler: controlPost, AccessHandler: access.AllowAuthenticated},
 }
 
 func controlPost(state types.State, r *http.Request) response.Response {

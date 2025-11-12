@@ -37,7 +37,6 @@ import (
 	"github.com/canonical/microcluster/v3/internal/trust"
 	"github.com/canonical/microcluster/v3/internal/utils"
 	clusterDB "github.com/canonical/microcluster/v3/microcluster/db"
-	"github.com/canonical/microcluster/v3/microcluster/rest/response"
 	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
@@ -250,7 +249,7 @@ func (d *Daemon) init(listenAddress string, socketGroup string, heartbeatInterva
 	// Those need to be set proactively as they aren't anymore set by default.
 	// See https://github.com/canonical/lxd/pull/14408.
 	// Always set debug to false as this is the same behavior as if the mappings got registered in the upstream package.
-	response.Init(map[int][]error{
+	types.ResponseInit(map[int][]error{
 		http.StatusConflict:           {sqlite3.ErrConstraintUnique},
 		http.StatusServiceUnavailable: {driver.ErrNoAvailableLeader},
 	})
@@ -480,7 +479,7 @@ func (d *Daemon) initServer(addresses func() map[string]types.AddrPort, resource
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		err := response.SyncResponse(true, []string{"/1.0"}).Render(w, r)
+		err := types.SyncResponse(true, []string{"/1.0"}).Render(w, r)
 		if err != nil {
 			d.log().Error("Failed to write HTTP response", slog.String("url", r.URL.String()), slog.String("error", err.Error()))
 		}
@@ -489,7 +488,7 @@ func (d *Daemon) initServer(addresses func() map[string]types.AddrPort, resource
 	mux.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		d.log().Info("Sending top level 404", slog.String("url", r.URL.String()))
 		w.Header().Set("Content-Type", "application/json")
-		err := response.NotFound(nil).Render(w, r)
+		err := types.NotFound(nil).Render(w, r)
 		if err != nil {
 			d.log().Error("Failed to write HTTP response", slog.String("url", r.URL.String()), slog.String("error", err.Error()))
 		}

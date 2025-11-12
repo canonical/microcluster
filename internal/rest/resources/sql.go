@@ -14,7 +14,6 @@ import (
 	"github.com/canonical/microcluster/v3/internal/db/query"
 	"github.com/canonical/microcluster/v3/internal/log"
 	"github.com/canonical/microcluster/v3/internal/rest/access"
-	"github.com/canonical/microcluster/v3/microcluster/rest/response"
 	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
@@ -26,7 +25,7 @@ var sqlCmd = types.Endpoint{
 }
 
 // Perform a database dump.
-func sqlGet(state types.State, r *http.Request) response.Response {
+func sqlGet(state types.State, r *http.Request) types.Response {
 	parentCtx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
@@ -45,25 +44,25 @@ func sqlGet(state types.State, r *http.Request) response.Response {
 		return nil
 	})
 	if err != nil {
-		return response.SmartError(err)
+		return types.SmartError(err)
 	}
 
-	return response.SyncResponse(true, types.SQLDump{Text: dump})
+	return types.SyncResponse(true, types.SQLDump{Text: dump})
 }
 
 // Execute queries.
-func sqlPost(state types.State, r *http.Request) response.Response {
+func sqlPost(state types.State, r *http.Request) types.Response {
 	parentCtx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 	req := &types.SQLQuery{}
 	// Parse the request.
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
-		return response.BadRequest(err)
+		return types.BadRequest(err)
 	}
 
 	if req.Query == "" {
-		return response.BadRequest(fmt.Errorf("No query provided"))
+		return types.BadRequest(fmt.Errorf("No query provided"))
 	}
 
 	// TODO: Handle .sync query.
@@ -86,13 +85,13 @@ func sqlPost(state types.State, r *http.Request) response.Response {
 			return err
 		})
 		if err != nil {
-			return response.SmartError(err)
+			return types.SmartError(err)
 		}
 
 		batch.Results = append(batch.Results, result)
 	}
 
-	return response.SyncResponse(true, batch)
+	return types.SyncResponse(true, batch)
 }
 
 func sqlSelect(ctx context.Context, tx *sql.Tx, query string, result *types.SQLResult) error {

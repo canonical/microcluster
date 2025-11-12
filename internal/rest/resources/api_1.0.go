@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	internalState "github.com/canonical/microcluster/v3/internal/state"
-	"github.com/canonical/microcluster/v3/microcluster/rest/response"
 	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
@@ -14,18 +13,18 @@ var api10Cmd = types.Endpoint{
 	Get: types.EndpointAction{Handler: api10Get, AllowUntrusted: true},
 }
 
-func api10Get(s types.State, r *http.Request) response.Response {
+func api10Get(s types.State, r *http.Request) types.Response {
 	addrPort, err := types.ParseAddrPort(s.Address().Host)
 	if err != nil {
-		return response.SmartError(err)
+		return types.SmartError(err)
 	}
 
 	intState, err := internalState.ToInternal(s)
 	if err != nil {
-		return response.SmartError(err)
+		return types.SmartError(err)
 	}
 
-	return response.SyncResponse(true, types.Status{
+	return types.SyncResponse(true, types.Status{
 		Name:       s.Name(),
 		Address:    addrPort,
 		Version:    s.Version(),

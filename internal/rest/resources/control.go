@@ -20,7 +20,6 @@ import (
 	internalState "github.com/canonical/microcluster/v3/internal/state"
 	"github.com/canonical/microcluster/v3/internal/trust"
 	"github.com/canonical/microcluster/v3/internal/utils"
-	"github.com/canonical/microcluster/v3/microcluster/rest/response"
 	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
@@ -30,44 +29,44 @@ var controlCmd = types.Endpoint{
 	Post: types.EndpointAction{Handler: controlPost, AccessHandler: access.AllowAuthenticated},
 }
 
-func controlPost(state types.State, r *http.Request) response.Response {
+func controlPost(state types.State, r *http.Request) types.Response {
 	status := state.Database().Status()
 	if status != types.DatabaseNotReady {
-		return response.SmartError(fmt.Errorf("Unable to initialize cluster: %s", status))
+		return types.SmartError(fmt.Errorf("Unable to initialize cluster: %s", status))
 	}
 
 	req := &types.Control{}
 	// Parse the request.
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
-		return response.BadRequest(err)
+		return types.BadRequest(err)
 	}
 
 	if req.Bootstrap && req.JoinToken != "" {
-		return response.SmartError(fmt.Errorf("Invalid options - received join token and bootstrap flag"))
+		return types.SmartError(fmt.Errorf("Invalid options - received join token and bootstrap flag"))
 	}
 
 	err = utils.ValidateFQDN(req.Name)
 	if err != nil {
-		return response.SmartError(fmt.Errorf("Cluster member name %q is not a valid FQDN: %w", req.Name, err))
+		return types.SmartError(fmt.Errorf("Cluster member name %q is not a valid FQDN: %w", req.Name, err))
 	}
 
 	intState, err := internalState.ToInternal(state)
 	if err != nil {
-		return response.SmartError(err)
+		return types.SmartError(err)
 	}
 
 	daemonConfig := trust.Location{Address: req.Address, Name: req.Name}
 	err = intState.SetConfig(daemonConfig)
 	if err != nil {
-		return response.SmartError(err)
+		return types.SmartError(err)
 	}
 
 	ctx, cancel := context.WithCancel(r.Context())
 	err = intState.Hooks.PreInit(ctx, state, req.Bootstrap, req.InitConfig)
 	cancel()
 	if err != nil {
-		return response.SmartError(fmt.Errorf("Failed to run pre-init hook before starting the API: %w", err))
+		return types.SmartError(fmt.Errorf("Failed to run pre-init hook before starting the API: %w", err))
 	}
 
 	reverter := revert.New()
@@ -75,12 +74,12 @@ func controlPost(state types.State, r *http.Request) response.Response {
 
 	serverCert, err := state.ServerCert().PublicKeyX509()
 	if err != nil {
-		return response.SmartError(err)
+		return types.SmartError(err)
 	}
 
 	logger, err := log.LoggerFromContext(ctx)
 	if err != nil {
-		return response.InternalError(err)
+		return types.InternalError(err)
 	}
 
 	certNameMatches := slices.Contains(serverCert.DNSNames, req.Name)
@@ -141,23 +140,23 @@ func controlPost(state types.State, r *http.Request) response.Response {
 	if !certNameMatches {
 		err := os.Remove(filepath.Join(state.FileSystem().StateDir(), "server.crt"))
 		if err != nil {
-			return response.SmartError(err)
+			return types.SmartError(err)
 		}
 
 		err = os.Remove(filepath.Join(state.FileSystem().StateDir(), "server.key"))
 		if err != nil {
-			return response.SmartError(err)
+			return types.SmartError(err)
 		}
 
 		// Generate a new keypair with the new subject name.
 		_, err = shared.KeyPairAndCA(state.FileSystem().StateDir(), string(types.ServerCertificateName), shared.CertServer, shared.CertOptions{AddHosts: true, CommonName: req.Name})
 		if err != nil {
-			return response.SmartError(err)
+			return types.SmartError(err)
 		}
 
 		err = intState.ReloadCert(types.ServerCertificateName)
 		if err != nil {
-			return response.SmartError(err)
+			return types.SmartError(err)
 		}
 	}
 
@@ -166,23 +165,23 @@ func controlPost(state types.State, r *http.Request) response.Response {
 	if req.JoinToken != "" {
 		joinInfo, localClusterMember, err = joinWithToken(state, r, req)
 		if err != nil {
-			return response.SmartError(err)
+			return types.SmartError(err)
 		}
 
 		joinAddrs, err = setupLocalMember(state, localClusterMember, joinInfo)
 		if err != nil {
-			return response.SmartError(err)
+			return types.SmartError(err)
 		}
 	}
 
 	err = intState.StartAPI(r.Context(), req.Bootstrap, req.InitConfig, joinAddrs...)
 	if err != nil {
-		return response.SmartError(err)
+		return types.SmartError(err)
 	}
 
 	reverter.Success()
 
-	return response.EmptySyncResponse
+	return types.EmptySyncResponse
 }
 
 func joinWithToken(state types.State, r *http.Request, req *types.Control) (*types.TokenResponse, *trust.Remote, error) {

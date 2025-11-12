@@ -18,13 +18,12 @@ import (
 	"github.com/canonical/microcluster/v3/internal/rest/access"
 	"github.com/canonical/microcluster/v3/internal/rest/client"
 	internalState "github.com/canonical/microcluster/v3/internal/state"
-	"github.com/canonical/microcluster/v3/microcluster/rest/response"
 	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
-func handleAPIRequest(action types.EndpointAction, state types.State, w http.ResponseWriter, r *http.Request) response.Response {
+func handleAPIRequest(action types.EndpointAction, state types.State, w http.ResponseWriter, r *http.Request) types.Response {
 	if action.Handler == nil {
-		return response.NotImplemented(nil)
+		return types.NotImplemented(nil)
 	}
 
 	// If allow untrusted is not set, the request must be authenticated via core authentication (e.g. certificate in truststore).
@@ -32,7 +31,7 @@ func handleAPIRequest(action types.EndpointAction, state types.State, w http.Res
 		trusted, resp := access.AllowAuthenticated(state, r)
 		if !trusted {
 			if resp == nil {
-				return response.Forbidden(nil)
+				return types.Forbidden(nil)
 			}
 
 			return resp
@@ -44,7 +43,7 @@ func handleAPIRequest(action types.EndpointAction, state types.State, w http.Res
 		trusted, resp := action.AccessHandler(state, r)
 		if !trusted {
 			if resp == nil {
-				return response.Forbidden(nil)
+				return types.Forbidden(nil)
 			}
 
 			return resp
@@ -53,7 +52,7 @@ func handleAPIRequest(action types.EndpointAction, state types.State, w http.Res
 		if resp != nil {
 			err := resp.Render(w, r)
 			if err != nil {
-				return response.InternalError(err)
+				return types.InternalError(err)
 			}
 		}
 	}
@@ -65,14 +64,14 @@ func handleAPIRequest(action types.EndpointAction, state types.State, w http.Res
 	return action.Handler(state, r)
 }
 
-func proxyTarget(action types.EndpointAction, s types.State, r *http.Request) response.Response {
+func proxyTarget(action types.EndpointAction, s types.State, r *http.Request) types.Response {
 	if r.URL == nil {
 		return action.Handler(s, r)
 	}
 
 	logger, err := log.LoggerFromContext(r.Context())
 	if err != nil {
-		return response.InternalError(err)
+		return types.InternalError(err)
 	}
 
 	values, err := url.ParseQuery(r.URL.RawQuery)
@@ -101,17 +100,17 @@ func proxyTarget(action types.EndpointAction, s types.State, r *http.Request) re
 		return nil
 	})
 	if err != nil {
-		return response.BadRequest(err)
+		return types.BadRequest(err)
 	}
 
 	clusterCert, err := s.ClusterCert().PublicKeyX509()
 	if err != nil {
-		return response.InternalError(fmt.Errorf("Failed to parse cluster certificate for request: %w", err))
+		return types.InternalError(fmt.Errorf("Failed to parse cluster certificate for request: %w", err))
 	}
 
 	client, err := client.New(*targetURL, s.ServerCert(), clusterCert, false)
 	if err != nil {
-		return response.InternalError(fmt.Errorf("Failed to get a client for the target %q at address %q: %w", target, targetURL.String(), err))
+		return types.InternalError(fmt.Errorf("Failed to get a client for the target %q at address %q: %w", target, targetURL.String(), err))
 	}
 
 	// Update request URL.
@@ -123,36 +122,36 @@ func proxyTarget(action types.EndpointAction, s types.State, r *http.Request) re
 	logger.Info("Forwarding request to specified target", slog.String("source", s.Name()), slog.String("target", target))
 	resp, err := client.MakeRequest(r)
 	if err != nil {
-		return response.SmartError(fmt.Errorf("Failed to send request to target %q: %w", target, err))
+		return types.SmartError(fmt.Errorf("Failed to send request to target %q: %w", target, err))
 	}
 
-	return response.SyncResponse(true, resp.Metadata)
+	return types.SyncResponse(true, resp.Metadata)
 }
 
-func handleDatabaseRequest(action types.EndpointAction, state types.State, w http.ResponseWriter, r *http.Request) response.Response {
+func handleDatabaseRequest(action types.EndpointAction, state types.State, w http.ResponseWriter, r *http.Request) types.Response {
 	trusted := r.Context().Value(client.CtxAccess)
 	if trusted == nil {
-		return response.Forbidden(nil)
+		return types.Forbidden(nil)
 	}
 
 	trustedReq, ok := trusted.(access.TrustedRequest)
 	if !ok {
-		return response.Forbidden(nil)
+		return types.Forbidden(nil)
 	}
 
 	if !trustedReq.Trusted {
-		return response.Forbidden(nil)
+		return types.Forbidden(nil)
 	}
 
 	if action.Handler == nil {
-		return response.NotImplemented(nil)
+		return types.NotImplemented(nil)
 	}
 
 	// Run the database handler before hijacking the connection.
 	// This ensures errors happening in the handler can still be
 	// returned to the caller.
 	resp := action.Handler(state, r)
-	if resp != response.EmptySyncResponse {
+	if resp != types.EmptySyncResponse {
 		return resp
 	}
 
@@ -160,25 +159,25 @@ func handleDatabaseRequest(action types.EndpointAction, state types.State, w htt
 	if r.Method == "POST" {
 		intState, err := internalState.ToInternal(state)
 		if err != nil {
-			return response.InternalError(fmt.Errorf("Failed to parse internal state: %w", err))
+			return types.InternalError(fmt.Errorf("Failed to parse internal state: %w", err))
 		}
 
 		// Do not perform anymore validation after hijacking the connection.
 		// Otherwise errors cannot be returned to the caller.
 		hijacker, ok := w.(http.Hijacker)
 		if !ok {
-			return response.InternalError(fmt.Errorf("Webserver does not support hijacking"))
+			return types.InternalError(fmt.Errorf("Webserver does not support hijacking"))
 		}
 
 		conn, _, err := hijacker.Hijack()
 		if err != nil {
-			return response.InternalError(fmt.Errorf("Failed to hijack connection: %w", err))
+			return types.InternalError(fmt.Errorf("Failed to hijack connection: %w", err))
 		}
 
 		intState.InternalDatabase.Accept(conn)
 	}
 
-	return response.EmptySyncResponse
+	return types.EmptySyncResponse
 }
 
 // HandleEndpoint adds the endpoint to the mux router. A function variable is used to implement common logic
@@ -193,18 +192,18 @@ func HandleEndpoint(state types.State, mux *mux.Router, version string, e types.
 		w.Header().Set("Content-Type", "application/json")
 
 		// Actually process the request.
-		var resp response.Response
+		var resp types.Response
 
 		logger, err := log.LoggerFromContext(r.Context())
 		if err != nil {
 			// Ignore the error as we cannot log it anyway.
-			_ = response.BadRequest(err).Render(w, r)
+			_ = types.BadRequest(err).Render(w, r)
 			return
 		}
 
 		intState, err := internalState.ToInternal(state)
 		if err != nil {
-			err := response.BadRequest(err).Render(w, r)
+			err := types.BadRequest(err).Render(w, r)
 			if err != nil {
 				logger.Error("Failed to write HTTP response", slog.String("url", r.URL.String()), slog.String("error", err.Error()))
 			}
@@ -214,7 +213,7 @@ func HandleEndpoint(state types.State, mux *mux.Router, version string, e types.
 
 		// Return Unavailable Error (503) if daemon is shutting down, except for endpoints with AllowedDuringShutdown.
 		if intState.Context.Err() == context.Canceled && !e.AllowedDuringShutdown {
-			err := response.Unavailable(fmt.Errorf("Daemon is shutting down")).Render(w, r)
+			err := types.Unavailable(fmt.Errorf("Daemon is shutting down")).Render(w, r)
 			if err != nil {
 				logger.Error("Failed to write HTTP response", slog.String("url", r.URL.String()), slog.String("error", err.Error()))
 			}
@@ -225,7 +224,7 @@ func HandleEndpoint(state types.State, mux *mux.Router, version string, e types.
 		if !e.AllowedBeforeInit {
 			err := state.Database().IsOpen(r.Context())
 			if err != nil {
-				err := response.SmartError(err).Render(w, r)
+				err := types.SmartError(err).Render(w, r)
 				if err != nil {
 					logger.Error("Failed to write HTTP response", slog.String("url", r.URL.String()), slog.String("error", err.Error()))
 				}
@@ -242,7 +241,7 @@ func HandleEndpoint(state types.State, mux *mux.Router, version string, e types.
 
 		trusted, err := access.Authenticate(state, r, state.Address().Host, intState.InternalRemotes().CertificatesNative())
 		if err != nil && !errors.As(err, &access.ErrInvalidHost{}) {
-			resp = response.Forbidden(fmt.Errorf("Failed to authenticate request: %w", err))
+			resp = types.Forbidden(fmt.Errorf("Failed to authenticate request: %w", err))
 		} else {
 			r = access.SetRequestAuthentication(r, trusted)
 
@@ -258,7 +257,7 @@ func HandleEndpoint(state types.State, mux *mux.Router, version string, e types.
 			case "PATCH":
 				resp = handleRequest(e.Patch, state, w, r)
 			default:
-				resp = response.NotFound(fmt.Errorf("Method '%s' not found", r.Method))
+				resp = types.NotFound(fmt.Errorf("Method '%s' not found", r.Method))
 			}
 		}
 
@@ -268,10 +267,10 @@ func HandleEndpoint(state types.State, mux *mux.Router, version string, e types.
 		// In case the database request handler doesn't return an EmptySyncResponse
 		// we can ensure that the connection wasn't yet hijacked and the actual error
 		// can be safely returned to the caller.
-		if e.Path != "database" || (e.Path == "database" && resp != response.EmptySyncResponse) {
+		if e.Path != "database" || (e.Path == "database" && resp != types.EmptySyncResponse) {
 			err := resp.Render(w, r)
 			if err != nil {
-				err := response.InternalError(err).Render(w, r)
+				err := types.InternalError(err).Render(w, r)
 				if err != nil {
 					logger.Error("Failed writing error for HTTP response", slog.String("url", url), slog.String("error", err.Error()))
 				}

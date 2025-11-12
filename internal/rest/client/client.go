@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -21,7 +22,7 @@ import (
 	"github.com/canonical/lxd/shared/tcp"
 	"github.com/gorilla/websocket"
 
-	"github.com/canonical/microcluster/v3/microcluster/rest/response"
+	"github.com/canonical/microcluster/v3/internal/log"
 	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
@@ -258,7 +259,7 @@ func (c *Client) MakeRequest(r *http.Request) (*api.Response, error) {
 		return nil, err
 	}
 
-	parsedResponse, err := response.ParseResponse(resp)
+	parsedResponse, err := ParseResponse(resp)
 	if err != nil {
 		return nil, err
 	}
@@ -299,7 +300,7 @@ func (c *Client) Query(ctx context.Context, method string, endpointType types.En
 		return err
 	}
 
-	response, err := response.ParseResponse(resp)
+	response, err := ParseResponse(resp)
 	if err != nil {
 		return err
 	}
@@ -389,7 +390,7 @@ func (c *Client) RawWebsocket(ctx context.Context, endpointType types.EndpointPr
 	conn, resp, err := dialer.DialContext(ctx, localURL.String(), nil)
 	if err != nil {
 		if resp != nil {
-			_, err := response.ParseResponse(resp)
+			_, err := ParseResponse(resp)
 			if err != nil {
 				return nil, fmt.Errorf("Failed websocket upgrade request: %w", err)
 			}
@@ -419,4 +420,36 @@ func (c *Client) UseTarget(name string) types.Client {
 		Client: c.Client,
 		url:    *localURL,
 	}
+}
+
+// ParseResponse takes an HTTP response, parses it and returns the extracted result.
+func ParseResponse(resp *http.Response) (*api.Response, error) {
+	decoder := json.NewDecoder(resp.Body)
+	response := api.Response{}
+
+	err := decoder.Decode(&response)
+	if err != nil {
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("Failed to fetch %q: %q", resp.Request.URL.String(), resp.Status)
+		}
+
+		return nil, err
+	}
+
+	if response.Type == api.ErrorResponse {
+		return nil, api.StatusErrorf(resp.StatusCode, "%s", response.Error)
+	}
+
+	defer resp.Body.Close()
+	_, err = io.Copy(io.Discard, resp.Body)
+	if err != nil {
+		logger, logErr := log.LoggerFromContext(resp.Request.Context())
+		if logErr != nil {
+			return nil, err
+		}
+
+		logger.Error("Failed to read response body", slog.String("error", err.Error()))
+	}
+
+	return &response, nil
 }

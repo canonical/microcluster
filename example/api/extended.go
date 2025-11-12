@@ -8,7 +8,6 @@ import (
 
 	extendedTypes "github.com/canonical/microcluster/v3/example/api/types"
 	extendedClient "github.com/canonical/microcluster/v3/example/client"
-	"github.com/canonical/microcluster/v3/microcluster/rest/response"
 	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
@@ -20,13 +19,13 @@ var extendedCmd = types.Endpoint{
 
 // This is the POST handler for the /1.0/extended endpoint.
 // This example shows how to forward a request to other cluster members.
-func cmdPost(state types.State, r *http.Request) response.Response {
+func cmdPost(state types.State, r *http.Request) types.Response {
 	// Check the user agent header to check if we are the notifying cluster member.
 	if !types.IsNotification(r) {
 		// Get a collection of clients every other cluster member, with the notification user-agent set.
 		clients, err := state.Connect().Cluster(true)
 		if err != nil {
-			return response.SmartError(fmt.Errorf("Failed to get a client for every cluster member: %w", err))
+			return types.SmartError(fmt.Errorf("Failed to get a client for every cluster member: %w", err))
 		}
 
 		messages := make([]string, 0, len(clients))
@@ -54,7 +53,7 @@ func cmdPost(state types.State, r *http.Request) response.Response {
 			return nil
 		})
 		if err != nil {
-			return response.SmartError(err)
+			return types.SmartError(err)
 		}
 
 		// Having received the result from all forwarded requests, compile them as a string and return.
@@ -63,18 +62,18 @@ func cmdPost(state types.State, r *http.Request) response.Response {
 			outMsg = outMsg + message + "\n"
 		}
 
-		return response.SyncResponse(true, outMsg)
+		return types.SyncResponse(true, outMsg)
 	}
 
 	// Decode the POST body using our defined ExtendedType.
 	var info extendedTypes.ExtendedType
 	err := json.NewDecoder(r.Body).Decode(&info)
 	if err != nil {
-		return response.SmartError(err)
+		return types.SmartError(err)
 	}
 
 	// Return some identifying information.
 	message := fmt.Sprintf("cluster member at address %q received message %q from cluster member at address %q", state.Address().Host, info.Message, info.Sender.String())
 
-	return response.SyncResponse(true, message)
+	return types.SyncResponse(true, message)
 }

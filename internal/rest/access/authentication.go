@@ -15,7 +15,6 @@ import (
 	"github.com/canonical/microcluster/v3/internal/log"
 	"github.com/canonical/microcluster/v3/internal/rest/client"
 	internalState "github.com/canonical/microcluster/v3/internal/state"
-	"github.com/canonical/microcluster/v3/microcluster/rest/response"
 	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
@@ -36,19 +35,19 @@ func (e ErrInvalidHost) Unwrap() error {
 
 // AllowAuthenticated checks if the request is trusted by extracting access.TrustedRequest from the request context.
 // This handler is used as an access handler by default if AllowUntrusted is false on a rest.EndpointAction.
-func AllowAuthenticated(state types.State, r *http.Request) (bool, response.Response) {
+func AllowAuthenticated(state types.State, r *http.Request) (bool, types.Response) {
 	trusted := r.Context().Value(client.CtxAccess)
 	if trusted == nil {
-		return false, response.Forbidden(nil)
+		return false, types.Forbidden(nil)
 	}
 
 	trustedReq, ok := trusted.(TrustedRequest)
 	if !ok {
-		return false, response.Forbidden(nil)
+		return false, types.Forbidden(nil)
 	}
 
 	if !trustedReq.Trusted {
-		return false, response.Forbidden(nil)
+		return false, types.Forbidden(nil)
 	}
 
 	return true, nil

@@ -323,8 +323,13 @@ func setupLocalMember(state state.State, localClusterMember *trust.Remote, joinI
 		clusterMembers = append(clusterMembers, remote)
 	}
 
+	intState, err := internalState.ToInternal(state)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to parse internal state: %w", err)
+	}
+
 	clusterMembers = append(clusterMembers, *localClusterMember)
-	err = state.Remotes().Add(state.FileSystem().TrustDir(), clusterMembers...)
+	err = intState.InternalRemotes().Add(state.FileSystem().TrustDir(), clusterMembers...)
 	if err != nil {
 		return nil, err
 	}

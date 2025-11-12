@@ -94,8 +94,13 @@ func clusterPost(s state.State, r *http.Request) response.Response {
 		return response.SmartError(fmt.Errorf("Cluster member name %q is not a valid FQDN: %w", req.Name, err))
 	}
 
+	intState, err := internalState.ToInternal(s)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
 	// Check if any of the remote's addresses are currently in use.
-	existingRemote := s.Remotes().RemoteByAddress(req.Address)
+	existingRemote := intState.InternalRemotes().RemoteByAddress(req.Address)
 	if existingRemote != nil {
 		return response.SmartError(fmt.Errorf("Remote with address %q exists", req.Address.String()))
 	}
@@ -113,11 +118,6 @@ func clusterPost(s state.State, r *http.Request) response.Response {
 		}
 
 		return response.SyncResponse(true, tokenResponse)
-	}
-
-	intState, err := internalState.ToInternal(s)
-	if err != nil {
-		return response.SmartError(err)
 	}
 
 	// Check if the joining node's extensions are compatible with the leader's.
@@ -162,7 +162,7 @@ func clusterPost(s state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	remotes := s.Remotes()
+	remotes := intState.InternalRemotes()
 	clusterMembers := make([]types.ClusterMemberLocal, 0, remotes.Count())
 	for _, clusterMember := range remotes.RemotesByName() {
 		clusterMember := types.ClusterMemberLocal{
@@ -194,7 +194,7 @@ func clusterPost(s state.State, r *http.Request) response.Response {
 	}
 
 	// Add the cluster member to our local store for authentication.
-	err = s.Remotes().Add(s.FileSystem().TrustDir(), newRemote)
+	err = remotes.Add(s.FileSystem().TrustDir(), newRemote)
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -417,7 +417,12 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	allRemotes := s.Remotes().RemotesByName()
+	intState, err := internalState.ToInternal(s)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	allRemotes := intState.InternalRemotes().RemotesByName()
 	remote, ok := allRemotes[name]
 	if !ok {
 		return response.SmartError(fmt.Errorf("No remote exists with the given name %q", name))
@@ -667,11 +672,6 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	intState, err := internalState.ToInternal(s)
-	if err != nil {
-		return response.SmartError(err)
-	}
-
 	// Run the PostRemove hook locally.
 	hookCtx, hookCancel := context.WithCancel(r.Context())
 	err = intState.Hooks.PostRemove(hookCtx, s, force)
@@ -686,7 +686,7 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 	}
 
 	// Run the PostRemove hook on all other members.
-	remotes := s.Remotes()
+	remotes := intState.InternalRemotes()
 	err = clients.Query(r.Context(), true, func(ctx context.Context, c types.Client) error {
 		c.SetClusterNotification()
 		addrPort, err := types.ParseAddrPort(c.URL().Host)

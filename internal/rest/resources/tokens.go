@@ -16,6 +16,7 @@ import (
 	"github.com/canonical/microcluster/v3/internal/log"
 	"github.com/canonical/microcluster/v3/internal/rest/access"
 	"github.com/canonical/microcluster/v3/internal/state"
+	internalState "github.com/canonical/microcluster/v3/internal/state"
 	"github.com/canonical/microcluster/v3/internal/utils"
 	"github.com/canonical/microcluster/v3/microcluster/rest"
 	"github.com/canonical/microcluster/v3/microcluster/rest/response"
@@ -61,8 +62,13 @@ func tokensPost(state state.State, r *http.Request) response.Response {
 		return response.InternalError(err)
 	}
 
+	intState, err := internalState.ToInternal(state)
+	if err != nil {
+		return response.InternalError(err)
+	}
+
 	joinAddresses := []types.AddrPort{}
-	for _, addr := range state.Remotes().Addresses() {
+	for _, addr := range intState.InternalRemotes().Addresses() {
 		joinAddresses = append(joinAddresses, addr)
 	}
 
@@ -124,8 +130,13 @@ func tokensGet(state state.State, r *http.Request) response.Response {
 		return response.InternalError(err)
 	}
 
+	intState, err := internalState.ToInternal(state)
+	if err != nil {
+		return response.InternalError(err)
+	}
+
 	joinAddresses := []types.AddrPort{}
-	for _, addr := range state.Remotes().Addresses() {
+	for _, addr := range intState.InternalRemotes().Addresses() {
 		joinAddresses = append(joinAddresses, addr)
 	}
 

@@ -94,7 +94,7 @@ func daemonServersPut(s state.State, r *http.Request) response.Response {
 	}
 
 	// Run the OnDaemonConfigUpdate hook on all other members.
-	remotes := s.Remotes()
+	remotes := intState.InternalRemotes()
 	err = clients.Query(r.Context(), true, func(ctx context.Context, c types.Client) error {
 		c.SetClusterNotification()
 		addrPort, err := types.ParseAddrPort(c.URL().Host)

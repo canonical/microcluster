@@ -459,7 +459,7 @@ func (d *Daemon) initStore() error {
 	return nil
 }
 
-func (d *Daemon) initServer(resources ...rest.Resources) *http.Server {
+func (d *Daemon) initServer(addresses func() map[string]types.AddrPort, resources ...rest.Resources) *http.Server {
 	/* Setup the web server */
 	mux := mux.NewRouter()
 	mux.StrictSlash(false)
@@ -500,7 +500,7 @@ func (d *Daemon) initServer(resources ...rest.Resources) *http.Server {
 
 	return &http.Server{
 		Handler:  mux,
-		ErrorLog: log.New(newLogFilter(d.log(), state.Remotes().Addresses), "", 0),
+		ErrorLog: log.New(newLogFilter(d.log(), addresses), "", 0),
 		// Set a base context for the server.
 		// This allows passing the logger on the daemon's shutdown context on to each handler.
 		BaseContext: func(_ net.Listener) context.Context {
@@ -837,7 +837,12 @@ func (d *Daemon) UpdateServers() error {
 
 // startUnixServer starts up the core unix listener with the given resources.
 func (d *Daemon) startUnixServer(serverEndpoints []rest.Resources, socketGroup string) error {
-	ctlServer := d.initServer(serverEndpoints...)
+	intState, err := internalState.ToInternal(d.State())
+	if err != nil {
+		return fmt.Errorf("Failed to parse internal state: %w", err)
+	}
+
+	ctlServer := d.initServer(intState.InternalRemotes().Addresses, serverEndpoints...)
 
 	url := api.NewURL()
 	url.URL = *d.os.ControlSocket()
@@ -874,7 +879,12 @@ func (d *Daemon) addCoreServers(preInit bool, defaultURL *url.URL, defaultCert *
 
 	d.extensionServersMu.RUnlock()
 
-	server := d.initServer(serverEndpoints...)
+	intState, err := internalState.ToInternal(d.State())
+	if err != nil {
+		return fmt.Errorf("Failed to parse internal state: %w", err)
+	}
+
+	server := d.initServer(intState.InternalRemotes().Addresses, serverEndpoints...)
 	network := endpoints.NewNetwork(d.shutdownCtx, endpoints.EndpointNetwork, server, defaultURL, defaultCert, d.drainConnectionsTimeout)
 
 	return d.endpoints.Add(map[string]endpoints.Endpoint{
@@ -887,6 +897,11 @@ func (d *Daemon) addCoreServers(preInit bool, defaultURL *url.URL, defaultCert *
 // If a server lacks a certificate, the fallbackCert will be used instead.
 // The function is idempotent and doesn't start already running extension servers.
 func (d *Daemon) addExtensionServers(preInit bool, fallbackCert *shared.CertInfo, coreAddress string) error {
+	intState, err := internalState.ToInternal(d.State())
+	if err != nil {
+		return fmt.Errorf("Failed to parse internal state: %w", err)
+	}
+
 	var networks = make(map[string]endpoints.Endpoint)
 	d.extensionServersMu.RLock()
 	for serverName, extensionServer := range d.extensionServers {
@@ -940,7 +955,7 @@ func (d *Daemon) addExtensionServers(preInit bool, fallbackCert *shared.CertInfo
 			}
 		}
 
-		server := d.initServer(extensionServer.Resources...)
+		server := d.initServer(intState.InternalRemotes().Addresses, extensionServer.Resources...)
 		network := endpoints.NewNetwork(d.shutdownCtx, endpoints.EndpointNetwork, server, &url.URL, cert, extensionServer.DrainConnectionsTimeout)
 		networks[serverName] = network
 	}

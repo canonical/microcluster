@@ -14,7 +14,6 @@ import (
 	"github.com/canonical/microcluster/v3/internal/db/query"
 	"github.com/canonical/microcluster/v3/internal/log"
 	"github.com/canonical/microcluster/v3/internal/rest/access"
-	"github.com/canonical/microcluster/v3/internal/state"
 	"github.com/canonical/microcluster/v3/microcluster/rest"
 	"github.com/canonical/microcluster/v3/microcluster/rest/response"
 	"github.com/canonical/microcluster/v3/microcluster/types"
@@ -28,7 +27,7 @@ var sqlCmd = rest.Endpoint{
 }
 
 // Perform a database dump.
-func sqlGet(state state.State, r *http.Request) response.Response {
+func sqlGet(state types.State, r *http.Request) response.Response {
 	parentCtx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
@@ -54,7 +53,7 @@ func sqlGet(state state.State, r *http.Request) response.Response {
 }
 
 // Execute queries.
-func sqlPost(state state.State, r *http.Request) response.Response {
+func sqlPost(state types.State, r *http.Request) response.Response {
 	parentCtx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 	req := &types.SQLQuery{}

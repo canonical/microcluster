@@ -15,7 +15,6 @@ import (
 	"github.com/canonical/microcluster/v3/example/version"
 	"github.com/canonical/microcluster/v3/microcluster"
 	"github.com/canonical/microcluster/v3/microcluster/types"
-	"github.com/canonical/microcluster/v3/state"
 )
 
 type cmdGlobal struct {
@@ -85,9 +84,9 @@ func (c *cmdDaemon) run(cmd *cobra.Command, args []string) error {
 	}
 
 	// exampleHooks are some example post-action hooks that can be run by MicroCluster.
-	dargs.Hooks = &state.Hooks{
+	dargs.Hooks = &types.Hooks{
 		// PostBootstrap is run after the daemon is initialized and bootstrapped.
-		PostBootstrap: func(ctx context.Context, s state.State, initConfig map[string]string) error {
+		PostBootstrap: func(ctx context.Context, s types.State, initConfig map[string]string) error {
 			// We can derive the logger using our custom handler from the app.
 			logger := m.LoggerFromContext(ctx)
 
@@ -111,7 +110,7 @@ func (c *cmdDaemon) run(cmd *cobra.Command, args []string) error {
 			return nil
 		},
 
-		PreInit: func(ctx context.Context, s state.State, bootstrap bool, initConfig map[string]string) error {
+		PreInit: func(ctx context.Context, s types.State, bootstrap bool, initConfig map[string]string) error {
 			logger := m.LoggerFromContext(ctx)
 
 			logger.Info("This is a hook that runs before the daemon is initialized")
@@ -121,7 +120,7 @@ func (c *cmdDaemon) run(cmd *cobra.Command, args []string) error {
 		},
 
 		// OnStart is run after the daemon is started.
-		OnStart: func(ctx context.Context, s state.State) error {
+		OnStart: func(ctx context.Context, s types.State) error {
 			logger := m.LoggerFromContext(ctx)
 
 			logger.Info("This is a hook that runs after the daemon first starts")
@@ -130,7 +129,7 @@ func (c *cmdDaemon) run(cmd *cobra.Command, args []string) error {
 		},
 
 		// PostJoin is run after the daemon is initialized and joins a cluster.
-		PostJoin: func(ctx context.Context, s state.State, initConfig map[string]string) error {
+		PostJoin: func(ctx context.Context, s types.State, initConfig map[string]string) error {
 			logger := m.LoggerFromContext(ctx)
 
 			logger.Info("This is a hook that runs after the daemon is initialized and joins an existing cluster, after OnNewMember runs on all peers")
@@ -140,7 +139,7 @@ func (c *cmdDaemon) run(cmd *cobra.Command, args []string) error {
 		},
 
 		// PreJoin is run after the daemon is initialized and joins a cluster.
-		PreJoin: func(ctx context.Context, s state.State, initConfig map[string]string) error {
+		PreJoin: func(ctx context.Context, s types.State, initConfig map[string]string) error {
 			logger := m.LoggerFromContext(ctx)
 
 			logger.Info("This is a hook that runs after the daemon is initialized and joins an existing cluster, before OnNewMember runs on all peers")
@@ -150,7 +149,7 @@ func (c *cmdDaemon) run(cmd *cobra.Command, args []string) error {
 		},
 
 		// PostRemove is run after the daemon is removed from a cluster.
-		PostRemove: func(ctx context.Context, s state.State, force bool) error {
+		PostRemove: func(ctx context.Context, s types.State, force bool) error {
 			logger := m.LoggerFromContext(ctx)
 
 			logger.Info(fmt.Sprintf("This is a hook that is run on peer %q after a cluster member is removed, with the force flag set to %v", s.Name(), force))
@@ -159,7 +158,7 @@ func (c *cmdDaemon) run(cmd *cobra.Command, args []string) error {
 		},
 
 		// PreRemove is run before the daemon is removed from the cluster.
-		PreRemove: func(ctx context.Context, s state.State, force bool) error {
+		PreRemove: func(ctx context.Context, s types.State, force bool) error {
 			logger := m.LoggerFromContext(ctx)
 
 			logger.Info(fmt.Sprintf("This is a hook that is run on peer %q just before it is removed, with the force flag set to %v", s.Name(), force))
@@ -168,7 +167,7 @@ func (c *cmdDaemon) run(cmd *cobra.Command, args []string) error {
 		},
 
 		// OnHeartbeat is run after a successful heartbeat round.
-		OnHeartbeat: func(ctx context.Context, s state.State, roleStatus map[string]types.RoleStatus) error {
+		OnHeartbeat: func(ctx context.Context, s types.State, roleStatus map[string]types.RoleStatus) error {
 			logger := m.LoggerFromContext(ctx)
 
 			logger.Info("This is a hook that is run on the dqlite leader after a successful heartbeat; role information for cluster members is available")
@@ -186,7 +185,7 @@ func (c *cmdDaemon) run(cmd *cobra.Command, args []string) error {
 		},
 
 		// OnNewMember is run after a new member has joined.
-		OnNewMember: func(ctx context.Context, s state.State, newMember types.ClusterMemberLocal) error {
+		OnNewMember: func(ctx context.Context, s types.State, newMember types.ClusterMemberLocal) error {
 			logger := m.LoggerFromContext(ctx)
 
 			logger.Info(fmt.Sprintf("This is a hook that is run on peer %q when the new cluster member %q has joined", s.Name(), newMember.Name))
@@ -195,7 +194,7 @@ func (c *cmdDaemon) run(cmd *cobra.Command, args []string) error {
 		},
 
 		// OnDaemonConfigUpdate is run after the local daemon config of a cluster member got modified.
-		OnDaemonConfigUpdate: func(ctx context.Context, s state.State, config types.DaemonConfig) error {
+		OnDaemonConfigUpdate: func(ctx context.Context, s types.State, config types.DaemonConfig) error {
 			logger := m.LoggerFromContext(ctx)
 			logger.Info(fmt.Sprintf("Running OnDaemonConfigUpdate triggered by %q", config.Name))
 

@@ -18,39 +18,6 @@ import (
 	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
-// State exposes the internal daemon state for use with extended API handlers.
-type State interface {
-	// FileSystem structure.
-	FileSystem() types.OS
-
-	// Listen Address.
-	Address() *url.URL
-
-	// Name of the cluster member.
-	Name() string
-
-	// Version is provided by the MicroCluster consumer.
-	Version() string
-
-	// Server certificate is used for server-to-server connection.
-	ServerCert() *shared.CertInfo
-
-	// Cluster certificate is used for downstream connections within a cluster.
-	ClusterCert() *shared.CertInfo
-
-	// Database.
-	Database() types.DB
-
-	// Returns a connector for interconnection with the cluster.
-	Connect() types.Connector
-
-	// HasExtension returns whether the given API extension is supported.
-	HasExtension(ext string) bool
-
-	// ExtensionServers returns an immutable list of the daemon's additional listeners.
-	ExtensionServers() []string
-}
-
 // InternalState is a gateway to the stateful components of the microcluster daemon.
 type InternalState struct {
 	// Context.
@@ -90,7 +57,7 @@ type InternalState struct {
 	Extensions types.Extensions
 
 	// Hooks contain external implementations that are triggered by specific cluster actions.
-	Hooks *Hooks
+	Hooks *types.Hooks
 
 	InternalFileSystem       func() types.OS
 	InternalAddress          func() *url.URL
@@ -241,7 +208,7 @@ func (s *InternalState) Member(url *url.URL, isNotification bool, cert *x509.Cer
 }
 
 // ToInternal returns the underlying InternalState from the exposed State interface.
-func ToInternal(s State) (*InternalState, error) {
+func ToInternal(s types.State) (*InternalState, error) {
 	internal, ok := s.(*InternalState)
 	if ok {
 		return internal, nil

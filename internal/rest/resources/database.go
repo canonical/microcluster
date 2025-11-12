@@ -8,6 +8,7 @@ import (
 	"github.com/canonical/microcluster/v3/internal/state"
 	"github.com/canonical/microcluster/v3/microcluster/rest"
 	"github.com/canonical/microcluster/v3/microcluster/rest/response"
+	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
 var databaseCmd = rest.Endpoint{
@@ -18,7 +19,7 @@ var databaseCmd = rest.Endpoint{
 	Patch: rest.EndpointAction{Handler: databasePatch},
 }
 
-func databasePost(state state.State, r *http.Request) response.Response {
+func databasePost(state types.State, r *http.Request) response.Response {
 	// Compare the dqlite version of the connecting client with our own.
 	versionHeader := r.Header.Get("X-Dqlite-Version")
 	if versionHeader == "" {
@@ -39,7 +40,7 @@ func databasePost(state state.State, r *http.Request) response.Response {
 	return response.EmptySyncResponse
 }
 
-func databasePatch(s state.State, r *http.Request) response.Response {
+func databasePatch(s types.State, r *http.Request) response.Response {
 	// Compare the dqlite version of the connecting client with our own.
 	versionHeader := r.Header.Get("X-Dqlite-Version")
 	if versionHeader == "" {

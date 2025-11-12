@@ -14,7 +14,6 @@ import (
 	"github.com/canonical/microcluster/v3/internal/endpoints"
 	"github.com/canonical/microcluster/v3/internal/log"
 	"github.com/canonical/microcluster/v3/internal/rest/client"
-	"github.com/canonical/microcluster/v3/internal/state"
 	internalState "github.com/canonical/microcluster/v3/internal/state"
 	"github.com/canonical/microcluster/v3/microcluster/rest/response"
 	"github.com/canonical/microcluster/v3/microcluster/types"
@@ -37,7 +36,7 @@ func (e ErrInvalidHost) Unwrap() error {
 
 // AllowAuthenticated checks if the request is trusted by extracting access.TrustedRequest from the request context.
 // This handler is used as an access handler by default if AllowUntrusted is false on a rest.EndpointAction.
-func AllowAuthenticated(state state.State, r *http.Request) (bool, response.Response) {
+func AllowAuthenticated(state types.State, r *http.Request) (bool, response.Response) {
 	trusted := r.Context().Value(client.CtxAccess)
 	if trusted == nil {
 		return false, response.Forbidden(nil)
@@ -98,7 +97,7 @@ func checkMutualTLS(ctx context.Context, cert x509.Certificate, trustedCerts map
 // Authenticate ensures the request certificates are trusted against the given set of trusted certificates.
 // - Requests over the unix socket are always allowed.
 // - HTTP requests require the TLS Peer certificate to match an entry in the supplied map of certificates.
-func Authenticate(state state.State, r *http.Request, hostAddress string, trustedCerts map[string]x509.Certificate) (bool, error) {
+func Authenticate(state types.State, r *http.Request, hostAddress string, trustedCerts map[string]x509.Certificate) (bool, error) {
 	if r.RemoteAddr == "@" {
 		return true, nil
 	}

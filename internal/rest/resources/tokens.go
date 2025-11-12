@@ -15,7 +15,6 @@ import (
 	"github.com/canonical/microcluster/v3/internal/cluster"
 	"github.com/canonical/microcluster/v3/internal/log"
 	"github.com/canonical/microcluster/v3/internal/rest/access"
-	"github.com/canonical/microcluster/v3/internal/state"
 	internalState "github.com/canonical/microcluster/v3/internal/state"
 	"github.com/canonical/microcluster/v3/internal/utils"
 	"github.com/canonical/microcluster/v3/microcluster/rest"
@@ -36,7 +35,7 @@ var tokenCmd = rest.Endpoint{
 	Delete: rest.EndpointAction{Handler: tokenDelete, AccessHandler: access.AllowAuthenticated},
 }
 
-func tokensPost(state state.State, r *http.Request) response.Response {
+func tokensPost(state types.State, r *http.Request) response.Response {
 	req := types.TokenRequest{}
 
 	// Parse the request.
@@ -124,7 +123,7 @@ func tokensPost(state state.State, r *http.Request) response.Response {
 	return response.SyncResponse(true, tokenString)
 }
 
-func tokensGet(state state.State, r *http.Request) response.Response {
+func tokensGet(state types.State, r *http.Request) response.Response {
 	clusterCert, err := state.ClusterCert().PublicKeyX509()
 	if err != nil {
 		return response.InternalError(err)
@@ -171,7 +170,7 @@ func tokensGet(state state.State, r *http.Request) response.Response {
 	return response.SyncResponse(true, records)
 }
 
-func tokenDelete(state state.State, r *http.Request) response.Response {
+func tokenDelete(state types.State, r *http.Request) response.Response {
 	name, err := url.PathUnescape(mux.Vars(r)["name"])
 	if err != nil {
 		return response.SmartError(err)

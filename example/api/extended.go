@@ -11,7 +11,6 @@ import (
 	"github.com/canonical/microcluster/v3/microcluster/rest"
 	"github.com/canonical/microcluster/v3/microcluster/rest/response"
 	"github.com/canonical/microcluster/v3/microcluster/types"
-	"github.com/canonical/microcluster/v3/state"
 )
 
 // This is an example extended endpoint reachable at /1.0/extended.
@@ -22,7 +21,7 @@ var extendedCmd = rest.Endpoint{
 
 // This is the POST handler for the /1.0/extended endpoint.
 // This example shows how to forward a request to other cluster members.
-func cmdPost(state state.State, r *http.Request) response.Response {
+func cmdPost(state types.State, r *http.Request) response.Response {
 	// Check the user agent header to check if we are the notifying cluster member.
 	if !types.IsNotification(r) {
 		// Get a collection of clients every other cluster member, with the notification user-agent set.

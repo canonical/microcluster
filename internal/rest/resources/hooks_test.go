@@ -34,20 +34,20 @@ func (t *hooksSuite) Test_hooks() {
 	s := &state.InternalState{
 		Context:      context.TODO(),
 		InternalName: func() string { return "n0" },
-		Hooks: &state.Hooks{
-			PostRemove: func(ctx context.Context, state state.State, force bool) error {
+		Hooks: &types.Hooks{
+			PostRemove: func(ctx context.Context, state types.State, force bool) error {
 				ranHook = types.PostRemove
 				isForce = force
 				return nil
 			},
 
-			PreRemove: func(ctx context.Context, state state.State, force bool) error {
+			PreRemove: func(ctx context.Context, state types.State, force bool) error {
 				ranHook = types.PreRemove
 				isForce = force
 				return nil
 			},
 
-			OnNewMember: func(ctx context.Context, state state.State, newMember types.ClusterMemberLocal) error {
+			OnNewMember: func(ctx context.Context, state types.State, newMember types.ClusterMemberLocal) error {
 				ranHook = types.OnNewMember
 				return nil
 			},

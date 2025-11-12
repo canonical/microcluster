@@ -4,7 +4,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"math/rand"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,7 +14,6 @@ import (
 	"github.com/google/renameio"
 	"gopkg.in/yaml.v3"
 
-	"github.com/canonical/microcluster/v3/client"
 	internalClient "github.com/canonical/microcluster/v3/internal/rest/client"
 	"github.com/canonical/microcluster/v3/microcluster/types"
 )
@@ -237,19 +235,6 @@ func (r *Remotes) Replace(dir string, newRemotes ...types.ClusterMember) error {
 	return nil
 }
 
-// SelectRandom returns a random remote.
-func (r *Remotes) SelectRandom() *Remote {
-	r.updateMu.RLock()
-	defer r.updateMu.RUnlock()
-
-	allRemotes := make([]Remote, 0, len(r.data))
-	for _, r := range r.data {
-		allRemotes = append(allRemotes, r)
-	}
-
-	return &allRemotes[rand.Intn(len(allRemotes))]
-}
-
 // Addresses returns just the host:port addresses of the remotes.
 func (r *Remotes) Addresses() map[string]types.AddrPort {
 	r.updateMu.RLock()
@@ -264,8 +249,8 @@ func (r *Remotes) Addresses() map[string]types.AddrPort {
 }
 
 // Cluster returns a set of clients for every remote, which can be concurrently queried.
-func (r *Remotes) Cluster(isNotification bool, serverCert *shared.CertInfo, publicKey *x509.Certificate) (client.Cluster, error) {
-	cluster := make(client.Cluster, 0, r.Count()-1)
+func (r *Remotes) Cluster(isNotification bool, serverCert *shared.CertInfo, publicKey *x509.Certificate) (types.Clients, error) {
+	cluster := make(types.Clients, 0, r.Count()-1)
 	for _, addr := range r.Addresses() {
 		url := api.NewURL().Scheme("https").Host(addr.String())
 		c, err := internalClient.New(*url, serverCert, publicKey, isNotification)
@@ -273,7 +258,7 @@ func (r *Remotes) Cluster(isNotification bool, serverCert *shared.CertInfo, publ
 			return nil, err
 		}
 
-		cluster = append(cluster, client.Client{Client: *c})
+		cluster = append(cluster, c)
 	}
 
 	return cluster, nil

@@ -10,17 +10,17 @@ import (
 )
 
 // AddTrustStoreEntry adds a new record to the truststore on all cluster members.
-func AddTrustStoreEntry(ctx context.Context, c *Client, args types.ClusterMemberLocal) error {
+func AddTrustStoreEntry(ctx context.Context, c types.Client, args types.ClusterMemberLocal) error {
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	return c.QueryStruct(queryCtx, "POST", types.InternalEndpoint, &api.NewURL().Path("truststore").URL, args, nil)
+	return c.Query(queryCtx, "POST", types.InternalEndpoint, &api.NewURL().Path("truststore").URL, args, nil)
 }
 
 // DeleteTrustStoreEntry deletes the record corresponding to the given cluster member from the trust store.
-func DeleteTrustStoreEntry(ctx context.Context, c *Client, name string) error {
+func DeleteTrustStoreEntry(ctx context.Context, c types.Client, name string) error {
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	return c.QueryStruct(queryCtx, "DELETE", types.InternalEndpoint, &api.NewURL().Path("truststore", name).URL, nil, nil)
+	return c.Query(queryCtx, "DELETE", types.InternalEndpoint, &api.NewURL().Path("truststore", name).URL, nil, nil)
 }

@@ -21,7 +21,6 @@ import (
 	"github.com/canonical/lxd/shared/api"
 	"gopkg.in/yaml.v3"
 
-	"github.com/canonical/microcluster/v3/client"
 	"github.com/canonical/microcluster/v3/internal/config"
 	"github.com/canonical/microcluster/v3/internal/log"
 	"github.com/canonical/microcluster/v3/internal/trust"
@@ -112,13 +111,13 @@ func RecoverFromQuorumLoss(ctx context.Context, filesystem types.OS, members []t
 		return "", err
 	}
 
-	cluster, err := remotes.Cluster(false, serverCert, clusterKey)
+	clients, err := remotes.Cluster(false, serverCert, clusterKey)
 	if err != nil {
 		return "", err
 	}
 
 	cancelCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-	err = cluster.Query(cancelCtx, true, func(ctx context.Context, client *client.Client) error {
+	err = clients.Query(cancelCtx, true, func(ctx context.Context, client types.Client) error {
 		var rslt types.Server
 		err := client.Query(ctx, "GET", types.PublicEndpoint, &api.NewURL().URL, nil, &rslt)
 		if err == nil {

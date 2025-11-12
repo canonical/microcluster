@@ -333,13 +333,13 @@ func (db *DqliteDB) GetHeartbeatInterval() time.Duration {
 }
 
 // SendHeartbeat initiates a new heartbeat sequence if this is a leader node.
-func (db *DqliteDB) SendHeartbeat(ctx context.Context, c *internalClient.Client, hbInfo types.HeartbeatInfo) error {
+func (db *DqliteDB) SendHeartbeat(ctx context.Context, c types.Client, hbInfo types.HeartbeatInfo) error {
 	// set the heartbeat timeout to twice the heartbeat interval.
 	heartbeatTimeout := db.heartbeatInterval * 2
 	queryCtx, cancel := context.WithTimeout(ctx, heartbeatTimeout)
 	defer cancel()
 
-	return c.QueryStruct(queryCtx, "POST", types.InternalEndpoint, &api.NewURL().Path("heartbeat").URL, hbInfo, nil)
+	return c.Query(queryCtx, "POST", types.InternalEndpoint, &api.NewURL().Path("heartbeat").URL, hbInfo, nil)
 }
 
 func (db *DqliteDB) heartbeat(leaderInfo dqliteClient.NodeInfo, servers []dqliteClient.NodeInfo) error {

@@ -5,9 +5,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	microClient "github.com/canonical/microcluster/v3/client"
 	"github.com/canonical/microcluster/v3/example/client"
 	"github.com/canonical/microcluster/v3/microcluster"
+	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
 type cmdExtended struct {
@@ -37,7 +37,7 @@ func (c *cmdExtended) run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	var cli *microClient.Client
+	var cli types.Client
 	if len(args) == 1 {
 		cli, err = m.RemoteClient(args[0])
 	} else {

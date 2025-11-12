@@ -2,13 +2,14 @@ package state
 
 import (
 	"context"
+	"crypto/x509"
 	"fmt"
+	"net/url"
 	"time"
 
 	"github.com/canonical/lxd/shared"
 	"github.com/canonical/lxd/shared/api"
 
-	"github.com/canonical/microcluster/v3/client"
 	internalConfig "github.com/canonical/microcluster/v3/internal/config"
 	"github.com/canonical/microcluster/v3/internal/db"
 	"github.com/canonical/microcluster/v3/internal/endpoints"
@@ -44,11 +45,8 @@ type State interface {
 	// Local truststore access.
 	Remotes() *trust.Remotes
 
-	// Cluster returns a client to every cluster member according to dqlite.
-	Cluster(isNotification bool) (client.Cluster, error)
-
-	// Leader returns a client to the dqlite cluster leader.
-	Leader() (*client.Client, error)
+	// Returns a connector for interconnection with the cluster.
+	Connect() types.Connector
 
 	// HasExtension returns whether the given API extension is supported.
 	HasExtension(ext string) bool
@@ -160,13 +158,17 @@ func (s *InternalState) HasExtension(ext string) bool {
 	return s.Extensions.HasExtension(ext)
 }
 
+func (s *InternalState) Connect() types.Connector {
+	return s
+}
+
 // Cluster returns a client for every member of a cluster, except
 // this one.
 // All requests made by the client will have the UserAgentNotifier header set
 // if isNotification is true.
 // Uses the trust store instead of database for better fault tolerance -
 // trust store is updated on heartbeats and shouldn't contain crashed nodes.
-func (s *InternalState) Cluster(isNotification bool) (client.Cluster, error) {
+func (s *InternalState) Cluster(isNotification bool) (types.Clients, error) {
 	publicKey, err := s.ClusterCert().PublicKeyX509()
 	if err != nil {
 		return nil, err
@@ -181,9 +183,9 @@ func (s *InternalState) Cluster(isNotification bool) (client.Cluster, error) {
 	}
 
 	// Filter out ourselves from the client list
-	clients := make(client.Cluster, 0, len(allClients)-1)
+	clients := make(types.Clients, 0, len(allClients)-1)
 	for _, client := range allClients {
-		if s.Address().URL.Host != client.URL().URL.Host {
+		if s.Address().URL.Host != client.URL().Host {
 			clients = append(clients, client)
 		}
 	}
@@ -192,7 +194,7 @@ func (s *InternalState) Cluster(isNotification bool) (client.Cluster, error) {
 }
 
 // Leader returns a client connected to the dqlite leader.
-func (s *InternalState) Leader() (*client.Client, error) {
+func (s *InternalState) Leader(isNotification bool) (types.Client, error) {
 	ctx, cancel := context.WithTimeout(s.Context, time.Second*30)
 	defer cancel()
 
@@ -212,12 +214,34 @@ func (s *InternalState) Leader() (*client.Client, error) {
 	}
 
 	url := api.NewURL().Scheme("https").Host(leaderInfo.Address)
-	c, err := internalClient.New(*url, s.ServerCert(), publicKey, false)
+	c, err := internalClient.New(*url, s.ServerCert(), publicKey, isNotification)
 	if err != nil {
 		return nil, err
 	}
 
-	return &client.Client{Client: *c}, nil
+	return c, nil
+}
+
+func (s *InternalState) Member(url *url.URL, isNotification bool, cert *x509.Certificate) (types.Client, error) {
+	// If no certificate was provided fallback to the cluster cert.
+	if cert == nil {
+		var err error
+
+		cert, err = s.ClusterCert().PublicKeyX509()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	apiURL := api.NewURL()
+	apiURL.URL = *url
+
+	c, err := internalClient.New(*apiURL, s.ServerCert(), cert, isNotification)
+	if err != nil {
+		return nil, err
+	}
+
+	return c, nil
 }
 
 // ToInternal returns the underlying InternalState from the exposed State interface.

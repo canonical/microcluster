@@ -14,9 +14,9 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/canonical/microcluster/v3/client"
 	"github.com/canonical/microcluster/v3/internal/log"
 	"github.com/canonical/microcluster/v3/internal/rest/access"
+	internalClient "github.com/canonical/microcluster/v3/internal/rest/client"
 	internalState "github.com/canonical/microcluster/v3/internal/state"
 	"github.com/canonical/microcluster/v3/microcluster/rest"
 	"github.com/canonical/microcluster/v3/microcluster/rest/response"
@@ -56,14 +56,14 @@ func clusterCertificatesPut(s state.State, r *http.Request) response.Response {
 	}
 
 	// Forward the request to all other nodes if we are the first.
-	if !client.IsNotification(r) && err == nil {
-		cluster, err := s.Cluster(true)
+	if !types.IsNotification(r) && err == nil {
+		clients, err := s.Connect().Cluster(true)
 		if err != nil {
 			return response.SmartError(err)
 		}
 
-		err = cluster.Query(r.Context(), true, func(ctx context.Context, c *client.Client) error {
-			return c.UpdateCertificate(ctx, types.CertificateName(certificateName), req)
+		err = clients.Query(r.Context(), true, func(ctx context.Context, c types.Client) error {
+			return internalClient.UpdateCertificate(ctx, c, types.CertificateName(certificateName), req)
 		})
 		if err != nil {
 			return response.SmartError(fmt.Errorf("Failed to update %q certificate on peers: %w", certificateName, err))

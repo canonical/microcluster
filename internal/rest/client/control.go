@@ -7,6 +7,6 @@ import (
 )
 
 // ControlDaemon posts control data to the daemon.
-func (c *Client) ControlDaemon(ctx context.Context, args types.Control) error {
-	return c.QueryStruct(ctx, "POST", types.ControlEndpoint, nil, args, nil)
+func ControlDaemon(ctx context.Context, args types.Control, c types.Client) error {
+	return c.Query(ctx, "POST", types.ControlEndpoint, nil, args, nil)
 }

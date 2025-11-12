@@ -122,7 +122,7 @@ func controlPost(state state.State, r *http.Request) response.Response {
 			return
 		}
 
-		client, err := internalClient.New(*url, state.ServerCert(), cert, false)
+		client, err := state.Connect().Member(&url.URL, false, cert)
 		if err != nil {
 			return
 		}
@@ -132,7 +132,7 @@ func controlPost(state state.State, r *http.Request) response.Response {
 			<-r.Context().Done()
 
 			// Use `force=1` to ensure the node is fully removed, in case its listener hasn't been set up.
-			err = client.DeleteClusterMember(context.Background(), req.Name, true)
+			err = internalClient.DeleteClusterMember(context.Background(), client, req.Name, true)
 			if err != nil {
 				logger.Error("Failed to clean up cluster state after join failure", slog.String("error", err.Error()))
 			}
@@ -247,12 +247,12 @@ func joinWithToken(state state.State, r *http.Request, req *types.Control) (*typ
 			return nil, nil, fmt.Errorf("Cluster certificate token does not match that of cluster member. Expected: %q, actual: %q", fingerprint, token.Fingerprint)
 		}
 
-		d, err := internalClient.New(*url, state.ServerCert(), cert, false)
+		client, err := state.Connect().Member(&url.URL, false, cert)
 		if err != nil {
 			return nil, nil, err
 		}
 
-		joinInfo, err = internalClient.AddClusterMember(context.Background(), d, newClusterMember)
+		joinInfo, err = internalClient.AddClusterMember(context.Background(), client, newClusterMember)
 		if err == nil {
 			break
 		}

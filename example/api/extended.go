@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/canonical/microcluster/v3/client"
 	extendedTypes "github.com/canonical/microcluster/v3/example/api/types"
 	extendedClient "github.com/canonical/microcluster/v3/example/client"
 	"github.com/canonical/microcluster/v3/microcluster/rest"
@@ -25,15 +24,15 @@ var extendedCmd = rest.Endpoint{
 // This example shows how to forward a request to other cluster members.
 func cmdPost(state state.State, r *http.Request) response.Response {
 	// Check the user agent header to check if we are the notifying cluster member.
-	if !client.IsNotification(r) {
+	if !types.IsNotification(r) {
 		// Get a collection of clients every other cluster member, with the notification user-agent set.
-		cluster, err := state.Cluster(true)
+		clients, err := state.Connect().Cluster(true)
 		if err != nil {
 			return response.SmartError(fmt.Errorf("Failed to get a client for every cluster member: %w", err))
 		}
 
-		messages := make([]string, 0, len(cluster))
-		err = cluster.Query(r.Context(), true, func(ctx context.Context, c *client.Client) error {
+		messages := make([]string, 0, len(clients))
+		err = clients.Query(r.Context(), true, func(ctx context.Context, c types.Client) error {
 			addrPort, err := types.ParseAddrPort(state.Address().URL.Host)
 			if err != nil {
 				return fmt.Errorf("Failed to parse addr:port of listen address %q: %w", state.Address().URL.Host, err)

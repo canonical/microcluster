@@ -17,7 +17,6 @@ import (
 	"golang.org/x/sys/unix"
 	"gopkg.in/yaml.v3"
 
-	"github.com/canonical/microcluster/v3/client"
 	"github.com/canonical/microcluster/v3/microcluster"
 	"github.com/canonical/microcluster/v3/microcluster/types"
 )
@@ -78,7 +77,7 @@ type cmdClusterMembersList struct {
 
 func (c *cmdClusterMembersList) command() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "list <address>",
+		Use:   "list",
 		Short: "List cluster members locally, or remotely if an address is specified.",
 		RunE:  c.run,
 	}
@@ -104,26 +103,7 @@ func (c *cmdClusterMembersList) run(cmd *cobra.Command, args []string) error {
 		return c.listLocalClusterMembers(m)
 	}
 
-	var client *client.Client
-
-	// Get a local client connected to the unix socket if no address is specified.
-	if len(args) == 1 {
-		client, err = m.RemoteClient(args[0])
-		if err != nil {
-			return err
-		}
-	} else {
-		client, err = m.LocalClient()
-		if err != nil {
-			return err
-		}
-	}
-
-	return c.listClusterMembers(cmd.Context(), client)
-}
-
-func (c *cmdClusterMembersList) listClusterMembers(ctx context.Context, client *client.Client) error {
-	clusterMembers, err := client.GetClusterMembers(ctx)
+	clusterMembers, err := m.GetClusterMembers(context.TODO())
 	if err != nil {
 		return err
 	}
@@ -184,17 +164,7 @@ func (c *cmdClusterMemberRemove) run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	client, err := m.LocalClient()
-	if err != nil {
-		return err
-	}
-
-	err = client.DeleteClusterMember(cmd.Context(), args[0], c.flagForce)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return m.RemoveClusterMember(cmd.Context(), args[0], c.flagForce)
 }
 
 type cmdClusterEdit struct {

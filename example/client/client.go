@@ -7,14 +7,14 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/canonical/microcluster/v3/client"
 	"github.com/canonical/microcluster/v3/example/api/types"
+	microTypes "github.com/canonical/microcluster/v3/microcluster/types"
 )
 
 // ExtendedPostCmd is a client function that sets a context timeout and sends a POST to /1.0/extended using the given
 // client. This function is expected to be called from an api endpoint handler, which gives us access to the
 // daemon state, from which we can create a client.
-func ExtendedPostCmd(ctx context.Context, c *client.Client, data *types.ExtendedType) (string, error) {
+func ExtendedPostCmd(ctx context.Context, c microTypes.Client, data *types.ExtendedType) (string, error) {
 	queryCtx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
 

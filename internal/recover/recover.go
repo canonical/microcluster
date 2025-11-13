@@ -119,7 +119,7 @@ func RecoverFromQuorumLoss(ctx context.Context, filesystem types.OS, members []t
 	cancelCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	err = clients.Query(cancelCtx, true, func(ctx context.Context, client types.Client) error {
 		var rslt types.Status
-		err := client.Query(ctx, "GET", types.PublicEndpoint, &api.NewURL().URL, nil, &rslt)
+		err := client.Query(ctx, "GET", types.InternalEndpoint, &api.NewURL().URL, nil, &rslt)
 		if err == nil {
 			return fmt.Errorf("Contacted cluster member at %q; please shut down all cluster members", rslt.Name)
 		}

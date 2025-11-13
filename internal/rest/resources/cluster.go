@@ -34,29 +34,17 @@ import (
 )
 
 var clusterCmd = types.Endpoint{
-	Path:              "cluster",
-	AllowedBeforeInit: true,
+	Path: "cluster",
 
-	Get: types.EndpointAction{Handler: clusterGet, AccessHandler: access.AllowAuthenticated},
-}
-
-var clusterInternalCmd = types.Endpoint{
-	Path:              "cluster",
-	AllowedBeforeInit: true,
-
+	Get:  types.EndpointAction{Handler: clusterGet, AccessHandler: access.AllowAuthenticated},
 	Post: types.EndpointAction{Handler: clusterPost, AllowUntrusted: true},
 }
 
 var clusterMemberCmd = types.Endpoint{
 	Path: "cluster/{name}",
 
+	Put:    types.EndpointAction{Handler: clusterMemberPut, AccessHandler: access.AllowAuthenticated},
 	Delete: types.EndpointAction{Handler: clusterMemberDelete, AccessHandler: access.AllowAuthenticated},
-}
-
-var clusterMemberInternalCmd = types.Endpoint{
-	Path: "cluster/{name}",
-
-	Put: types.EndpointAction{Handler: clusterMemberPut, AccessHandler: access.AllowAuthenticated},
 }
 
 func clusterPost(s types.State, r *http.Request) types.Response {

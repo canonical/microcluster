@@ -19,29 +19,20 @@ var UnixEndpoints = types.Resources{
 	},
 }
 
-// PublicEndpoints are the /core/1.0 API endpoints available at the listen address.
-var PublicEndpoints = types.Resources{
-	PathPrefix: types.PublicEndpoint,
-	Endpoints: []types.Endpoint{
-		api10Cmd,
-		clusterCertificatesCmd,
-		clusterCmd,
-		clusterMemberCmd,
-		daemonCmd,
-		tokenCmd,
-		readyCmd,
-	},
-}
-
 // InternalEndpoints are the /core/internal API endpoints available at the listen address.
 var InternalEndpoints = types.Resources{
 	PathPrefix: types.InternalEndpoint,
 	Endpoints: []types.Endpoint{
-		clusterInternalCmd,
-		clusterMemberInternalCmd,
+		clusterCmd,
+		clusterMemberCmd,
+		clusterCertificatesCmd,
+		daemonServersCmd,
 		databaseCmd,
+		memberCmd,
+		readyCmd,
 		sqlCmd,
 		heartbeatCmd,
+		tokenCmd,
 		trustCmd,
 		trustEntryCmd,
 		hooksCmd,
@@ -59,7 +50,7 @@ var InternalEndpoints = types.Resources{
 //   - It must not have a defined address or certificate.
 func ValidateEndpoints(extensionServers map[string]types.Server, coreAddress string) error {
 	serverAddresses := map[string]bool{coreAddress: true}
-	baseCoreEndpoints := []types.Resources{UnixEndpoints, PublicEndpoints, InternalEndpoints}
+	baseCoreEndpoints := []types.Resources{UnixEndpoints, InternalEndpoints}
 	existingEndpointPaths := map[string]map[string]bool{endpoints.EndpointsCore: {}}
 
 	// Record the paths for all internal endpoints on the core listener.

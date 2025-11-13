@@ -14,7 +14,7 @@ func CheckReady(ctx context.Context, c types.Client) error {
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	err := c.Query(queryCtx, "GET", types.PublicEndpoint, &api.NewURL().Path("ready").URL, nil, nil)
+	err := c.Query(queryCtx, "GET", types.InternalEndpoint, &api.NewURL().Path("ready").URL, nil, nil)
 
 	return err
 }

@@ -52,7 +52,7 @@ func GetClusterMembers(ctx context.Context, c types.Client) ([]types.ClusterMemb
 	defer cancel()
 
 	clusterMembers := []types.ClusterMember{}
-	err := c.Query(queryCtx, "GET", types.PublicEndpoint, &api.NewURL().Path("cluster").URL, nil, &clusterMembers)
+	err := c.Query(queryCtx, "GET", types.InternalEndpoint, &api.NewURL().Path("cluster").URL, nil, &clusterMembers)
 
 	return clusterMembers, err
 }
@@ -67,7 +67,7 @@ func DeleteClusterMember(ctx context.Context, c types.Client, name string, force
 		endpoint = endpoint.WithQuery("force", "1")
 	}
 
-	return c.Query(queryCtx, "DELETE", types.PublicEndpoint, &endpoint.URL, nil, nil)
+	return c.Query(queryCtx, "DELETE", types.InternalEndpoint, &endpoint.URL, nil, nil)
 }
 
 // UpdateCertificate sets a new keypair and CA.
@@ -76,5 +76,5 @@ func UpdateCertificate(ctx context.Context, c types.Client, name types.Certifica
 	defer cancel()
 
 	endpoint := api.NewURL().Path("cluster", "certificates", string(name))
-	return c.Query(queryCtx, "PUT", types.PublicEndpoint, &endpoint.URL, args, nil)
+	return c.Query(queryCtx, "PUT", types.InternalEndpoint, &endpoint.URL, args, nil)
 }

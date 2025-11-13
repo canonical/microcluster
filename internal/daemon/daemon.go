@@ -312,7 +312,6 @@ func (d *Daemon) init(listenAddress string, socketGroup string, heartbeatInterva
 	serverEndpoints := []types.Resources{
 		resources.UnixEndpoints,
 		resources.InternalEndpoints,
-		resources.PublicEndpoints,
 	}
 
 	d.extensionServersMu.RLock()
@@ -330,7 +329,7 @@ func (d *Daemon) init(listenAddress string, socketGroup string, heartbeatInterva
 	}
 
 	if listenAddress != "" {
-		serverEndpoints = []types.Resources{resources.PublicEndpoints}
+		serverEndpoints = []types.Resources{resources.InternalEndpoints}
 		err = d.addCoreServers(true, &listenAddr.URL, d.ServerCert(), serverEndpoints)
 		if err != nil {
 			return err
@@ -564,7 +563,7 @@ func (d *Daemon) StartAPI(ctx context.Context, bootstrap bool, initConfig map[st
 		return err
 	}
 
-	serverEndpoints := []types.Resources{resources.InternalEndpoints, resources.PublicEndpoints}
+	serverEndpoints := []types.Resources{resources.InternalEndpoints}
 	err = d.addCoreServers(false, d.Address(), d.ClusterCert(), serverEndpoints)
 	if err != nil {
 		return err

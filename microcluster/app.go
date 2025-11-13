@@ -118,7 +118,7 @@ func (m *MicroCluster) Status(ctx context.Context) (*types.Status, error) {
 	}
 
 	server := types.Status{}
-	err = c.Query(ctx, "GET", types.PublicEndpoint, nil, nil, &server)
+	err = c.Query(ctx, "GET", types.InternalEndpoint, nil, nil, &server)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get cluster status: %w", err)
 	}
@@ -328,6 +328,24 @@ func (m *MicroCluster) RemoveClusterMember(ctx context.Context, name string, for
 	}
 
 	return internalClient.DeleteClusterMember(ctx, c, name, force)
+}
+
+func (m *MicroCluster) UpdateServers(ctx context.Context, config map[string]types.ServerConfig) error {
+	c, err := m.LocalClient()
+	if err != nil {
+		return err
+	}
+
+	return internalClient.UpdateServers(ctx, c, config)
+}
+
+func (m *MicroCluster) UpdateCertificate(ctx context.Context, name types.CertificateName, keypair types.KeyPair) error {
+	c, err := m.LocalClient()
+	if err != nil {
+		return err
+	}
+
+	return internalClient.UpdateCertificate(ctx, c, name, keypair)
 }
 
 // LocalClient returns a client connected to the local control socket.

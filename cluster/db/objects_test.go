@@ -1,4 +1,4 @@
-package query_test
+package db_test
 
 import (
 	"context"
@@ -8,13 +8,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/canonical/microcluster/v3/internal/db/query"
+	"github.com/canonical/microcluster/v3/cluster/db"
 )
 
 // Exercise possible failure modes.
 func TestSelectObjects_Error(t *testing.T) {
 	cases := []struct {
-		dest  query.Dest
+		dest  db.Dest
 		query string
 		error string
 	}{
@@ -35,7 +35,7 @@ func TestSelectObjects_Error(t *testing.T) {
 			stmt, err := tx.Prepare(c.query)
 			require.NoError(t, err)
 
-			err = query.SelectObjects(context.TODO(), stmt, c.dest)
+			err = db.SelectObjects(context.TODO(), stmt, c.dest)
 			assert.EqualError(t, err, c.error)
 		})
 	}
@@ -61,7 +61,7 @@ func TestSelectObjects(t *testing.T) {
 	stmt, err := tx.Prepare("SELECT id, name FROM test WHERE name=?")
 	require.NoError(t, err)
 
-	err = query.SelectObjects(context.TODO(), stmt, dest, "bar")
+	err = db.SelectObjects(context.TODO(), stmt, dest, "bar")
 	require.NoError(t, err)
 
 	assert.Equal(t, 1, object.ID)

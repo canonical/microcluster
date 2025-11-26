@@ -1,5 +1,5 @@
-// Package query object functions that match LXD's object handling patterns.
-package query
+// Package db object functions that match LXD's object handling patterns.
+package db
 
 import (
 	"context"

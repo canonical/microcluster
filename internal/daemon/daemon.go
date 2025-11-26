@@ -24,9 +24,9 @@ import (
 
 	"github.com/canonical/microcluster/v3/client"
 	"github.com/canonical/microcluster/v3/cluster"
+	clusterDB "github.com/canonical/microcluster/v3/cluster/db"
 	internalConfig "github.com/canonical/microcluster/v3/internal/config"
 	"github.com/canonical/microcluster/v3/internal/db"
-	"github.com/canonical/microcluster/v3/internal/db/schema"
 	"github.com/canonical/microcluster/v3/internal/endpoints"
 	"github.com/canonical/microcluster/v3/internal/extensions"
 	internalLog "github.com/canonical/microcluster/v3/internal/log"
@@ -60,7 +60,7 @@ type Args struct {
 	HeartbeatInterval time.Duration
 
 	// List of schema updates in the order that they should be applied.
-	ExtensionsSchema []schema.Update
+	ExtensionsSchema []clusterDB.Update
 
 	// List of extensions supported by the endpoints of the core/default cluster API.
 	APIExtensions []string
@@ -247,7 +247,7 @@ func (d *Daemon) Run(ctx context.Context, stateDir string, args Args) error {
 	}
 }
 
-func (d *Daemon) init(listenAddress string, socketGroup string, heartbeatInterval time.Duration, schemaExtensions []schema.Update, apiExtensions []string, hooks *state.Hooks) error {
+func (d *Daemon) init(listenAddress string, socketGroup string, heartbeatInterval time.Duration, schemaExtensions []clusterDB.Update, apiExtensions []string, hooks *state.Hooks) error {
 	d.applyHooks(hooks)
 
 	// Register smart error mappings.

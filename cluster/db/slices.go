@@ -1,5 +1,5 @@
-// Package query slice functions that match LXD's slice handling patterns.
-package query
+// Package db slice functions that match LXD's slice handling patterns.
+package db
 
 import (
 	"context"

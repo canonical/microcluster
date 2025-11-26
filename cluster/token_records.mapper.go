@@ -10,7 +10,7 @@ import (
 
 	"github.com/canonical/lxd/shared/api"
 
-	"github.com/canonical/microcluster/v3/internal/db/query"
+	"github.com/canonical/microcluster/v3/cluster/db"
 )
 
 var _ = api.ServerEnvironment{}
@@ -116,7 +116,7 @@ func getCoreTokenRecords(ctx context.Context, stmt *sql.Stmt, args ...any) ([]Co
 		return nil
 	}
 
-	err := query.SelectObjects(ctx, stmt, dest, args...)
+	err := db.SelectObjects(ctx, stmt, dest, args...)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to fetch from \"core_token_records\" table: %w", err)
 	}
@@ -140,7 +140,7 @@ func getCoreTokenRecordsRaw(ctx context.Context, tx *sql.Tx, sql string, args ..
 		return nil
 	}
 
-	err := query.Scan(ctx, tx, sql, dest, args...)
+	err := db.Scan(ctx, tx, sql, dest, args...)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to fetch from \"core_token_records\" table: %w", err)
 	}

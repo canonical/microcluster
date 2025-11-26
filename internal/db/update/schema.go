@@ -9,6 +9,7 @@ import (
 
 	"github.com/canonical/lxd/shared"
 
+	clusterDB "github.com/canonical/microcluster/v3/cluster/db"
 	"github.com/canonical/microcluster/v3/internal/db/query"
 	"github.com/canonical/microcluster/v3/internal/db/schema"
 	"github.com/canonical/microcluster/v3/internal/extensions"
@@ -27,7 +28,7 @@ const (
 
 // SchemaUpdate holds the configuration for executing schema updates.
 type SchemaUpdate struct {
-	updates       map[updateType][]schema.Update // Ordered series of internal and external updates making up the schema
+	updates       map[updateType][]clusterDB.Update // Ordered series of internal and external updates making up the schema
 	apiExtensions extensions.Extensions
 	hook          schema.Hook  // Optional hook to execute whenever a update gets applied
 	fresh         string       // Optional SQL statement used to create schema from scratch
@@ -121,7 +122,7 @@ func (s *SchemaUpdate) Ensure(ctx context.Context, db *sql.DB) (int, error) {
 
 	err = query.Transaction(ctx, db, func(ctx context.Context, tx *sql.Tx) error {
 		if exists && updateSchemaTable {
-			versions, err = query.SelectIntegers(ctx, tx, "SELECT COALESCE(MAX(version), 0) FROM schemas")
+			versions, err = clusterDB.SelectIntegers(ctx, tx, "SELECT COALESCE(MAX(version), 0) FROM schemas")
 			if err != nil {
 				return err
 			}
@@ -144,7 +145,7 @@ func (s *SchemaUpdate) Ensure(ctx context.Context, db *sql.DB) (int, error) {
 			// The result is list of size 2, with index 0 corresponding to the max internal version and index 1 to the max external version, thanks to UNION ALL.
 			// The selected column must default to zero, otherwise query.SelectIntegers will fail to parse a null value as an integer.
 			maxVersionsStmt := "SELECT COALESCE(MAX(version), 0) FROM schemas WHERE type = 0 UNION ALL SELECT COALESCE(MAX(version), 0) FROM schemas WHERE type = 1"
-			versions, err = query.SelectIntegers(ctx, tx, maxVersionsStmt)
+			versions, err = clusterDB.SelectIntegers(ctx, tx, maxVersionsStmt)
 			if err != nil {
 				return err
 			}
@@ -202,7 +203,7 @@ func (s *SchemaUpdate) Ensure(ctx context.Context, db *sql.DB) (int, error) {
 			}
 
 			maxVersionsStmt := "SELECT COALESCE(MAX(version), 0) FROM schemas WHERE type = 0 UNION ALL SELECT COALESCE(MAX(version), 0) FROM schemas WHERE type = 1"
-			versions, err = query.SelectIntegers(ctx, tx, maxVersionsStmt)
+			versions, err = clusterDB.SelectIntegers(ctx, tx, maxVersionsStmt)
 			if err != nil {
 				return err
 			}
@@ -254,7 +255,7 @@ func (s *SchemaUpdate) Ensure(ctx context.Context, db *sql.DB) (int, error) {
 }
 
 // Apply any pending update that was not yet applied.
-func ensureUpdatesAreApplied(ctx context.Context, tx *sql.Tx, updateType updateType, version int, updates []schema.Update, hook schema.Hook) error {
+func ensureUpdatesAreApplied(ctx context.Context, tx *sql.Tx, updateType updateType, version int, updates []clusterDB.Update, hook schema.Hook) error {
 	if version > len(updates) {
 		return fmt.Errorf("Schema version %d is more recent than expected %d", version, len(updates))
 	}

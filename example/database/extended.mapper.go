@@ -11,7 +11,7 @@ import (
 	"github.com/canonical/lxd/shared/api"
 
 	"github.com/canonical/microcluster/v3/cluster"
-	"github.com/canonical/microcluster/v3/internal/db/query"
+	"github.com/canonical/microcluster/v3/cluster/db"
 )
 
 var _ = api.ServerEnvironment{}
@@ -116,10 +116,10 @@ func GetExtendedTables(ctx context.Context, tx *sql.Tx, filters ...ExtendedTable
 
 	// Select.
 	if sqlStmt != nil {
-		err = query.SelectObjects(ctx, sqlStmt, dest, args...)
+		err = db.SelectObjects(ctx, sqlStmt, dest, args...)
 	} else {
 		queryStr := strings.Join(queryParts[:], "ORDER BY")
-		err = query.Scan(ctx, tx, queryStr, dest, args...)
+		err = db.Scan(ctx, tx, queryStr, dest, args...)
 	}
 
 	if err != nil {

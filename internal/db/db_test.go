@@ -648,7 +648,7 @@ func (s *dbSuite) Test_waitUpgradeSchemaAndAPI() {
 	}
 }
 
-// NewTedb returns a sqlite DB set up with the default microcluster schema.
+// NewTestDB returns a sqlite DB set up with the default microcluster schema.
 func NewTestDB(extensionsExternal []clusterDB.Update) (*DqliteDB, error) {
 	var err error
 

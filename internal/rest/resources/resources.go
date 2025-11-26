@@ -16,6 +16,7 @@ var UnixEndpoints = types.Resources{
 	Endpoints: []types.Endpoint{
 		controlCmd,
 		shutdownCmd,
+		sqlCmd,
 		tokenCmd,
 		tokensCmd,
 	},
@@ -45,7 +46,6 @@ var InternalEndpoints = types.Resources{
 		databaseCmd,
 		heartbeatCmd,
 		hooksCmd,
-		sqlCmd,
 		trustCmd,
 		trustEntryCmd,
 	},

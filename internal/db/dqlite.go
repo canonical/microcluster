@@ -25,7 +25,7 @@ import (
 	"github.com/canonical/lxd/shared/tcp"
 
 	"github.com/canonical/microcluster/v3/cluster"
-	"github.com/canonical/microcluster/v3/internal/db/schema"
+	clusterDB "github.com/canonical/microcluster/v3/cluster/db"
 	"github.com/canonical/microcluster/v3/internal/db/update"
 	"github.com/canonical/microcluster/v3/internal/extensions"
 	"github.com/canonical/microcluster/v3/internal/log"
@@ -115,7 +115,7 @@ func (db *DqliteDB) log() *slog.Logger {
 }
 
 // SetSchema sets schema and API extensions on the DB.
-func (db *DqliteDB) SetSchema(schemaExtensions []schema.Update, apiExtensions extensions.Extensions) {
+func (db *DqliteDB) SetSchema(schemaExtensions []clusterDB.Update, apiExtensions extensions.Extensions) {
 	s := update.NewSchema()
 	s.AppendSchema(schemaExtensions, apiExtensions)
 	db.schema = s.Schema()

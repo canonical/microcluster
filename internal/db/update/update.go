@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/canonical/microcluster/v3/internal/db/schema"
+	clusterDB "github.com/canonical/microcluster/v3/cluster/db"
 	"github.com/canonical/microcluster/v3/internal/extensions"
 )
 
@@ -21,7 +21,7 @@ CREATE TABLE schemas (
 
 // SchemaUpdateManager contains a map of schema update type to slice of schema.Update.
 type SchemaUpdateManager struct {
-	updates map[updateType][]schema.Update
+	updates map[updateType][]clusterDB.Update
 
 	apiExtensions extensions.Extensions
 }
@@ -29,7 +29,7 @@ type SchemaUpdateManager struct {
 // NewSchema returns a new SchemaUpdateManager containing microcluster schema updates.
 func NewSchema() *SchemaUpdateManager {
 	mgr := &SchemaUpdateManager{}
-	mgr.updates = map[updateType][]schema.Update{
+	mgr.updates = map[updateType][]clusterDB.Update{
 		updateInternal: {
 			updateFromV0,
 			updateFromV1,
@@ -44,18 +44,18 @@ func NewSchema() *SchemaUpdateManager {
 }
 
 // SetInternalUpdates replaces the set of internal schema updates.
-func (s *SchemaUpdateManager) SetInternalUpdates(updates []schema.Update) {
+func (s *SchemaUpdateManager) SetInternalUpdates(updates []clusterDB.Update) {
 	if s.updates == nil {
-		s.updates = map[updateType][]schema.Update{}
+		s.updates = map[updateType][]clusterDB.Update{}
 	}
 
 	s.updates[updateInternal] = updates
 }
 
 // SetExternalUpdates replaces the set of external schema updates.
-func (s *SchemaUpdateManager) SetExternalUpdates(updates []schema.Update) {
+func (s *SchemaUpdateManager) SetExternalUpdates(updates []clusterDB.Update) {
 	if s.updates == nil {
-		s.updates = map[updateType][]schema.Update{}
+		s.updates = map[updateType][]clusterDB.Update{}
 	}
 
 	s.updates[updateExternal] = updates
@@ -69,7 +69,7 @@ func (s *SchemaUpdateManager) Schema() *SchemaUpdate {
 }
 
 // AppendSchema sets the given schema and API updates as the list of external extensions on the update manager.
-func (s *SchemaUpdateManager) AppendSchema(schemaExtensions []schema.Update, apiExtensions extensions.Extensions) {
+func (s *SchemaUpdateManager) AppendSchema(schemaExtensions []clusterDB.Update, apiExtensions extensions.Extensions) {
 	s.updates[updateExternal] = schemaExtensions
 	s.apiExtensions = apiExtensions
 }

@@ -9,8 +9,7 @@ import (
 
 	"github.com/stretchr/testify/suite"
 
-	"github.com/canonical/microcluster/v3/internal/db/query"
-	"github.com/canonical/microcluster/v3/internal/db/schema"
+	clusterDB "github.com/canonical/microcluster/v3/cluster/db"
 )
 
 type updateSuite struct {
@@ -53,7 +52,7 @@ func (s *updateSuite) Test_updateFromV1ClusterMembers() {
 	// Create a schema manager that corresponds to the manual configuration above.
 	dummyUpdate := func(ctx context.Context, tx *sql.Tx) error { return nil }
 	schemaMgr := NewSchema()
-	schemaMgr.AppendSchema([]schema.Update{dummyUpdate, dummyUpdate}, nil)
+	schemaMgr.AppendSchema([]clusterDB.Update{dummyUpdate, dummyUpdate}, nil)
 
 	// Apply the updates the regular way.
 	_, err = schemaMgr.Schema().Ensure(context.TODO(), db)
@@ -61,16 +60,16 @@ func (s *updateSuite) Test_updateFromV1ClusterMembers() {
 
 	tx, err = db.BeginTx(ctx, nil)
 	s.NoError(err)
-	schemaInternal, err := query.SelectIntegers(ctx, tx, "SELECT schema_internal FROM core_cluster_members")
+	schemaInternal, err := clusterDB.SelectIntegers(ctx, tx, "SELECT schema_internal FROM core_cluster_members")
 	s.NoError(err)
 
-	schemaExternal, err := query.SelectIntegers(ctx, tx, "SELECT schema_external FROM core_cluster_members")
+	schemaExternal, err := clusterDB.SelectIntegers(ctx, tx, "SELECT schema_external FROM core_cluster_members")
 	s.NoError(err)
 
-	versionsInternal, err := query.SelectIntegers(ctx, tx, "SELECT version from schemas where type = 0")
+	versionsInternal, err := clusterDB.SelectIntegers(ctx, tx, "SELECT version from schemas where type = 0")
 	s.NoError(err)
 
-	versionsExternal, err := query.SelectIntegers(ctx, tx, "SELECT version from schemas where type = 1")
+	versionsExternal, err := clusterDB.SelectIntegers(ctx, tx, "SELECT version from schemas where type = 1")
 	s.NoError(err)
 	s.NoError(tx.Commit())
 
@@ -100,94 +99,94 @@ func (s *updateSuite) Test_updateFromV1() {
 
 	tests := []struct {
 		name                  string
-		initialSchemaInternal []schema.Update
-		initialSchemaExternal []schema.Update
-		upgradesInternal      []schema.Update
-		upgradesExternal      []schema.Update
+		initialSchemaInternal []clusterDB.Update
+		initialSchemaExternal []clusterDB.Update
+		upgradesInternal      []clusterDB.Update
+		upgradesExternal      []clusterDB.Update
 	}{
 		{
 			name:                  "Default internal schema, no external schema, no updates",
-			initialSchemaInternal: []schema.Update{updateFromV0, updateFromV1},
-			initialSchemaExternal: []schema.Update{},
-			upgradesInternal:      []schema.Update{},
-			upgradesExternal:      []schema.Update{},
+			initialSchemaInternal: []clusterDB.Update{updateFromV0, updateFromV1},
+			initialSchemaExternal: []clusterDB.Update{},
+			upgradesInternal:      []clusterDB.Update{},
+			upgradesExternal:      []clusterDB.Update{},
 		},
 		{
 			name:                  "Upgrade internal schema from v0 to v1, no external schema",
-			initialSchemaInternal: []schema.Update{updateFromV0},
-			initialSchemaExternal: []schema.Update{},
-			upgradesInternal:      []schema.Update{updateFromV1},
-			upgradesExternal:      []schema.Update{},
+			initialSchemaInternal: []clusterDB.Update{updateFromV0},
+			initialSchemaExternal: []clusterDB.Update{},
+			upgradesInternal:      []clusterDB.Update{updateFromV1},
+			upgradesExternal:      []clusterDB.Update{},
 		},
 		{
 			name:                  "Updating internal schema from v0 to v2, no external schema",
-			initialSchemaInternal: []schema.Update{updateFromV0},
-			initialSchemaExternal: []schema.Update{},
-			upgradesInternal:      []schema.Update{updateFromV1, dummyUpdate},
-			upgradesExternal:      []schema.Update{},
+			initialSchemaInternal: []clusterDB.Update{updateFromV0},
+			initialSchemaExternal: []clusterDB.Update{},
+			upgradesInternal:      []clusterDB.Update{updateFromV1, dummyUpdate},
+			upgradesExternal:      []clusterDB.Update{},
 		},
 		{
 			name:                  "Updating internal schema from v1 to v2, no external schema",
-			initialSchemaInternal: []schema.Update{updateFromV0, updateFromV1},
-			initialSchemaExternal: []schema.Update{},
-			upgradesInternal:      []schema.Update{dummyUpdate},
-			upgradesExternal:      []schema.Update{},
+			initialSchemaInternal: []clusterDB.Update{updateFromV0, updateFromV1},
+			initialSchemaExternal: []clusterDB.Update{},
+			upgradesInternal:      []clusterDB.Update{dummyUpdate},
+			upgradesExternal:      []clusterDB.Update{},
 		},
 		{
 			name:                  "Default internal schema, v1 external schema, no updates",
-			initialSchemaInternal: []schema.Update{updateFromV0, updateFromV1},
-			initialSchemaExternal: []schema.Update{dummyUpdate},
-			upgradesInternal:      []schema.Update{},
-			upgradesExternal:      []schema.Update{},
+			initialSchemaInternal: []clusterDB.Update{updateFromV0, updateFromV1},
+			initialSchemaExternal: []clusterDB.Update{dummyUpdate},
+			upgradesInternal:      []clusterDB.Update{},
+			upgradesExternal:      []clusterDB.Update{},
 		},
 		{
 			name:                  "Default internal schema, update external schema from v0 to v1",
-			initialSchemaInternal: []schema.Update{updateFromV0, updateFromV1},
-			initialSchemaExternal: []schema.Update{},
-			upgradesInternal:      []schema.Update{},
-			upgradesExternal:      []schema.Update{dummyUpdate},
+			initialSchemaInternal: []clusterDB.Update{updateFromV0, updateFromV1},
+			initialSchemaExternal: []clusterDB.Update{},
+			upgradesInternal:      []clusterDB.Update{},
+			upgradesExternal:      []clusterDB.Update{dummyUpdate},
 		},
 		{
 			name:                  "Default internal schema, update external schema from v1 to v2",
-			initialSchemaInternal: []schema.Update{updateFromV0, updateFromV1},
-			initialSchemaExternal: []schema.Update{dummyUpdate},
-			upgradesInternal:      []schema.Update{},
-			upgradesExternal:      []schema.Update{dummyUpdate},
+			initialSchemaInternal: []clusterDB.Update{updateFromV0, updateFromV1},
+			initialSchemaExternal: []clusterDB.Update{dummyUpdate},
+			upgradesInternal:      []clusterDB.Update{},
+			upgradesExternal:      []clusterDB.Update{dummyUpdate},
 		},
 		{
 			name:                  "Update internal schema from v1 to v2, update external schema from v1 to v2",
-			initialSchemaInternal: []schema.Update{updateFromV0, updateFromV1},
-			initialSchemaExternal: []schema.Update{dummyUpdate},
-			upgradesInternal:      []schema.Update{dummyUpdate},
-			upgradesExternal:      []schema.Update{dummyUpdate},
+			initialSchemaInternal: []clusterDB.Update{updateFromV0, updateFromV1},
+			initialSchemaExternal: []clusterDB.Update{dummyUpdate},
+			upgradesInternal:      []clusterDB.Update{dummyUpdate},
+			upgradesExternal:      []clusterDB.Update{dummyUpdate},
 		},
 		{
 			name:                  "Update internal schema from v0 to v1, external schema at v1",
-			initialSchemaInternal: []schema.Update{updateFromV0},
-			initialSchemaExternal: []schema.Update{dummyUpdate},
-			upgradesInternal:      []schema.Update{updateFromV1},
-			upgradesExternal:      []schema.Update{},
+			initialSchemaInternal: []clusterDB.Update{updateFromV0},
+			initialSchemaExternal: []clusterDB.Update{dummyUpdate},
+			upgradesInternal:      []clusterDB.Update{updateFromV1},
+			upgradesExternal:      []clusterDB.Update{},
 		},
 		{
 			name:                  "Update internal schema from v0 to v2, external schema at v1",
-			initialSchemaInternal: []schema.Update{updateFromV0},
-			initialSchemaExternal: []schema.Update{dummyUpdate},
-			upgradesInternal:      []schema.Update{updateFromV1, dummyUpdate},
-			upgradesExternal:      []schema.Update{},
+			initialSchemaInternal: []clusterDB.Update{updateFromV0},
+			initialSchemaExternal: []clusterDB.Update{dummyUpdate},
+			upgradesInternal:      []clusterDB.Update{updateFromV1, dummyUpdate},
+			upgradesExternal:      []clusterDB.Update{},
 		},
 		{
 			name:                  "Update internal schema from v0 to v2, update external schema from v0 to v1",
-			initialSchemaInternal: []schema.Update{updateFromV0},
-			initialSchemaExternal: []schema.Update{},
-			upgradesInternal:      []schema.Update{updateFromV1, dummyUpdate},
-			upgradesExternal:      []schema.Update{dummyUpdate},
+			initialSchemaInternal: []clusterDB.Update{updateFromV0},
+			initialSchemaExternal: []clusterDB.Update{},
+			upgradesInternal:      []clusterDB.Update{updateFromV1, dummyUpdate},
+			upgradesExternal:      []clusterDB.Update{dummyUpdate},
 		},
 		{
 			name:                  "Update internal schema from v0 to v2, update external schema from v1 to v2",
-			initialSchemaInternal: []schema.Update{updateFromV0},
-			initialSchemaExternal: []schema.Update{dummyUpdate},
-			upgradesInternal:      []schema.Update{updateFromV1, dummyUpdate},
-			upgradesExternal:      []schema.Update{dummyUpdate},
+			initialSchemaInternal: []clusterDB.Update{updateFromV0},
+			initialSchemaExternal: []clusterDB.Update{dummyUpdate},
+			upgradesInternal:      []clusterDB.Update{updateFromV1, dummyUpdate},
+			upgradesExternal:      []clusterDB.Update{dummyUpdate},
 		},
 	}
 
@@ -195,7 +194,7 @@ func (s *updateSuite) Test_updateFromV1() {
 		s.T().Logf("%s (case %d)", t.name, i)
 
 		schema := &SchemaUpdateManager{
-			updates: map[updateType][]schema.Update{
+			updates: map[updateType][]clusterDB.Update{
 				updateInternal: t.initialSchemaInternal,
 				updateExternal: t.initialSchemaExternal,
 			},
@@ -213,7 +212,7 @@ func (s *updateSuite) Test_updateFromV1() {
 		ctx := context.Background()
 		tx, err := db.BeginTx(ctx, nil)
 		s.NoError(err)
-		versions, err := query.SelectIntegers(ctx, tx, "SELECT MAX(version) FROM schemas WHERE type = 0 UNION ALL SELECT COALESCE(MAX(version), 0) FROM schemas WHERE type = 1")
+		versions, err := clusterDB.SelectIntegers(ctx, tx, "SELECT MAX(version) FROM schemas WHERE type = 0 UNION ALL SELECT COALESCE(MAX(version), 0) FROM schemas WHERE type = 1")
 		s.NoError(err)
 
 		s.Equal(len(schema.updates[updateInternal]), versions[0])

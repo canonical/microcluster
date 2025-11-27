@@ -35,8 +35,9 @@ var extendedWebsocketCmd = rest.Endpoint{
 	},
 }
 
+// This is the POST handler for the /1.0/extended/simple endpoint.
 // This example shows how to forward a request to other cluster members.
-func cmdPost(state state.State, r *http.Request) response.Response {
+func cmdSimple(state state.State, r *http.Request) response.Response {
 	// Check the user agent header to check if we are the notifying cluster member.
 	if !client.IsNotification(r) {
 		// Get a collection of clients every other cluster member, with the notification user-agent set.
@@ -55,11 +56,11 @@ func cmdPost(state state.State, r *http.Request) response.Response {
 			// Our payload in this case is defined by us as ExtendedType.
 			data := &extendedTypes.ExtendedType{
 				Sender:  addrPort,
-				Message: "Testing 1 2 3...",
+				Message: "Testing ...",
 			}
 
-			// Asynchronously send a POST on /1.0/extended to each other cluster member.
-			outMessage, err := extendedClient.ExtendedPostCmd(ctx, c, data)
+			// Asynchronously send a POST on /1.0/extended/simple to each other cluster member.
+			outMessage, err := extendedClient.ExtendedSimpleCmd(ctx, c, data)
 			if err != nil {
 				clientURL := c.URL()
 				return fmt.Errorf("Failed to POST to cluster member with address %q: %w", clientURL.String(), err)

@@ -25,7 +25,16 @@ var extendedSimpleCmd = rest.Endpoint{
 	},
 }
 
-// This is the POST handler for the /1.0/extended endpoint.
+// This is an example extended endpoint reachable at /1.0/extended/websocket.
+var extendedWebsocketCmd = rest.Endpoint{
+	Path: "extended/websocket",
+	Get: rest.EndpointAction{
+		Handler:        cmdWebsocket,
+		AllowUntrusted: true,
+		ProxyTarget:    true,
+	},
+}
+
 // This example shows how to forward a request to other cluster members.
 func cmdPost(state state.State, r *http.Request) response.Response {
 	// Check the user agent header to check if we are the notifying cluster member.

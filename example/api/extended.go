@@ -3,8 +3,12 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
+	"time"
+
+	"github.com/gorilla/websocket"
 
 	"github.com/canonical/microcluster/v3/client"
 	extendedTypes "github.com/canonical/microcluster/v3/example/api/types"
@@ -94,4 +98,38 @@ func cmdSimple(state state.State, r *http.Request) response.Response {
 	message := fmt.Sprintf("cluster member at address %q received message %q from cluster member at address %q", state.Address().URL.Host, info.Message, info.Sender.String())
 
 	return response.SyncResponse(true, message)
+}
+
+// This is the GET handler for the /1.0/extended/websocket endpoint.
+// This example shows how to use websockets.
+func cmdWebsocket(state state.State, r *http.Request) response.Response {
+	if r.Header.Get("Upgrade") == "websocket" {
+		var upgrader = websocket.Upgrader{
+			ReadBufferSize:  1024,
+			WriteBufferSize: 1024,
+		}
+
+		return response.ManualResponse(func(w http.ResponseWriter) error {
+			conn, err := upgrader.Upgrade(w, r, nil)
+			if err != nil {
+				return err
+			}
+
+			defer conn.Close()
+
+			for i := range 3 {
+				text := fmt.Sprintf("Testing from %q, iteration %d ...", state.Address().URL.Host, i+1)
+				err := conn.WriteMessage(websocket.TextMessage, []byte(text))
+				if err != nil {
+					return err
+				}
+
+				time.Sleep(time.Second)
+			}
+
+			return nil
+		})
+	}
+
+	return response.BadRequest(errors.New("Missing websocket upgrade header"))
 }

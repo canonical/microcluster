@@ -16,10 +16,14 @@ import (
 	"github.com/canonical/microcluster/v2/state"
 )
 
-// This is an example extended endpoint reachable at /1.0/extended.
-var extendedCmd = rest.Endpoint{
-	Path: "extended",
-	Post: rest.EndpointAction{Handler: cmdPost, AllowUntrusted: true},
+// This is an example extended endpoint reachable at /1.0/extended/simple.
+var extendedSimpleCmd = rest.Endpoint{
+	Path: "extended/simple",
+	Post: rest.EndpointAction{
+		Handler:        cmdSimple,
+		AllowUntrusted: true,
+		ProxyTarget:    true,
+	},
 }
 
 // This is the POST handler for the /1.0/extended endpoint.

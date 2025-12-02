@@ -13,9 +13,9 @@ import (
 	"github.com/canonical/microcluster/v3/client"
 	extendedTypes "github.com/canonical/microcluster/v3/example/api/types"
 	extendedClient "github.com/canonical/microcluster/v3/example/client"
-	"github.com/canonical/microcluster/v3/rest"
-	"github.com/canonical/microcluster/v3/rest/response"
-	"github.com/canonical/microcluster/v3/rest/types"
+	"github.com/canonical/microcluster/v3/microcluster/rest"
+	"github.com/canonical/microcluster/v3/microcluster/rest/response"
+	"github.com/canonical/microcluster/v3/microcluster/types"
 	"github.com/canonical/microcluster/v3/state"
 )
 

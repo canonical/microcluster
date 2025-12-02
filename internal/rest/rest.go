@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 
 	"github.com/canonical/lxd/shared/api"
+	"github.com/canonical/lxd/shared/ws"
 	"github.com/gorilla/mux"
 
 	"github.com/canonical/microcluster/v3/cluster"
@@ -113,7 +114,7 @@ func proxyTarget(action rest.EndpointAction, s state.State, r *http.Request) res
 
 	client, err := client.New(*targetURL, s.ServerCert(), clusterCert, false)
 	if err != nil {
-		return response.InternalError(fmt.Errorf("Failed to get a client for the target %q at address %q: %w", target, targetURL.String(), err))
+		return response.InternalError(fmt.Errorf("Failed to get a client for the target %q at address %q: %w", target, targetURL.URL.Host, err))
 	}
 
 	// Update request URL.
@@ -123,6 +124,37 @@ func proxyTarget(action rest.EndpointAction, s state.State, r *http.Request) res
 	r.Host = targetURL.URL.Host
 
 	logger.Info("Forwarding request to specified target", slog.String("source", s.Name()), slog.String("target", target))
+
+	// Upgrade the connection and setup a websocket proxy if requested by the client.
+	if r.Header.Get("Upgrade") == "websocket" {
+		// Perform the websocket proxy.
+		return response.ManualResponse(func(w http.ResponseWriter) error {
+			connToSource, err := ws.Upgrader.Upgrade(w, r, nil)
+			if err != nil {
+				return fmt.Errorf("Failed to upgrade connection to websocket: %w", err)
+			}
+
+			// Close connection to source when the proxy returns.
+			defer connToSource.Close()
+
+			// Set an empty endpoint prefix to support all target URLs.
+			// In case the client set an endpoint prefix, it's already included in the request URL.
+			// Use the actual request URL to retain query parameters.
+			connToTarget, err := client.RawWebsocket(r.Context(), "", r.URL)
+			if err != nil {
+				return fmt.Errorf("Failed to upgrade connection for the target %q at address %q to websocket: %w", target, targetURL.URL.Host, err)
+			}
+
+			// Close connection to target when the proxy returns.
+			defer connToTarget.Close()
+
+			<-ws.Proxy(connToTarget, connToSource)
+
+			return nil
+		})
+	}
+
+	// Use the actual request URL to retain query parameters.
 	resp, err := client.MakeRequest(r)
 	if err != nil {
 		return response.SmartError(fmt.Errorf("Failed to send request to target %q: %w", target, err))

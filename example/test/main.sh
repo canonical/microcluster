@@ -403,6 +403,37 @@ test_join_token_before_cluster_formed() {
   shutdown_systems
 }
 
+test_extended_endpoints() {
+  new_systems 4 --heartbeat 2s
+
+  # Bootstrap initial cluster.
+  microctl --state-dir "${test_dir}/c1" init "c1" 127.0.0.1:9001 --bootstrap
+
+  # Get join tokens for the other cluster members.
+  token_c2=$(microctl --state-dir "${test_dir}/c1" tokens add "c2")
+  token_c3=$(microctl --state-dir "${test_dir}/c1" tokens add "c3")
+  token_c4=$(microctl --state-dir "${test_dir}/c1" tokens add "c4")
+
+  # Join the cluster members.
+  microctl --state-dir "${test_dir}/c2" init "c2" 127.0.0.1:9002 --token "${token_c2}"
+  microctl --state-dir "${test_dir}/c3" init "c3" 127.0.0.1:9003 --token "${token_c3}"
+  microctl --state-dir "${test_dir}/c4" init "c4" 127.0.0.1:9004 --token "${token_c4}"
+
+  # Test the extended simple endpoint.
+  microctl --state-dir "${test_dir}/c1" extended simple
+  for i in 1 2 3 4; do
+    microctl --state-dir "${test_dir}/c1" extended simple --target "c${i}"
+  done
+
+  # Test the extended websocket endpoint.
+  microctl --state-dir "${test_dir}/c1" extended websocket
+  for i in 1 2 3 4; do
+    microctl --state-dir "${test_dir}/c1" extended websocket --target "c${i}"
+  done
+
+  shutdown_systems
+}
+
 # allow for running a specific set of tests
 if [ "${1:-"all"}" = "all" ] || [ "${1}" = "" ]; then
   test_misc
@@ -410,6 +441,7 @@ if [ "${1:-"all"}" = "all" ] || [ "${1}" = "" ]; then
   test_recover
   test_join_token_after_cluster_formed
   test_join_token_before_cluster_formed
+  test_extended_endpoints
 elif [ "${1}" = "recover" ]; then
   test_recover
 elif [ "${1}" = "tokens" ]; then
@@ -420,6 +452,8 @@ elif [ "${1}" = "join-after" ]; then
   test_join_token_after_cluster_formed
 elif [ "${1}" = "join-before" ]; then
   test_join_token_before_cluster_formed
+elif [ "${1}" = "extended" ]; then
+  test_extended_endpoints
 else
   echo "Unknown test ${1}"
 fi

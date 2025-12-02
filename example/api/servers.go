@@ -17,7 +17,8 @@ var Servers = map[string]rest.Server{
 			{
 				PathPrefix: types.ExtendedPathPrefix,
 				Endpoints: []rest.Endpoint{
-					extendedCmd,
+					extendedSimpleCmd,
+					extendedWebsocketCmd,
 				},
 			},
 		},

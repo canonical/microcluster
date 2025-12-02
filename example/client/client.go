@@ -7,19 +7,21 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/gorilla/websocket"
+
 	"github.com/canonical/microcluster/v3/client"
 	"github.com/canonical/microcluster/v3/example/api/types"
 )
 
-// ExtendedPostCmd is a client function that sets a context timeout and sends a POST to /1.0/extended using the given
+// ExtendedSimpleCmd is a client function that sets a context timeout and sends a POST to /1.0/extended/simple using the given
 // client. This function is expected to be called from an api endpoint handler, which gives us access to the
 // daemon state, from which we can create a client.
-func ExtendedPostCmd(ctx context.Context, c *client.Client, data *types.ExtendedType) (string, error) {
+func ExtendedSimpleCmd(ctx context.Context, c *client.Client, data *types.ExtendedType) (string, error) {
 	queryCtx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
 
 	path := url.URL{
-		Path: "extended",
+		Path: "extended/simple",
 	}
 
 	var outStr string
@@ -30,4 +32,37 @@ func ExtendedPostCmd(ctx context.Context, c *client.Client, data *types.Extended
 	}
 
 	return outStr, nil
+}
+
+// ExtendedWebsocketCmd is a client function that sets a context timeout and sends a GET to /1.0/extended/websocket using the given
+// client. This function is expected to be called from an api endpoint handler, which gives us access to the
+// daemon state, from which we can create a client.
+func ExtendedWebsocketCmd(ctx context.Context, c *client.Client) error {
+	queryCtx, cancel := context.WithTimeout(ctx, time.Second*30)
+	defer cancel()
+
+	path := url.URL{
+		Path: "extended/websocket",
+	}
+
+	conn, err := c.Websocket(queryCtx, types.ExtendedPathPrefix, &path)
+	if err != nil {
+		return fmt.Errorf("Failed to create websocket connection: %w", err)
+	}
+
+	defer conn.Close()
+
+	for {
+		_, message, err := conn.ReadMessage()
+		if err != nil {
+			// If the server closes the connection, exit gracefully.
+			if websocket.IsCloseError(err, websocket.CloseAbnormalClosure) {
+				return nil
+			}
+
+			return fmt.Errorf("Failed to read message from websocket: %w", err)
+		}
+
+		fmt.Println(string(message))
+	}
 }

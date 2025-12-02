@@ -59,12 +59,3 @@ update-gomod:
 
 	# Use the bundled toolchain that meets the minimum go version
 	go get toolchain@none
-
-# Update lxd-generate generated database helpers.
-.PHONY: update-schema
-update-schema:
-	go generate ./cluster/...
-	gofmt -s -w ./cluster/
-	goimports -w ./cluster/
-	@echo "Code generation completed"
-

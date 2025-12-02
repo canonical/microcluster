@@ -13,24 +13,6 @@ import (
 	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
-// Code generation directives.
-//
-//go:generate -command mapper lxd-generate db mapper -t token_records.mapper.go
-//go:generate mapper reset
-//
-//go:generate mapper stmt -e core_token_record objects table=core_token_records
-//go:generate mapper stmt -e core_token_record objects-by-Secret table=core_token_records
-//go:generate mapper stmt -e core_token_record id table=core_token_records
-//go:generate mapper stmt -e core_token_record create table=core_token_records
-//go:generate mapper stmt -e core_token_record delete-by-Name table=core_token_records
-//
-//go:generate mapper method -e core_token_record ID table=core_token_records
-//go:generate mapper method -e core_token_record Exists table=core_token_records
-//go:generate mapper method -e core_token_record GetOne table=core_token_records
-//go:generate mapper method -e core_token_record GetMany table=core_token_records
-//go:generate mapper method -e core_token_record Create table=core_token_records
-//go:generate mapper method -e core_token_record DeleteOne-by-Name table=core_token_records
-
 // CoreTokenRecord is the database representation of a join token record.
 type CoreTokenRecord struct {
 	ID         int

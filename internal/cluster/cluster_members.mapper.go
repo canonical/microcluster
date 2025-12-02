@@ -104,7 +104,6 @@ func getCoreClusterMembersRaw(ctx context.Context, tx *sql.Tx, sql string, args 
 }
 
 // GetCoreClusterMembers returns all available core_cluster_members.
-// generator: core_cluster_member GetMany
 func GetCoreClusterMembers(ctx context.Context, tx *sql.Tx, filters ...CoreClusterMemberFilter) ([]CoreClusterMember, error) {
 	var err error
 
@@ -195,7 +194,6 @@ func GetCoreClusterMembers(ctx context.Context, tx *sql.Tx, filters ...CoreClust
 }
 
 // GetCoreClusterMember returns the core_cluster_member with the given key.
-// generator: core_cluster_member GetOne
 func GetCoreClusterMember(ctx context.Context, tx *sql.Tx, name string) (*CoreClusterMember, error) {
 	filter := CoreClusterMemberFilter{}
 	filter.Name = &name
@@ -216,7 +214,6 @@ func GetCoreClusterMember(ctx context.Context, tx *sql.Tx, name string) (*CoreCl
 }
 
 // GetCoreClusterMemberID return the ID of the core_cluster_member with the given key.
-// generator: core_cluster_member ID
 func GetCoreClusterMemberID(ctx context.Context, tx *sql.Tx, name string) (int64, error) {
 	stmt, err := clusterDB.Stmt(tx, coreClusterMemberID)
 	if err != nil {
@@ -238,7 +235,6 @@ func GetCoreClusterMemberID(ctx context.Context, tx *sql.Tx, name string) (int64
 }
 
 // CoreClusterMemberExists checks if a core_cluster_member with the given key exists.
-// generator: core_cluster_member Exists
 func CoreClusterMemberExists(ctx context.Context, tx *sql.Tx, name string) (bool, error) {
 	_, err := GetCoreClusterMemberID(ctx, tx, name)
 	if err != nil {
@@ -253,7 +249,6 @@ func CoreClusterMemberExists(ctx context.Context, tx *sql.Tx, name string) (bool
 }
 
 // CreateCoreClusterMember adds a new core_cluster_member to the database.
-// generator: core_cluster_member Create
 func CreateCoreClusterMember(ctx context.Context, tx *sql.Tx, object CoreClusterMember) (int64, error) {
 	// Check if a core_cluster_member with the same key exists.
 	exists, err := CoreClusterMemberExists(ctx, tx, object.Name)
@@ -298,7 +293,6 @@ func CreateCoreClusterMember(ctx context.Context, tx *sql.Tx, object CoreCluster
 }
 
 // DeleteCoreClusterMember deletes the core_cluster_member matching the given key parameters.
-// generator: core_cluster_member DeleteOne-by-Address
 func DeleteCoreClusterMember(ctx context.Context, tx *sql.Tx, address string) error {
 	stmt, err := clusterDB.Stmt(tx, coreClusterMemberDeleteByAddress)
 	if err != nil {
@@ -325,7 +319,6 @@ func DeleteCoreClusterMember(ctx context.Context, tx *sql.Tx, address string) er
 }
 
 // UpdateCoreClusterMember updates the core_cluster_member matching the given key parameters.
-// generator: core_cluster_member Update
 func UpdateCoreClusterMember(ctx context.Context, tx *sql.Tx, name string, object CoreClusterMember) error {
 	id, err := GetCoreClusterMemberID(ctx, tx, name)
 	if err != nil {

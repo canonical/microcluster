@@ -43,7 +43,6 @@ DELETE FROM core_token_records WHERE name = ?
 `)
 
 // GetCoreTokenRecordID return the ID of the core_token_record with the given key.
-// generator: core_token_record ID
 func GetCoreTokenRecordID(ctx context.Context, tx *sql.Tx, secret string) (int64, error) {
 	stmt, err := clusterDB.Stmt(tx, coreTokenRecordID)
 	if err != nil {
@@ -65,7 +64,6 @@ func GetCoreTokenRecordID(ctx context.Context, tx *sql.Tx, secret string) (int64
 }
 
 // CoreTokenRecordExists checks if a core_token_record with the given key exists.
-// generator: core_token_record Exists
 func CoreTokenRecordExists(ctx context.Context, tx *sql.Tx, secret string) (bool, error) {
 	_, err := GetCoreTokenRecordID(ctx, tx, secret)
 	if err != nil {
@@ -80,7 +78,6 @@ func CoreTokenRecordExists(ctx context.Context, tx *sql.Tx, secret string) (bool
 }
 
 // GetCoreTokenRecord returns the core_token_record with the given key.
-// generator: core_token_record GetOne
 func GetCoreTokenRecord(ctx context.Context, tx *sql.Tx, secret string) (*CoreTokenRecord, error) {
 	filter := CoreTokenRecordFilter{}
 	filter.Secret = &secret
@@ -149,7 +146,6 @@ func getCoreTokenRecordsRaw(ctx context.Context, tx *sql.Tx, sql string, args ..
 }
 
 // GetCoreTokenRecords returns all available core_token_records.
-// generator: core_token_record GetMany
 func GetCoreTokenRecords(ctx context.Context, tx *sql.Tx, filters ...CoreTokenRecordFilter) ([]CoreTokenRecord, error) {
 	var err error
 
@@ -216,7 +212,6 @@ func GetCoreTokenRecords(ctx context.Context, tx *sql.Tx, filters ...CoreTokenRe
 }
 
 // CreateCoreTokenRecord adds a new core_token_record to the database.
-// generator: core_token_record Create
 func CreateCoreTokenRecord(ctx context.Context, tx *sql.Tx, object CoreTokenRecord) (int64, error) {
 	// Check if a core_token_record with the same key exists.
 	exists, err := CoreTokenRecordExists(ctx, tx, object.Secret)
@@ -256,7 +251,6 @@ func CreateCoreTokenRecord(ctx context.Context, tx *sql.Tx, object CoreTokenReco
 }
 
 // DeleteCoreTokenRecord deletes the core_token_record matching the given key parameters.
-// generator: core_token_record DeleteOne-by-Name
 func DeleteCoreTokenRecord(ctx context.Context, tx *sql.Tx, name string) error {
 	stmt, err := clusterDB.Stmt(tx, coreTokenRecordDeleteByName)
 	if err != nil {

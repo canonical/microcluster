@@ -8,7 +8,7 @@ import (
 
 	"github.com/canonical/microcluster/v3/internal/db/update"
 	"github.com/canonical/microcluster/v3/internal/extensions"
-	"github.com/canonical/microcluster/v3/rest/types"
+	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
 //go:generate -command mapper lxd-generate db mapper -t cluster_members.mapper.go

@@ -30,7 +30,7 @@ type DaemonArgs = daemon.Args
 
 // MicroCluster contains some basic filesystem information for interacting with the MicroCluster daemon.
 type MicroCluster struct {
-	FileSystem *sys.OS
+	FileSystem types.OS
 
 	args Args
 }
@@ -93,7 +93,7 @@ func (m *MicroCluster) Start(ctx context.Context, daemonArgs DaemonArgs) error {
 	// Attach the logger to the parent context.
 	ctx = context.WithValue(ctx, log.CtxLogger, logger)
 
-	err := d.Run(ctx, m.FileSystem.StateDir, daemonArgs)
+	err := d.Run(ctx, m.FileSystem.StateDir(), daemonArgs)
 	if err != nil {
 		return fmt.Errorf("Daemon stopped with error: %w", err)
 	}
@@ -307,7 +307,10 @@ func (m *MicroCluster) RevokeJoinToken(ctx context.Context, name string) error {
 func (m *MicroCluster) LocalClient() (*client.Client, error) {
 	c := m.args.Client
 	if c == nil {
-		internalClient, err := internalClient.New(m.FileSystem.ControlSocket(), nil, nil, false)
+		url := api.NewURL()
+		url.URL = *m.FileSystem.ControlSocket()
+
+		internalClient, err := internalClient.New(*url, nil, nil, false)
 		if err != nil {
 			return nil, err
 		}

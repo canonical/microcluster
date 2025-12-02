@@ -87,14 +87,14 @@ func clusterCertificatesPut(s state.State, r *http.Request) response.Response {
 
 	var certificateDir string
 	if certificateName == string(types.ClusterCertificateName) {
-		certificateDir = s.FileSystem().StateDir
+		certificateDir = s.FileSystem().StateDir()
 	} else if certificateName == string(types.ServerCertificateName) {
-		certificateDir = s.FileSystem().StateDir
+		certificateDir = s.FileSystem().StateDir()
 		if s.Database().Status() != types.DatabaseNotReady {
 			return response.SmartError(fmt.Errorf("Cannot replace server certificate after initialization"))
 		}
 	} else {
-		certificateDir = s.FileSystem().CertificatesDir
+		certificateDir = s.FileSystem().CertificatesDir()
 
 		// Check if an additional listener exists for that name.
 		// We cannot query the daemon's config of the additional listeners as

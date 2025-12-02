@@ -107,7 +107,7 @@ func trustPost(s state.State, r *http.Request) response.Response {
 	remotes := s.Remotes()
 	_, ok := remotes.RemotesByName()[newRemote.Name]
 	if !ok {
-		err = remotes.Add(s.FileSystem().TrustDir, newRemote)
+		err = remotes.Add(s.FileSystem().TrustDir(), newRemote)
 		if err != nil {
 			return response.SmartError(fmt.Errorf("Failed adding local record of newly joined node %q: %w", req.Name, err))
 		}
@@ -167,7 +167,7 @@ func trustDelete(s state.State, r *http.Request) response.Response {
 		newRemotes = append(newRemotes, newRemote)
 	}
 
-	err = remotes.Replace(s.FileSystem().TrustDir, newRemotes...)
+	err = remotes.Replace(s.FileSystem().TrustDir(), newRemotes...)
 	if err != nil {
 		return response.SmartError(fmt.Errorf("Failed to remove truststore entry for node with name %q: %w", name, err))
 	}

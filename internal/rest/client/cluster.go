@@ -6,8 +6,7 @@ import (
 
 	"github.com/canonical/lxd/shared/api"
 
-	internalTypes "github.com/canonical/microcluster/v3/internal/rest/types"
-	"github.com/canonical/microcluster/v3/rest/types"
+	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
 // withTimeoutIfUnset returns a context with a 30s timeout only if the parent context has no deadline set.
@@ -21,12 +20,12 @@ func withTimeoutIfUnset(ctx context.Context) (context.Context, context.CancelFun
 }
 
 // AddClusterMember records a new cluster member in the trust store of each current cluster member.
-func AddClusterMember(ctx context.Context, c *Client, args types.ClusterMember) (*internalTypes.TokenResponse, error) {
+func AddClusterMember(ctx context.Context, c *Client, args types.ClusterMember) (*types.TokenResponse, error) {
 	queryCtx, cancel := withTimeoutIfUnset(ctx)
 	defer cancel()
 
-	tokenResponse := internalTypes.TokenResponse{}
-	err := c.QueryStruct(queryCtx, "POST", internalTypes.InternalEndpoint, &api.NewURL().Path("cluster").URL, args, &tokenResponse)
+	tokenResponse := types.TokenResponse{}
+	err := c.QueryStruct(queryCtx, "POST", types.InternalEndpoint, &api.NewURL().Path("cluster").URL, args, &tokenResponse)
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +43,7 @@ func ResetClusterMember(ctx context.Context, c *Client, name string, force bool)
 		endpoint = endpoint.WithQuery("force", "1")
 	}
 
-	return c.QueryStruct(queryCtx, "PUT", internalTypes.InternalEndpoint, &endpoint.URL, nil, nil)
+	return c.QueryStruct(queryCtx, "PUT", types.InternalEndpoint, &endpoint.URL, nil, nil)
 }
 
 // GetClusterMembers returns the database record of cluster members.
@@ -53,7 +52,7 @@ func (c *Client) GetClusterMembers(ctx context.Context) ([]types.ClusterMember, 
 	defer cancel()
 
 	clusterMembers := []types.ClusterMember{}
-	err := c.QueryStruct(queryCtx, "GET", internalTypes.PublicEndpoint, &api.NewURL().Path("cluster").URL, nil, &clusterMembers)
+	err := c.QueryStruct(queryCtx, "GET", types.PublicEndpoint, &api.NewURL().Path("cluster").URL, nil, &clusterMembers)
 
 	return clusterMembers, err
 }
@@ -68,7 +67,7 @@ func (c *Client) DeleteClusterMember(ctx context.Context, name string, force boo
 		endpoint = endpoint.WithQuery("force", "1")
 	}
 
-	return c.QueryStruct(queryCtx, "DELETE", internalTypes.PublicEndpoint, &endpoint.URL, nil, nil)
+	return c.QueryStruct(queryCtx, "DELETE", types.PublicEndpoint, &endpoint.URL, nil, nil)
 }
 
 // UpdateCertificate sets a new keypair and CA.
@@ -77,5 +76,5 @@ func (c *Client) UpdateCertificate(ctx context.Context, name types.CertificateNa
 	defer cancel()
 
 	endpoint := api.NewURL().Path("cluster", "certificates", string(name))
-	return c.QueryStruct(queryCtx, "PUT", internalTypes.PublicEndpoint, &endpoint.URL, args, nil)
+	return c.QueryStruct(queryCtx, "PUT", types.PublicEndpoint, &endpoint.URL, args, nil)
 }

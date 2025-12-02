@@ -14,7 +14,6 @@ import (
 	"github.com/canonical/microcluster/v3/internal/endpoints"
 	"github.com/canonical/microcluster/v3/internal/extensions"
 	internalClient "github.com/canonical/microcluster/v3/internal/rest/client"
-	"github.com/canonical/microcluster/v3/internal/sys"
 	"github.com/canonical/microcluster/v3/internal/trust"
 	"github.com/canonical/microcluster/v3/microcluster/types"
 )
@@ -22,7 +21,7 @@ import (
 // State exposes the internal daemon state for use with extended API handlers.
 type State interface {
 	// FileSystem structure.
-	FileSystem() *sys.OS
+	FileSystem() types.OS
 
 	// Listen Address.
 	Address() *api.URL
@@ -99,7 +98,7 @@ type InternalState struct {
 	// Hooks contain external implementations that are triggered by specific cluster actions.
 	Hooks *Hooks
 
-	InternalFileSystem       func() *sys.OS
+	InternalFileSystem       func() types.OS
 	InternalAddress          func() *api.URL
 	InternalName             func() string
 	InternalVersion          func() string
@@ -111,7 +110,7 @@ type InternalState struct {
 }
 
 // FileSystem can be used to inspect the microcluster filesystem.
-func (s *InternalState) FileSystem() *sys.OS {
+func (s *InternalState) FileSystem() types.OS {
 	return s.InternalFileSystem()
 }
 

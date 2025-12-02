@@ -49,7 +49,6 @@ UPDATE extended_table
 `)
 
 // GetExtendedTables returns all available extended_tables.
-// generator: extended_table GetMany
 func GetExtendedTables(ctx context.Context, tx *sql.Tx, filters ...ExtendedTableFilter) ([]ExtendedTable, error) {
 	var err error
 
@@ -129,7 +128,6 @@ func GetExtendedTables(ctx context.Context, tx *sql.Tx, filters ...ExtendedTable
 }
 
 // GetExtendedTable returns the extended_table with the given key.
-// generator: extended_table GetOne
 func GetExtendedTable(ctx context.Context, tx *sql.Tx, key string) (*ExtendedTable, error) {
 	filter := ExtendedTableFilter{}
 	filter.Key = &key
@@ -150,7 +148,6 @@ func GetExtendedTable(ctx context.Context, tx *sql.Tx, key string) (*ExtendedTab
 }
 
 // GetExtendedTableID return the ID of the extended_table with the given key.
-// generator: extended_table ID
 func GetExtendedTableID(ctx context.Context, tx *sql.Tx, key string) (int64, error) {
 	stmt, err := db.Stmt(tx, extendedTableID)
 	if err != nil {
@@ -172,7 +169,6 @@ func GetExtendedTableID(ctx context.Context, tx *sql.Tx, key string) (int64, err
 }
 
 // ExtendedTableExists checks if a extended_table with the given key exists.
-// generator: extended_table Exists
 func ExtendedTableExists(ctx context.Context, tx *sql.Tx, key string) (bool, error) {
 	_, err := GetExtendedTableID(ctx, tx, key)
 	if err != nil {
@@ -187,7 +183,6 @@ func ExtendedTableExists(ctx context.Context, tx *sql.Tx, key string) (bool, err
 }
 
 // CreateExtendedTable adds a new extended_table to the database.
-// generator: extended_table Create
 func CreateExtendedTable(ctx context.Context, tx *sql.Tx, object ExtendedTable) (int64, error) {
 	// Check if a extended_table with the same key exists.
 	exists, err := ExtendedTableExists(ctx, tx, object.Key)
@@ -226,7 +221,6 @@ func CreateExtendedTable(ctx context.Context, tx *sql.Tx, object ExtendedTable) 
 }
 
 // DeleteExtendedTable deletes the extended_table matching the given key parameters.
-// generator: extended_table DeleteOne-by-Key
 func DeleteExtendedTable(ctx context.Context, tx *sql.Tx, key string) error {
 	stmt, err := db.Stmt(tx, extendedTableDeleteByKey)
 	if err != nil {
@@ -253,7 +247,6 @@ func DeleteExtendedTable(ctx context.Context, tx *sql.Tx, key string) error {
 }
 
 // UpdateExtendedTable updates the extended_table matching the given key parameters.
-// generator: extended_table Update
 func UpdateExtendedTable(ctx context.Context, tx *sql.Tx, key string, object ExtendedTable) error {
 	id, err := GetExtendedTableID(ctx, tx, key)
 	if err != nil {

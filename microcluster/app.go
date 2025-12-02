@@ -17,14 +17,12 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/canonical/microcluster/v3/client"
-	"github.com/canonical/microcluster/v3/cluster"
 	"github.com/canonical/microcluster/v3/internal/daemon"
 	"github.com/canonical/microcluster/v3/internal/log"
 	"github.com/canonical/microcluster/v3/internal/recover"
 	internalClient "github.com/canonical/microcluster/v3/internal/rest/client"
-	internalTypes "github.com/canonical/microcluster/v3/internal/rest/types"
 	"github.com/canonical/microcluster/v3/internal/sys"
-	"github.com/canonical/microcluster/v3/rest/types"
+	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
 // DaemonArgs are the data needed to start a MicroCluster daemon.
@@ -104,14 +102,14 @@ func (m *MicroCluster) Start(ctx context.Context, daemonArgs DaemonArgs) error {
 }
 
 // Status returns basic status information about the cluster.
-func (m *MicroCluster) Status(ctx context.Context) (*internalTypes.Server, error) {
+func (m *MicroCluster) Status(ctx context.Context) (*types.Server, error) {
 	c, err := m.LocalClient()
 	if err != nil {
 		return nil, err
 	}
 
-	server := internalTypes.Server{}
-	err = c.QueryStruct(ctx, "GET", internalTypes.PublicEndpoint, nil, nil, &server)
+	server := types.Server{}
+	err = c.QueryStruct(ctx, "GET", types.PublicEndpoint, nil, nil, &server)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get cluster status: %w", err)
 	}
@@ -194,7 +192,7 @@ func (m *MicroCluster) NewCluster(ctx context.Context, name string, address stri
 		return fmt.Errorf("Received invalid address %q: %w", address, err)
 	}
 
-	return c.ControlDaemon(ctx, internalTypes.Control{Bootstrap: true, Address: addr, Name: name, InitConfig: config})
+	return c.ControlDaemon(ctx, types.Control{Bootstrap: true, Address: addr, Name: name, InitConfig: config})
 }
 
 // JoinCluster joins an existing cluster with a join token supplied by an existing cluster member.
@@ -209,7 +207,7 @@ func (m *MicroCluster) JoinCluster(ctx context.Context, name string, address str
 		return fmt.Errorf("Received invalid address %q: %w", address, err)
 	}
 
-	return c.ControlDaemon(ctx, internalTypes.Control{JoinToken: token, Address: addr, Name: name, InitConfig: initConfig})
+	return c.ControlDaemon(ctx, types.Control{JoinToken: token, Address: addr, Name: name, InitConfig: initConfig})
 }
 
 // GetDqliteClusterMembers retrieves the current local cluster configuration
@@ -217,7 +215,7 @@ func (m *MicroCluster) JoinCluster(ctx context.Context, name string, address str
 // database.
 // This is primarily intended for modifying the cluster configuration via
 // MicroCluster.RecoverFromQuorumLoss.
-func (m *MicroCluster) GetDqliteClusterMembers() ([]cluster.DqliteMember, error) {
+func (m *MicroCluster) GetDqliteClusterMembers() ([]types.DqliteMember, error) {
 	return recover.GetDqliteClusterMembers(m.FileSystem)
 }
 
@@ -238,7 +236,7 @@ func (m *MicroCluster) GetDqliteClusterMembers() ([]cluster.DqliteMember, error)
 //
 // On start, Microcluster will automatically check for & load the recovery
 // tarball. A database backup will be taken before the load.
-func (m *MicroCluster) RecoverFromQuorumLoss(members []cluster.DqliteMember) (string, error) {
+func (m *MicroCluster) RecoverFromQuorumLoss(members []types.DqliteMember) (string, error) {
 	// Double check to make sure the cluster configuration has actually changed
 	oldMembers, err := m.GetDqliteClusterMembers()
 	if err != nil {
@@ -276,7 +274,7 @@ func (m *MicroCluster) NewJoinToken(ctx context.Context, name string, expireAfte
 }
 
 // ListJoinTokens lists all the join tokens currently available for use.
-func (m *MicroCluster) ListJoinTokens(ctx context.Context) ([]internalTypes.TokenRecord, error) {
+func (m *MicroCluster) ListJoinTokens(ctx context.Context) ([]types.TokenRecord, error) {
 	c, err := m.LocalClient()
 	if err != nil {
 		return nil, err
@@ -378,7 +376,7 @@ func (m *MicroCluster) RemoteClientWithCert(address string, cert *x509.Certifica
 }
 
 // SQL performs either a GET or POST on /internal/sql with a given query. This is a useful helper for using direct SQL.
-func (m *MicroCluster) SQL(ctx context.Context, query string) (string, *internalTypes.SQLBatch, error) {
+func (m *MicroCluster) SQL(ctx context.Context, query string) (string, *types.SQLBatch, error) {
 	if query == "-" {
 		// Read from stdin
 		bytes, err := io.ReadAll(os.Stdin)
@@ -403,7 +401,7 @@ func (m *MicroCluster) SQL(ctx context.Context, query string) (string, *internal
 		return dump.Text, nil, nil
 	}
 
-	data := internalTypes.SQLQuery{
+	data := types.SQLQuery{
 		Query: query,
 	}
 

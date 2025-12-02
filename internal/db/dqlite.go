@@ -24,15 +24,14 @@ import (
 	"github.com/canonical/lxd/shared/revert"
 	"github.com/canonical/lxd/shared/tcp"
 
-	"github.com/canonical/microcluster/v3/cluster"
-	clusterDB "github.com/canonical/microcluster/v3/cluster/db"
+	"github.com/canonical/microcluster/v3/internal/cluster"
 	"github.com/canonical/microcluster/v3/internal/db/update"
 	"github.com/canonical/microcluster/v3/internal/extensions"
 	"github.com/canonical/microcluster/v3/internal/log"
 	internalClient "github.com/canonical/microcluster/v3/internal/rest/client"
-	internalTypes "github.com/canonical/microcluster/v3/internal/rest/types"
 	"github.com/canonical/microcluster/v3/internal/sys"
-	"github.com/canonical/microcluster/v3/rest/types"
+	clusterDB "github.com/canonical/microcluster/v3/microcluster/db"
+	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
 // DqliteDB holds all information internal to the dqlite database.
@@ -334,13 +333,13 @@ func (db *DqliteDB) GetHeartbeatInterval() time.Duration {
 }
 
 // SendHeartbeat initiates a new heartbeat sequence if this is a leader node.
-func (db *DqliteDB) SendHeartbeat(ctx context.Context, c *internalClient.Client, hbInfo internalTypes.HeartbeatInfo) error {
+func (db *DqliteDB) SendHeartbeat(ctx context.Context, c *internalClient.Client, hbInfo types.HeartbeatInfo) error {
 	// set the heartbeat timeout to twice the heartbeat interval.
 	heartbeatTimeout := db.heartbeatInterval * 2
 	queryCtx, cancel := context.WithTimeout(ctx, heartbeatTimeout)
 	defer cancel()
 
-	return c.QueryStruct(queryCtx, "POST", internalTypes.InternalEndpoint, &api.NewURL().Path("heartbeat").URL, hbInfo, nil)
+	return c.QueryStruct(queryCtx, "POST", types.InternalEndpoint, &api.NewURL().Path("heartbeat").URL, hbInfo, nil)
 }
 
 func (db *DqliteDB) heartbeat(leaderInfo dqliteClient.NodeInfo, servers []dqliteClient.NodeInfo) error {
@@ -365,7 +364,7 @@ func (db *DqliteDB) heartbeat(leaderInfo dqliteClient.NodeInfo, servers []dqlite
 	}
 
 	// Initiate a heartbeat from this node.
-	hbInfo := internalTypes.HeartbeatInfo{
+	hbInfo := types.HeartbeatInfo{
 		BeginRound:    true,
 		LeaderAddress: leaderInfo.Address,
 		DqliteRoles:   make(map[string]string, len(servers)),
@@ -414,7 +413,7 @@ func dqliteNetworkDial(ctx context.Context, addr string, db *DqliteDB) (net.Conn
 	request.URL = &url.URL{
 		Scheme: "https",
 		Host:   addrPort.String(),
-		Path:   fmt.Sprintf("/%s/%s", internalTypes.InternalEndpoint, "database"),
+		Path:   fmt.Sprintf("/%s/%s", types.InternalEndpoint, "database"),
 	}
 
 	request.Header.Set("Upgrade", "dqlite")

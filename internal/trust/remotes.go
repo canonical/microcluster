@@ -17,7 +17,7 @@ import (
 
 	"github.com/canonical/microcluster/v3/client"
 	internalClient "github.com/canonical/microcluster/v3/internal/rest/client"
-	"github.com/canonical/microcluster/v3/rest/types"
+	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
 // Remotes is a convenient alias as we will often deal with groups of yaml files.

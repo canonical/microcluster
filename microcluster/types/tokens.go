@@ -4,8 +4,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"time"
-
-	"github.com/canonical/microcluster/v3/rest/types"
 )
 
 // TokenRequest holds information for requesting a join token.
@@ -24,24 +22,24 @@ type TokenRecord struct {
 // TokenResponse holds the information for connecting to a cluster by a node with a valid join token.
 type TokenResponse struct {
 	// ClusterCert is the public key used across the cluster.
-	ClusterCert types.X509Certificate `json:"cluster_cert" yaml:"cluster_cert"`
+	ClusterCert X509Certificate `json:"cluster_cert" yaml:"cluster_cert"`
 
 	// ClusterKey is the private key used across the cluster.
 	ClusterKey string `json:"cluster_key" yaml:"cluster_key"`
 
 	// ClusterMembers is the full list of cluster members that are currently present and available in the cluster.
 	// The joiner supplies this list to dqlite so that it can start its database.
-	ClusterMembers []types.ClusterMemberLocal `json:"cluster_members" yaml:"cluster_members"`
+	ClusterMembers []ClusterMemberLocal `json:"cluster_members" yaml:"cluster_members"`
 
 	// ClusterAdditionalCerts is the full list of certificates added for additional listeners.
-	ClusterAdditionalCerts map[string]types.KeyPair
+	ClusterAdditionalCerts map[string]KeyPair
 
 	// TrustedMember contains the address of the existing cluster member
 	// who was dqlite leader at the time that the joiner supplied its join token.
 	//
 	// The trusted member will have already recorded the joiner's information in
 	// its local truststore, and thus will trust requests from the joiner prior to fully joining.
-	TrustedMember types.ClusterMemberLocal `json:"trusted_member" yaml:"trusted_member"`
+	TrustedMember ClusterMemberLocal `json:"trusted_member" yaml:"trusted_member"`
 }
 
 // Token holds the information that is presented to the joining node when requesting a token.
@@ -55,7 +53,7 @@ type Token struct {
 
 	// JoinAddresses is the list of addresses of the existing cluster members that the joiner may supply the token to.
 	// Internally, the first system to accept the token will forward it to the dqlite leader.
-	JoinAddresses []types.AddrPort `json:"join_addresses" yaml:"join_addresses"`
+	JoinAddresses []AddrPort `json:"join_addresses" yaml:"join_addresses"`
 }
 
 func (t Token) String() (string, error) {

@@ -18,8 +18,8 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/canonical/microcluster/v3/client"
-	"github.com/canonical/microcluster/v3/cluster"
 	"github.com/canonical/microcluster/v3/microcluster"
+	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
 const recoveryConfirmation = `You should only run this command if:
@@ -254,7 +254,7 @@ func (c *cmdClusterEdit) run(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	newMembers := []cluster.DqliteMember{}
+	newMembers := []types.DqliteMember{}
 	err = yaml.Unmarshal(content, &newMembers)
 	if err != nil {
 		return err

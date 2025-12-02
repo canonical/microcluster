@@ -8,13 +8,12 @@ import (
 	"slices"
 
 	"github.com/canonical/microcluster/v3/client"
+	"github.com/canonical/microcluster/v3/internal/rest/access"
 	internalClient "github.com/canonical/microcluster/v3/internal/rest/client"
-	internalTypes "github.com/canonical/microcluster/v3/internal/rest/types"
 	internalState "github.com/canonical/microcluster/v3/internal/state"
-	"github.com/canonical/microcluster/v3/rest"
-	"github.com/canonical/microcluster/v3/rest/access"
-	"github.com/canonical/microcluster/v3/rest/response"
-	"github.com/canonical/microcluster/v3/rest/types"
+	"github.com/canonical/microcluster/v3/microcluster/rest"
+	"github.com/canonical/microcluster/v3/microcluster/rest/response"
+	"github.com/canonical/microcluster/v3/microcluster/types"
 	"github.com/canonical/microcluster/v3/state"
 )
 
@@ -106,7 +105,7 @@ func daemonServersPut(s state.State, r *http.Request) response.Response {
 
 		remote := remotes.RemoteByAddress(addrPort)
 		if remote == nil {
-			return fmt.Errorf("No remote found at address %q to run the %q hook", c.URL().URL.Host, internalTypes.OnDaemonConfigUpdate)
+			return fmt.Errorf("No remote found at address %q to run the %q hook", c.URL().URL.Host, types.OnDaemonConfigUpdate)
 		}
 
 		return internalClient.RunOnDaemonConfigUpdateHook(ctx, c.Client.UseTarget(remote.Name), daemonConfig.Dump())

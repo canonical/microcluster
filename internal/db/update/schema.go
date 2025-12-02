@@ -9,10 +9,10 @@ import (
 
 	"github.com/canonical/lxd/shared"
 
-	clusterDB "github.com/canonical/microcluster/v3/cluster/db"
 	"github.com/canonical/microcluster/v3/internal/db/query"
 	"github.com/canonical/microcluster/v3/internal/db/schema"
 	"github.com/canonical/microcluster/v3/internal/extensions"
+	clusterDB "github.com/canonical/microcluster/v3/microcluster/db"
 )
 
 // updateType represents whether the update is an internal or external schema update.

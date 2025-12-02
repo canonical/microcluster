@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/suite"
 
-	clusterDB "github.com/canonical/microcluster/v3/cluster/db"
+	clusterDB "github.com/canonical/microcluster/v3/microcluster/db"
 )
 
 type updateSuite struct {

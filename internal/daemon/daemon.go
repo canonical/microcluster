@@ -23,8 +23,7 @@ import (
 	"github.com/mattn/go-sqlite3"
 
 	"github.com/canonical/microcluster/v3/client"
-	"github.com/canonical/microcluster/v3/cluster"
-	clusterDB "github.com/canonical/microcluster/v3/cluster/db"
+	"github.com/canonical/microcluster/v3/internal/cluster"
 	internalConfig "github.com/canonical/microcluster/v3/internal/config"
 	"github.com/canonical/microcluster/v3/internal/db"
 	"github.com/canonical/microcluster/v3/internal/endpoints"
@@ -34,14 +33,14 @@ import (
 	internalREST "github.com/canonical/microcluster/v3/internal/rest"
 	internalClient "github.com/canonical/microcluster/v3/internal/rest/client"
 	"github.com/canonical/microcluster/v3/internal/rest/resources"
-	internalTypes "github.com/canonical/microcluster/v3/internal/rest/types"
 	internalState "github.com/canonical/microcluster/v3/internal/state"
 	"github.com/canonical/microcluster/v3/internal/sys"
 	"github.com/canonical/microcluster/v3/internal/trust"
 	"github.com/canonical/microcluster/v3/internal/utils"
-	"github.com/canonical/microcluster/v3/rest"
-	"github.com/canonical/microcluster/v3/rest/response"
-	"github.com/canonical/microcluster/v3/rest/types"
+	clusterDB "github.com/canonical/microcluster/v3/microcluster/db"
+	"github.com/canonical/microcluster/v3/microcluster/rest"
+	"github.com/canonical/microcluster/v3/microcluster/rest/response"
+	"github.com/canonical/microcluster/v3/microcluster/types"
 	"github.com/canonical/microcluster/v3/state"
 )
 
@@ -724,7 +723,7 @@ func (d *Daemon) StartAPI(ctx context.Context, bootstrap bool, initConfig map[st
 			}
 
 			// Run the OnNewMember hook, and skip errors on any nodes that are still in the process of joining.
-			err = internalClient.RunNewMemberHook(ctx, c.Client.UseTarget(remote.Name), internalTypes.HookNewMemberOptions{NewMember: localMemberInfo})
+			err = internalClient.RunNewMemberHook(ctx, c.Client.UseTarget(remote.Name), types.HookNewMemberOptions{NewMember: localMemberInfo})
 			if err != nil && !api.StatusErrorCheck(err, http.StatusServiceUnavailable) {
 				// log error but continue with other nodes
 				d.log().Warn("Failed running OnNewMember hook on node", slog.String("node", c.URL().URL.Host), slog.String("error", err.Error()))
@@ -956,7 +955,7 @@ func (d *Daemon) addExtensionServers(preInit bool, fallbackCert *shared.CertInfo
 
 func (d *Daemon) sendUpgradeNotification(ctx context.Context, c *client.Client) error {
 	path := c.URL()
-	parts := strings.Split(string(internalTypes.InternalEndpoint), "/")
+	parts := strings.Split(string(types.InternalEndpoint), "/")
 	parts = append(parts, "database")
 	path = *path.Path(parts...)
 	upgradeRequest, err := http.NewRequest("PATCH", path.String(), nil)

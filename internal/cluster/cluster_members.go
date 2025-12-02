@@ -8,27 +8,8 @@ import (
 
 	"github.com/canonical/microcluster/v3/internal/db/update"
 	"github.com/canonical/microcluster/v3/internal/extensions"
-	"github.com/canonical/microcluster/v3/rest/types"
+	"github.com/canonical/microcluster/v3/microcluster/types"
 )
-
-//go:generate -command mapper lxd-generate db mapper -t cluster_members.mapper.go
-//go:generate mapper reset
-//
-//go:generate mapper stmt -e core_cluster_member objects table=core_cluster_members
-//go:generate mapper stmt -e core_cluster_member objects-by-Address table=core_cluster_members
-//go:generate mapper stmt -e core_cluster_member objects-by-Name table=core_cluster_members
-//go:generate mapper stmt -e core_cluster_member id table=core_cluster_members
-//go:generate mapper stmt -e core_cluster_member create table=core_cluster_members
-//go:generate mapper stmt -e core_cluster_member delete-by-Address table=core_cluster_members
-//go:generate mapper stmt -e core_cluster_member update table=core_cluster_members
-//
-//go:generate mapper method -i -e core_cluster_member GetMany table=core_cluster_members
-//go:generate mapper method -i -e core_cluster_member GetOne table=core_cluster_members
-//go:generate mapper method -i -e core_cluster_member ID table=core_cluster_members
-//go:generate mapper method -i -e core_cluster_member Exists table=core_cluster_members
-//go:generate mapper method -i -e core_cluster_member Create table=core_cluster_members
-//go:generate mapper method -i -e core_cluster_member DeleteOne-by-Address table=core_cluster_members
-//go:generate mapper method -i -e core_cluster_member Update table=core_cluster_members
 
 // Role is the role of the dqlite cluster member.
 type Role string

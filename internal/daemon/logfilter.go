@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/canonical/microcluster/v3/rest/types"
+	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
 // logFilter represents a filter for log messages caused by known addresses.

@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/canonical/microcluster/v3/cluster/db"
+	"github.com/canonical/microcluster/v3/microcluster/db"
 )
 
 // Exercise possible failure modes.

@@ -10,27 +10,8 @@ import (
 	"github.com/canonical/lxd/shared"
 
 	"github.com/canonical/microcluster/v3/internal/log"
-	internalTypes "github.com/canonical/microcluster/v3/internal/rest/types"
-	"github.com/canonical/microcluster/v3/rest/types"
+	"github.com/canonical/microcluster/v3/microcluster/types"
 )
-
-// Code generation directives.
-//
-//go:generate -command mapper lxd-generate db mapper -t token_records.mapper.go
-//go:generate mapper reset
-//
-//go:generate mapper stmt -e core_token_record objects table=core_token_records
-//go:generate mapper stmt -e core_token_record objects-by-Secret table=core_token_records
-//go:generate mapper stmt -e core_token_record id table=core_token_records
-//go:generate mapper stmt -e core_token_record create table=core_token_records
-//go:generate mapper stmt -e core_token_record delete-by-Name table=core_token_records
-//
-//go:generate mapper method -e core_token_record ID table=core_token_records
-//go:generate mapper method -e core_token_record Exists table=core_token_records
-//go:generate mapper method -e core_token_record GetOne table=core_token_records
-//go:generate mapper method -e core_token_record GetMany table=core_token_records
-//go:generate mapper method -e core_token_record Create table=core_token_records
-//go:generate mapper method -e core_token_record DeleteOne-by-Name table=core_token_records
 
 // CoreTokenRecord is the database representation of a join token record.
 type CoreTokenRecord struct {
@@ -48,8 +29,8 @@ type CoreTokenRecordFilter struct {
 }
 
 // ToAPI converts the CoreTokenRecord to a full token and returns an API compatible struct.
-func (t *CoreTokenRecord) ToAPI(clusterCert *x509.Certificate, joinAddresses []types.AddrPort) (*internalTypes.TokenRecord, error) {
-	token := internalTypes.Token{
+func (t *CoreTokenRecord) ToAPI(clusterCert *x509.Certificate, joinAddresses []types.AddrPort) (*types.TokenRecord, error) {
+	token := types.Token{
 		Secret:        t.Secret,
 		Fingerprint:   shared.CertFingerprint(clusterCert),
 		JoinAddresses: joinAddresses,
@@ -60,7 +41,7 @@ func (t *CoreTokenRecord) ToAPI(clusterCert *x509.Certificate, joinAddresses []t
 		return nil, err
 	}
 
-	return &internalTypes.TokenRecord{
+	return &types.TokenRecord{
 		Token:     tokenString,
 		Name:      t.Name,
 		ExpiresAt: t.ExpiryDate.Time,

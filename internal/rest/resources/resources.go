@@ -6,14 +6,13 @@ import (
 	"strings"
 
 	"github.com/canonical/microcluster/v3/internal/endpoints"
-	internalTypes "github.com/canonical/microcluster/v3/internal/rest/types"
-	"github.com/canonical/microcluster/v3/rest"
-	"github.com/canonical/microcluster/v3/rest/types"
+	"github.com/canonical/microcluster/v3/microcluster/rest"
+	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
 // UnixEndpoints are the endpoints available over the unix socket.
 var UnixEndpoints = rest.Resources{
-	PathPrefix: internalTypes.ControlEndpoint,
+	PathPrefix: types.ControlEndpoint,
 	Endpoints: []rest.Endpoint{
 		controlCmd,
 		shutdownCmd,
@@ -23,7 +22,7 @@ var UnixEndpoints = rest.Resources{
 
 // PublicEndpoints are the /core/1.0 API endpoints available at the listen address.
 var PublicEndpoints = rest.Resources{
-	PathPrefix: internalTypes.PublicEndpoint,
+	PathPrefix: types.PublicEndpoint,
 	Endpoints: []rest.Endpoint{
 		api10Cmd,
 		clusterCertificatesCmd,
@@ -37,7 +36,7 @@ var PublicEndpoints = rest.Resources{
 
 // InternalEndpoints are the /core/internal API endpoints available at the listen address.
 var InternalEndpoints = rest.Resources{
-	PathPrefix: internalTypes.InternalEndpoint,
+	PathPrefix: types.InternalEndpoint,
 	Endpoints: []rest.Endpoint{
 		clusterInternalCmd,
 		clusterMemberInternalCmd,

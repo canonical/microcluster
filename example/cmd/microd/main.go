@@ -14,7 +14,7 @@ import (
 	"github.com/canonical/microcluster/v3/example/database"
 	"github.com/canonical/microcluster/v3/example/version"
 	"github.com/canonical/microcluster/v3/microcluster"
-	"github.com/canonical/microcluster/v3/rest/types"
+	"github.com/canonical/microcluster/v3/microcluster/types"
 	"github.com/canonical/microcluster/v3/state"
 )
 

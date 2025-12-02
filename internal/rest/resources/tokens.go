@@ -12,15 +12,14 @@ import (
 	"github.com/canonical/lxd/shared"
 	"github.com/gorilla/mux"
 
-	"github.com/canonical/microcluster/v3/cluster"
+	"github.com/canonical/microcluster/v3/internal/cluster"
 	"github.com/canonical/microcluster/v3/internal/log"
-	internalTypes "github.com/canonical/microcluster/v3/internal/rest/types"
+	"github.com/canonical/microcluster/v3/internal/rest/access"
 	"github.com/canonical/microcluster/v3/internal/state"
 	"github.com/canonical/microcluster/v3/internal/utils"
-	"github.com/canonical/microcluster/v3/rest"
-	"github.com/canonical/microcluster/v3/rest/access"
-	"github.com/canonical/microcluster/v3/rest/response"
-	"github.com/canonical/microcluster/v3/rest/types"
+	"github.com/canonical/microcluster/v3/microcluster/rest"
+	"github.com/canonical/microcluster/v3/microcluster/rest/response"
+	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
 var tokensCmd = rest.Endpoint{
@@ -37,7 +36,7 @@ var tokenCmd = rest.Endpoint{
 }
 
 func tokensPost(state state.State, r *http.Request) response.Response {
-	req := internalTypes.TokenRequest{}
+	req := types.TokenRequest{}
 
 	// Parse the request.
 	err := json.NewDecoder(r.Body).Decode(&req)
@@ -88,7 +87,7 @@ func tokensPost(state state.State, r *http.Request) response.Response {
 		expiryDate.Time = time.Now().Add(req.ExpireAfter)
 	}
 
-	token := internalTypes.Token{
+	token := types.Token{
 		Secret:        tokenKey,
 		Fingerprint:   shared.CertFingerprint(clusterCert),
 		JoinAddresses: joinAddresses,
@@ -130,7 +129,7 @@ func tokensGet(state state.State, r *http.Request) response.Response {
 		joinAddresses = append(joinAddresses, addr)
 	}
 
-	var records []internalTypes.TokenRecord
+	var records []types.TokenRecord
 	err = state.Database().Transaction(r.Context(), func(ctx context.Context, tx *sql.Tx) error {
 		var err error
 		tokens, err := cluster.GetCoreTokenRecords(ctx, tx)
@@ -138,7 +137,7 @@ func tokensGet(state state.State, r *http.Request) response.Response {
 			return err
 		}
 
-		records = make([]internalTypes.TokenRecord, 0, len(tokens))
+		records = make([]types.TokenRecord, 0, len(tokens))
 		for _, token := range tokens {
 			if token.Expired() {
 				continue

@@ -8,7 +8,7 @@ import (
 	"github.com/gorilla/websocket"
 
 	"github.com/canonical/microcluster/v3/internal/rest/client"
-	"github.com/canonical/microcluster/v3/rest/types"
+	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
 // Client is a rest client for the microcluster daemon.

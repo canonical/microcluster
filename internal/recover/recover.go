@@ -22,18 +22,16 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/canonical/microcluster/v3/client"
-	"github.com/canonical/microcluster/v3/cluster"
 	"github.com/canonical/microcluster/v3/internal/config"
 	"github.com/canonical/microcluster/v3/internal/log"
-	internalTypes "github.com/canonical/microcluster/v3/internal/rest/types"
 	"github.com/canonical/microcluster/v3/internal/sys"
 	"github.com/canonical/microcluster/v3/internal/trust"
-	"github.com/canonical/microcluster/v3/rest/types"
+	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
 // GetDqliteClusterMembers parses the trust store and
 // path.Join(filesystem.DatabaseDir, "cluster.yaml").
-func GetDqliteClusterMembers(filesystem *sys.OS) ([]cluster.DqliteMember, error) {
+func GetDqliteClusterMembers(filesystem *sys.OS) ([]types.DqliteMember, error) {
 	storePath := path.Join(filesystem.DatabaseDir, "cluster.yaml")
 
 	var nodeInfo []dqlite.NodeInfo
@@ -49,11 +47,11 @@ func GetDqliteClusterMembers(filesystem *sys.OS) ([]cluster.DqliteMember, error)
 
 	remotesByName := remotes.RemotesByName()
 
-	var members []cluster.DqliteMember
+	var members []types.DqliteMember
 	for _, remote := range remotesByName {
 		for _, info := range nodeInfo {
 			if remote.Address.String() == info.Address {
-				members = append(members, cluster.DqliteMember{
+				members = append(members, types.DqliteMember{
 					DqliteID: info.ID,
 					Address:  info.Address,
 					Role:     info.Role.String(),
@@ -70,7 +68,7 @@ func GetDqliteClusterMembers(filesystem *sys.OS) ([]cluster.DqliteMember, error)
 // files, modifies the daemon and trust store, and writes a recovery tarball.
 // It does not check members to ensure that the new configuration is valid; use
 // ValidateMemberChanges to ensure that the inputs to this function are correct.
-func RecoverFromQuorumLoss(ctx context.Context, filesystem *sys.OS, members []cluster.DqliteMember) (string, error) {
+func RecoverFromQuorumLoss(ctx context.Context, filesystem *sys.OS, members []types.DqliteMember) (string, error) {
 	// Set up our new cluster configuration
 	nodeInfo := make([]dqlite.NodeInfo, 0, len(members))
 	for _, member := range members {
@@ -122,8 +120,8 @@ func RecoverFromQuorumLoss(ctx context.Context, filesystem *sys.OS, members []cl
 
 	cancelCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	err = cluster.Query(cancelCtx, true, func(ctx context.Context, client *client.Client) error {
-		var rslt internalTypes.Server
-		err := client.Query(ctx, "GET", internalTypes.PublicEndpoint, &api.NewURL().URL, nil, &rslt)
+		var rslt types.Server
+		err := client.Query(ctx, "GET", types.PublicEndpoint, &api.NewURL().URL, nil, &rslt)
 		if err == nil {
 			return fmt.Errorf("Contacted cluster member at %q; please shut down all cluster members", rslt.Name)
 		}
@@ -223,7 +221,7 @@ func writeYaml(path string, v any) error {
 	return nil
 }
 
-func writeDqliteClusterYaml(path string, members []cluster.DqliteMember) error {
+func writeDqliteClusterYaml(path string, members []types.DqliteMember) error {
 	nodeInfo := make([]dqlite.NodeInfo, len(members))
 	for i, member := range members {
 		infoPtr, err := member.NodeInfo()
@@ -267,7 +265,7 @@ func readTrustStore(dir string) (*trust.Remotes, error) {
 }
 
 // Update the trust store with the new member addresses.
-func updateTrustStore(dir string, members []cluster.DqliteMember) error {
+func updateTrustStore(dir string, members []types.DqliteMember) error {
 	remotes, err := readTrustStore(dir)
 	if err != nil {
 		return err
@@ -306,7 +304,7 @@ func updateTrustStore(dir string, members []cluster.DqliteMember) error {
 // - There is at least one voter in newMembers.
 // - All the newMembers addresses can be parsed to a netip.AddrPort.
 // - There are no duplicate addresses.
-func ValidateMemberChanges(oldMembers []cluster.DqliteMember, newMembers []cluster.DqliteMember) error {
+func ValidateMemberChanges(oldMembers []types.DqliteMember, newMembers []types.DqliteMember) error {
 	if len(newMembers) != len(oldMembers) {
 		return fmt.Errorf("members cannot be added or removed")
 	}
@@ -352,7 +350,7 @@ func ValidateMemberChanges(oldMembers []cluster.DqliteMember, newMembers []clust
 	return nil
 }
 
-func writeGlobalMembersPatch(filesystem *sys.OS, members []cluster.DqliteMember) error {
+func writeGlobalMembersPatch(filesystem *sys.OS, members []types.DqliteMember) error {
 	sql := ""
 	for _, member := range members {
 		sql += fmt.Sprintf("UPDATE core_cluster_members SET address = %q WHERE name = %q;\n", member.Address, member.Name)
@@ -386,7 +384,7 @@ func writeGlobalMembersPatch(filesystem *sys.OS, members []cluster.DqliteMember)
 // go-dqlite's info.yaml is excluded from the tarball.
 // The new cluster configuration is included as `recovery.yaml`.
 // This function returns the path to the tarball.
-func createRecoveryTarball(ctx context.Context, filesystem *sys.OS, members []cluster.DqliteMember) (string, error) {
+func createRecoveryTarball(ctx context.Context, filesystem *sys.OS, members []types.DqliteMember) (string, error) {
 	tarballPath := path.Join(filesystem.StateDir, "recovery_db.tar.gz")
 	recoveryYamlPath := path.Join(filesystem.DatabaseDir, "recovery.yaml")
 
@@ -441,7 +439,7 @@ func MaybeUnpackRecoveryTarball(ctx context.Context, filesystem *sys.OS) error {
 		return err
 	}
 
-	var incomingMembers []cluster.DqliteMember
+	var incomingMembers []types.DqliteMember
 	err = readYaml(recoveryYamlPath, &incomingMembers)
 	if err != nil {
 		return nil

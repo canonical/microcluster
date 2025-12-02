@@ -16,12 +16,12 @@ import (
 	"github.com/canonical/lxd/shared/api"
 	"github.com/canonical/lxd/shared/revert"
 
-	"github.com/canonical/microcluster/v3/cluster"
 	"github.com/canonical/microcluster/v3/internal/db/query"
 	"github.com/canonical/microcluster/v3/internal/db/update"
 	"github.com/canonical/microcluster/v3/internal/extensions"
 	"github.com/canonical/microcluster/v3/internal/sys"
-	"github.com/canonical/microcluster/v3/rest/types"
+	clusterDB "github.com/canonical/microcluster/v3/microcluster/db"
+	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
 // Open opens the dqlite database and loads the schema.
@@ -71,7 +71,7 @@ func (db *DqliteDB) Open(ext extensions.Extensions, bootstrap bool) error {
 
 	db.log().Info("Preparing statements")
 
-	err = cluster.PrepareStmts(db.db, false)
+	err = clusterDB.PrepareStmts(db.db, false)
 	if err != nil {
 		return err
 	}

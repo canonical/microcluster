@@ -6,8 +6,8 @@ import (
 	"strconv"
 
 	"github.com/canonical/microcluster/v3/internal/state"
-	"github.com/canonical/microcluster/v3/rest"
-	"github.com/canonical/microcluster/v3/rest/response"
+	"github.com/canonical/microcluster/v3/microcluster/rest"
+	"github.com/canonical/microcluster/v3/microcluster/rest/response"
 )
 
 var databaseCmd = rest.Endpoint{

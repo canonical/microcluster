@@ -10,42 +10,41 @@ import (
 
 	"github.com/canonical/lxd/shared/api"
 
-	"github.com/canonical/microcluster/v3/cluster/db"
+	clusterDB "github.com/canonical/microcluster/v3/microcluster/db"
 )
 
 var _ = api.ServerEnvironment{}
 
-var coreTokenRecordObjects = RegisterStmt(`
+var coreTokenRecordObjects = clusterDB.RegisterStmt(`
 SELECT core_token_records.id, core_token_records.secret, core_token_records.name, core_token_records.expiry_date
   FROM core_token_records
   ORDER BY core_token_records.secret
 `)
 
-var coreTokenRecordObjectsBySecret = RegisterStmt(`
+var coreTokenRecordObjectsBySecret = clusterDB.RegisterStmt(`
 SELECT core_token_records.id, core_token_records.secret, core_token_records.name, core_token_records.expiry_date
   FROM core_token_records
   WHERE ( core_token_records.secret = ? )
   ORDER BY core_token_records.secret
 `)
 
-var coreTokenRecordID = RegisterStmt(`
+var coreTokenRecordID = clusterDB.RegisterStmt(`
 SELECT core_token_records.id FROM core_token_records
   WHERE core_token_records.secret = ?
 `)
 
-var coreTokenRecordCreate = RegisterStmt(`
+var coreTokenRecordCreate = clusterDB.RegisterStmt(`
 INSERT INTO core_token_records (secret, name, expiry_date)
   VALUES (?, ?, ?)
 `)
 
-var coreTokenRecordDeleteByName = RegisterStmt(`
+var coreTokenRecordDeleteByName = clusterDB.RegisterStmt(`
 DELETE FROM core_token_records WHERE name = ?
 `)
 
 // GetCoreTokenRecordID return the ID of the core_token_record with the given key.
-// generator: core_token_record ID
 func GetCoreTokenRecordID(ctx context.Context, tx *sql.Tx, secret string) (int64, error) {
-	stmt, err := Stmt(tx, coreTokenRecordID)
+	stmt, err := clusterDB.Stmt(tx, coreTokenRecordID)
 	if err != nil {
 		return -1, fmt.Errorf("Failed to get \"coreTokenRecordID\" prepared statement: %w", err)
 	}
@@ -65,7 +64,6 @@ func GetCoreTokenRecordID(ctx context.Context, tx *sql.Tx, secret string) (int64
 }
 
 // CoreTokenRecordExists checks if a core_token_record with the given key exists.
-// generator: core_token_record Exists
 func CoreTokenRecordExists(ctx context.Context, tx *sql.Tx, secret string) (bool, error) {
 	_, err := GetCoreTokenRecordID(ctx, tx, secret)
 	if err != nil {
@@ -80,7 +78,6 @@ func CoreTokenRecordExists(ctx context.Context, tx *sql.Tx, secret string) (bool
 }
 
 // GetCoreTokenRecord returns the core_token_record with the given key.
-// generator: core_token_record GetOne
 func GetCoreTokenRecord(ctx context.Context, tx *sql.Tx, secret string) (*CoreTokenRecord, error) {
 	filter := CoreTokenRecordFilter{}
 	filter.Secret = &secret
@@ -116,7 +113,7 @@ func getCoreTokenRecords(ctx context.Context, stmt *sql.Stmt, args ...any) ([]Co
 		return nil
 	}
 
-	err := db.SelectObjects(ctx, stmt, dest, args...)
+	err := clusterDB.SelectObjects(ctx, stmt, dest, args...)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to fetch from \"core_token_records\" table: %w", err)
 	}
@@ -140,7 +137,7 @@ func getCoreTokenRecordsRaw(ctx context.Context, tx *sql.Tx, sql string, args ..
 		return nil
 	}
 
-	err := db.Scan(ctx, tx, sql, dest, args...)
+	err := clusterDB.Scan(ctx, tx, sql, dest, args...)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to fetch from \"core_token_records\" table: %w", err)
 	}
@@ -149,7 +146,6 @@ func getCoreTokenRecordsRaw(ctx context.Context, tx *sql.Tx, sql string, args ..
 }
 
 // GetCoreTokenRecords returns all available core_token_records.
-// generator: core_token_record GetMany
 func GetCoreTokenRecords(ctx context.Context, tx *sql.Tx, filters ...CoreTokenRecordFilter) ([]CoreTokenRecord, error) {
 	var err error
 
@@ -162,7 +158,7 @@ func GetCoreTokenRecords(ctx context.Context, tx *sql.Tx, filters ...CoreTokenRe
 	queryParts := [2]string{}
 
 	if len(filters) == 0 {
-		sqlStmt, err = Stmt(tx, coreTokenRecordObjects)
+		sqlStmt, err = clusterDB.Stmt(tx, coreTokenRecordObjects)
 		if err != nil {
 			return nil, fmt.Errorf("Failed to get \"coreTokenRecordObjects\" prepared statement: %w", err)
 		}
@@ -172,7 +168,7 @@ func GetCoreTokenRecords(ctx context.Context, tx *sql.Tx, filters ...CoreTokenRe
 		if filter.Secret != nil && filter.ID == nil && filter.Name == nil {
 			args = append(args, []any{filter.Secret}...)
 			if len(filters) == 1 {
-				sqlStmt, err = Stmt(tx, coreTokenRecordObjectsBySecret)
+				sqlStmt, err = clusterDB.Stmt(tx, coreTokenRecordObjectsBySecret)
 				if err != nil {
 					return nil, fmt.Errorf("Failed to get \"coreTokenRecordObjectsBySecret\" prepared statement: %w", err)
 				}
@@ -180,7 +176,7 @@ func GetCoreTokenRecords(ctx context.Context, tx *sql.Tx, filters ...CoreTokenRe
 				break
 			}
 
-			query, err := StmtString(coreTokenRecordObjectsBySecret)
+			query, err := clusterDB.StmtString(coreTokenRecordObjectsBySecret)
 			if err != nil {
 				return nil, fmt.Errorf("Failed to get \"coreTokenRecordObjects\" prepared statement: %w", err)
 			}
@@ -216,7 +212,6 @@ func GetCoreTokenRecords(ctx context.Context, tx *sql.Tx, filters ...CoreTokenRe
 }
 
 // CreateCoreTokenRecord adds a new core_token_record to the database.
-// generator: core_token_record Create
 func CreateCoreTokenRecord(ctx context.Context, tx *sql.Tx, object CoreTokenRecord) (int64, error) {
 	// Check if a core_token_record with the same key exists.
 	exists, err := CoreTokenRecordExists(ctx, tx, object.Secret)
@@ -236,7 +231,7 @@ func CreateCoreTokenRecord(ctx context.Context, tx *sql.Tx, object CoreTokenReco
 	args[2] = object.ExpiryDate
 
 	// Prepared statement to use.
-	stmt, err := Stmt(tx, coreTokenRecordCreate)
+	stmt, err := clusterDB.Stmt(tx, coreTokenRecordCreate)
 	if err != nil {
 		return -1, fmt.Errorf("Failed to get \"coreTokenRecordCreate\" prepared statement: %w", err)
 	}
@@ -256,9 +251,8 @@ func CreateCoreTokenRecord(ctx context.Context, tx *sql.Tx, object CoreTokenReco
 }
 
 // DeleteCoreTokenRecord deletes the core_token_record matching the given key parameters.
-// generator: core_token_record DeleteOne-by-Name
 func DeleteCoreTokenRecord(ctx context.Context, tx *sql.Tx, name string) error {
-	stmt, err := Stmt(tx, coreTokenRecordDeleteByName)
+	stmt, err := clusterDB.Stmt(tx, coreTokenRecordDeleteByName)
 	if err != nil {
 		return fmt.Errorf("Failed to get \"coreTokenRecordDeleteByName\" prepared statement: %w", err)
 	}

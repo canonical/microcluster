@@ -50,12 +50,3 @@ endif
 update-gomod:
 	go get -u ./...
 	go mod tidy
-
-# Update lxd-generate generated database helpers.
-.PHONY: update-schema
-update-schema:
-	go generate ./...
-	gofmt -s -w ./database/
-	goimports -w ./database/
-	@echo "Code generation completed"
-

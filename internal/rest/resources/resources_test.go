@@ -3,7 +3,7 @@ package resources
 import (
 	"testing"
 
-	"github.com/canonical/microcluster/v3/rest"
+	"github.com/canonical/microcluster/v3/microcluster/rest"
 )
 
 var validServers = map[string]rest.Server{

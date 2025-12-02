@@ -9,12 +9,11 @@ import (
 
 	"github.com/gorilla/mux"
 
-	internalTypes "github.com/canonical/microcluster/v3/internal/rest/types"
+	"github.com/canonical/microcluster/v3/internal/rest/access"
 	internalState "github.com/canonical/microcluster/v3/internal/state"
-	"github.com/canonical/microcluster/v3/rest"
-	"github.com/canonical/microcluster/v3/rest/access"
-	"github.com/canonical/microcluster/v3/rest/response"
-	"github.com/canonical/microcluster/v3/rest/types"
+	"github.com/canonical/microcluster/v3/microcluster/rest"
+	"github.com/canonical/microcluster/v3/microcluster/rest/response"
+	"github.com/canonical/microcluster/v3/microcluster/types"
 	"github.com/canonical/microcluster/v3/state"
 )
 
@@ -38,9 +37,9 @@ func hooksPost(s state.State, r *http.Request) response.Response {
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
-	switch internalTypes.HookType(hookTypeStr) {
-	case internalTypes.PreRemove:
-		var req internalTypes.HookRemoveMemberOptions
+	switch types.HookType(hookTypeStr) {
+	case types.PreRemove:
+		var req types.HookRemoveMemberOptions
 		err = json.NewDecoder(r.Body).Decode(&req)
 		if err != nil {
 			return response.BadRequest(err)
@@ -51,8 +50,8 @@ func hooksPost(s state.State, r *http.Request) response.Response {
 			return response.SmartError(fmt.Errorf("Failed to execute pre-remove hook on cluster member %q: %w", s.Name(), err))
 		}
 
-	case internalTypes.PostRemove:
-		var req internalTypes.HookRemoveMemberOptions
+	case types.PostRemove:
+		var req types.HookRemoveMemberOptions
 		err = json.NewDecoder(r.Body).Decode(&req)
 		if err != nil {
 			return response.BadRequest(err)
@@ -63,8 +62,8 @@ func hooksPost(s state.State, r *http.Request) response.Response {
 			return response.SmartError(fmt.Errorf("Failed to execute post-remove hook on cluster member %q: %w", s.Name(), err))
 		}
 
-	case internalTypes.OnNewMember:
-		var req internalTypes.HookNewMemberOptions
+	case types.OnNewMember:
+		var req types.HookNewMemberOptions
 		err = json.NewDecoder(r.Body).Decode(&req)
 		if err != nil {
 			return response.BadRequest(err)
@@ -79,7 +78,7 @@ func hooksPost(s state.State, r *http.Request) response.Response {
 			return response.SmartError(fmt.Errorf("Failed to run hook after system %q has joined the cluster: %w", req.NewMember.Name, err))
 		}
 
-	case internalTypes.OnDaemonConfigUpdate:
+	case types.OnDaemonConfigUpdate:
 		var req types.DaemonConfig
 		err = json.NewDecoder(r.Body).Decode(&req)
 		if err != nil {

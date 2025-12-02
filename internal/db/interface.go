@@ -7,7 +7,7 @@ import (
 	dqliteClient "github.com/canonical/go-dqlite/v3/client"
 
 	"github.com/canonical/microcluster/v3/internal/extensions"
-	"github.com/canonical/microcluster/v3/rest/types"
+	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
 // DB exposes the internal database for use with external projects.

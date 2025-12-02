@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	dbClient "github.com/canonical/microcluster/v3/cluster/db"
 	"github.com/canonical/microcluster/v3/internal/db/query"
 	"github.com/canonical/microcluster/v3/internal/log"
+	clusterDB "github.com/canonical/microcluster/v3/microcluster/db"
 )
 
 // Any error happening when beginning the transaction will be propagated.
@@ -47,7 +47,7 @@ func TestTransaction_FunctionError(t *testing.T) {
 
 	tx, err := db.Begin()
 	assert.NoError(t, err)
-	tables, err := dbClient.SelectStrings(context.Background(), tx, "SELECT name FROM sqlite_master WHERE type = 'table'")
+	tables, err := clusterDB.SelectStrings(context.Background(), tx, "SELECT name FROM sqlite_master WHERE type = 'table'")
 	assert.NoError(t, err)
 	assert.NotContains(t, tables, "test")
 	_ = tx.Rollback()

@@ -145,7 +145,7 @@ func (db *DqliteDB) waitUpgrade(bootstrap bool, ext extensions.Extensions) error
 
 	otherNodesBehind := false
 	newSchema := db.Schema()
-	newSchema.File(path.Join(db.os.StateDir, "patch.global.sql"))
+	newSchema.File(path.Join(db.os.StateDir(), "patch.global.sql"))
 
 	if !bootstrap {
 		checkVersions := func(ctx context.Context, current int, tx *sql.Tx) error {

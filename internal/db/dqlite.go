@@ -42,7 +42,7 @@ type DqliteDB struct {
 	listenAddr  api.URL                 // Listen address for this dqlite node.
 
 	dbName string // This is db.bin.
-	os     *sys.OS
+	os     types.OS
 
 	db        *sql.DB
 	dqlite    *dqlite.App
@@ -73,7 +73,7 @@ func (db *DqliteDB) Accept(conn net.Conn) {
 }
 
 // NewDB creates an empty db struct with no dqlite connection.
-func NewDB(ctx context.Context, serverCert func() *shared.CertInfo, clusterCert func() *shared.CertInfo, memberName func() string, os *sys.OS, heartbeatInterval time.Duration) (*DqliteDB, error) {
+func NewDB(ctx context.Context, serverCert func() *shared.CertInfo, clusterCert func() *shared.CertInfo, memberName func() string, os types.OS, heartbeatInterval time.Duration) (*DqliteDB, error) {
 	shutdownCtx, shutdownCancel := context.WithCancel(ctx)
 
 	if heartbeatInterval == 0 {
@@ -133,7 +133,7 @@ func (db *DqliteDB) SchemaVersion() (versionInternal uint64, versionExternal uin
 // isInitialized determines whether the database has been bootstrapped or joined to a cluster.
 // This is an internal helper function; external callers should use Status() instead.
 func (db *DqliteDB) isInitialized() (bool, error) {
-	_, err := os.Stat(filepath.Join(db.os.DatabaseDir, "info.yaml"))
+	_, err := os.Stat(filepath.Join(db.os.DatabaseDir(), "info.yaml"))
 	if err != nil {
 		if os.IsNotExist(err) {
 			return false, nil
@@ -149,7 +149,7 @@ func (db *DqliteDB) isInitialized() (bool, error) {
 func (db *DqliteDB) Bootstrap(extensions extensions.Extensions, addr api.URL, clusterRecord cluster.CoreClusterMember) error {
 	var err error
 	db.listenAddr = addr
-	db.dqlite, err = dqlite.New(db.os.DatabaseDir,
+	db.dqlite, err = dqlite.New(db.os.DatabaseDir(),
 		dqlite.WithAddress(db.listenAddr.URL.Host),
 		dqlite.WithRolesAdjustmentFrequency(db.heartbeatInterval),
 		dqlite.WithRolesAdjustmentHook(db.heartbeat),
@@ -183,7 +183,7 @@ func (db *DqliteDB) Bootstrap(extensions extensions.Extensions, addr api.URL, cl
 func (db *DqliteDB) Join(extensions extensions.Extensions, addr api.URL, joinAddresses ...string) error {
 	var err error
 	db.listenAddr = addr
-	db.dqlite, err = dqlite.New(db.os.DatabaseDir,
+	db.dqlite, err = dqlite.New(db.os.DatabaseDir(),
 		dqlite.WithCluster(joinAddresses),
 		dqlite.WithRolesAdjustmentFrequency(db.heartbeatInterval),
 		dqlite.WithRolesAdjustmentHook(db.heartbeat),
@@ -357,7 +357,10 @@ func (db *DqliteDB) heartbeat(leaderInfo dqliteClient.NodeInfo, servers []dqlite
 		return nil
 	}
 
-	client, err := internalClient.New(db.os.ControlSocket(), nil, nil, false)
+	url := api.NewURL()
+	url.URL = *db.os.ControlSocket()
+
+	client, err := internalClient.New(*url, nil, nil, false)
 	if err != nil {
 		db.log().Error("Failed to get local client", slog.String("address", db.listenAddr.String()), slog.String("error", err.Error()))
 		return nil

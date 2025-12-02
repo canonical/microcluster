@@ -1,4 +1,4 @@
-package cluster
+package db
 
 import (
 	"database/sql"

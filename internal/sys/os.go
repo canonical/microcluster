@@ -3,6 +3,7 @@ package sys
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 
@@ -14,15 +15,15 @@ import (
 
 // OS contains fields and methods for interacting with the state directory.
 type OS struct {
-	StateDir        string
-	DatabaseDir     string
-	TrustDir        string
-	CertificatesDir string
-	LogFile         string
+	stateDir        string
+	databaseDir     string
+	trustDir        string
+	certificatesDir string
+	logFile         string
 }
 
 // DefaultOS returns a fresh uninitialized OS instance with default values.
-func DefaultOS(stateDir string, createDir bool) (*OS, error) {
+func DefaultOS(stateDir string, createDir bool) (types.OS, error) {
 	if stateDir == "" {
 		stateDir = os.Getenv(StateDir)
 	}
@@ -30,11 +31,11 @@ func DefaultOS(stateDir string, createDir bool) (*OS, error) {
 	// TODO: Configurable log file path.
 
 	os := &OS{
-		StateDir:        stateDir,
-		DatabaseDir:     filepath.Join(stateDir, "database"),
-		TrustDir:        filepath.Join(stateDir, "truststore"),
-		CertificatesDir: filepath.Join(stateDir, "certificates"),
-		LogFile:         "",
+		stateDir:        stateDir,
+		databaseDir:     filepath.Join(stateDir, "database"),
+		trustDir:        filepath.Join(stateDir, "truststore"),
+		certificatesDir: filepath.Join(stateDir, "certificates"),
+		logFile:         "",
 	}
 
 	err := os.init(createDir)
@@ -50,10 +51,10 @@ func (s *OS) init(createDir bool) error {
 		path string
 		mode os.FileMode
 	}{
-		{s.StateDir, 0711},
-		{s.DatabaseDir, 0700},
-		{s.TrustDir, 0700},
-		{s.CertificatesDir, 0700},
+		{s.stateDir, 0711},
+		{s.databaseDir, 0700},
+		{s.trustDir, 0700},
+		{s.certificatesDir, 0700},
 	}
 
 	for _, dir := range dirs {
@@ -101,23 +102,23 @@ func (s *OS) IsControlSocketPresent() (bool, error) {
 }
 
 // ControlSocket returns the full path to the control.socket file that this daemon is listening on.
-func (s *OS) ControlSocket() api.URL {
-	return *api.NewURL().Scheme("http").Host(s.ControlSocketPath())
+func (s *OS) ControlSocket() *url.URL {
+	return &api.NewURL().Scheme("http").Host(s.ControlSocketPath()).URL
 }
 
 // ControlSocketPath returns the filesystem path to the control socket.
 func (s *OS) ControlSocketPath() string {
-	return filepath.Join(s.StateDir, "control.socket")
+	return filepath.Join(s.stateDir, "control.socket")
 }
 
 // DatabasePath returns the path of the database file managed by dqlite.
 func (s *OS) DatabasePath() string {
-	return filepath.Join(s.DatabaseDir, "db.bin")
+	return filepath.Join(s.databaseDir, "db.bin")
 }
 
 // ServerCert gets the local server certificate from the state directory.
 func (s *OS) ServerCert() (*shared.CertInfo, error) {
-	cert, err := shared.KeyPairAndCA(s.StateDir, string(types.ServerCertificateName), shared.CertServer, shared.CertOptions{})
+	cert, err := shared.KeyPairAndCA(s.stateDir, string(types.ServerCertificateName), shared.CertServer, shared.CertOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("Failed to load TLS certificate: %w", err)
 	}
@@ -127,10 +128,30 @@ func (s *OS) ServerCert() (*shared.CertInfo, error) {
 
 // ClusterCert gets the local cluster certificate from the state directory.
 func (s *OS) ClusterCert() (*shared.CertInfo, error) {
-	cert, err := shared.KeyPairAndCA(s.StateDir, string(types.ClusterCertificateName), shared.CertServer, shared.CertOptions{})
+	cert, err := shared.KeyPairAndCA(s.stateDir, string(types.ClusterCertificateName), shared.CertServer, shared.CertOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("Failed to load TLS certificate: %w", err)
 	}
 
 	return cert, nil
+}
+
+// StateDir gets the state's base directory.
+func (s *OS) StateDir() string {
+	return s.stateDir
+}
+
+// DatabaseDir gets the state's database directory.
+func (s *OS) DatabaseDir() string {
+	return s.databaseDir
+}
+
+// TrustDir gets the state's trust directory.
+func (s *OS) TrustDir() string {
+	return s.trustDir
+}
+
+// CertificatesDir gets the state's certificates directory.
+func (s *OS) CertificatesDir() string {
+	return s.certificatesDir
 }

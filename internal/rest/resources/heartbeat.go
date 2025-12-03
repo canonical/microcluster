@@ -50,7 +50,7 @@ func heartbeatPost(s state.State, r *http.Request) response.Response {
 		clusterMemberList = append(clusterMemberList, clusterMember)
 	}
 
-	err = s.Remotes().Replace(s.FileSystem().TrustDir, clusterMemberList...)
+	err = s.Remotes().Replace(s.FileSystem().TrustDir(), clusterMemberList...)
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -167,7 +167,7 @@ func beginHeartbeat(ctx context.Context, s state.State, hbReq types.HeartbeatInf
 	logger.Debug("Beginning new heartbeat round", slog.String("address", s.Address().URL.Host))
 
 	// Update local record of cluster members from the database, including any pending nodes for authentication.
-	err = s.Remotes().Replace(s.FileSystem().TrustDir, clusterMembers...)
+	err = s.Remotes().Replace(s.FileSystem().TrustDir(), clusterMembers...)
 	if err != nil {
 		return response.SmartError(err)
 	}

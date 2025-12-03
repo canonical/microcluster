@@ -160,6 +160,21 @@ func (db *DqliteDB) Bootstrap(extensions extensions.Extensions, addr api.URL, cl
 		return fmt.Errorf("Failed to bootstrap dqlite: %w", err)
 	}
 
+	// Only close the dqlite app if the entire Bootstrap process fails or exits.
+	// dqlite.Close() immediately tears down all Raft connections and removes this node from the dqlite cluster.
+	reverter := revert.New()
+	defer reverter.Fail()
+	reverter.Add(func() {
+		if db.dqlite != nil {
+			closeErr := db.dqlite.Close()
+			if closeErr != nil {
+				db.log().Error("Failed to close dqlite app", slog.String("address", db.listenAddr.String()), slog.String("error", closeErr.Error()))
+			}
+
+			db.dqlite = nil
+		}
+	})
+
 	err = db.Open(extensions, true)
 	if err != nil {
 		return err
@@ -176,6 +191,7 @@ func (db *DqliteDB) Bootstrap(extensions extensions.Extensions, addr api.URL, cl
 		return err
 	}
 
+	reverter.Success()
 	return nil
 }
 
@@ -195,6 +211,22 @@ func (db *DqliteDB) Join(extensions extensions.Extensions, addr api.URL, joinAdd
 		return fmt.Errorf("Failed to join dqlite cluster %w", err)
 	}
 
+	// Only close the dqlite app if the entire Join process fails or exits.
+	// This ensures dqlite.Close() is not called on every Open() retry, but only if we fully give up joining.
+	// dqlite.Close() immediately tears down all Raft connections and removes this node from the dqlite cluster.
+	reverter := revert.New()
+	defer reverter.Fail()
+	reverter.Add(func() {
+		if db.dqlite != nil {
+			closeErr := db.dqlite.Close()
+			if closeErr != nil {
+				db.log().Error("Failed to close dqlite app", slog.String("address", db.listenAddr.String()), slog.String("error", closeErr.Error()))
+			}
+
+			db.dqlite = nil
+		}
+	})
+
 	for {
 		err := db.Open(extensions, false)
 		if err == nil {
@@ -211,6 +243,7 @@ func (db *DqliteDB) Join(extensions extensions.Extensions, addr api.URL, joinAdd
 		return err
 	}
 
+	reverter.Success()
 	return nil
 }
 

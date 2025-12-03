@@ -39,19 +39,6 @@ func (db *DqliteDB) Open(ext extensions.Extensions, bootstrap bool) error {
 	reverter := revert.New()
 	defer reverter.Fail()
 
-	reverter.Add(func() {
-		db.statusLock.Lock()
-		db.status = types.DatabaseOffline
-		db.statusLock.Unlock()
-		// close the db if any of the following steps fail
-		closeErr := db.dqlite.Close()
-		if closeErr != nil {
-			db.log().Error("Failed to close database", slog.String("address", db.listenAddr.String()), slog.String("error", closeErr.Error()))
-		}
-
-		db.db = nil
-	})
-
 	err := db.dqlite.Ready(ctx)
 	if err != nil {
 		return fmt.Errorf("Ready dqlite: %w", err)
@@ -62,6 +49,19 @@ func (db *DqliteDB) Open(ext extensions.Extensions, bootstrap bool) error {
 		if err != nil {
 			return fmt.Errorf("Open dqlite: %w", err)
 		}
+
+		// Add reverter only after successfully opening db.db
+		reverter.Add(func() {
+			db.statusLock.Lock()
+			db.status = types.DatabaseOffline
+			db.statusLock.Unlock()
+			closeErr := db.db.Close()
+			if closeErr != nil {
+				db.log().Error("Failed to close database", slog.String("address", db.listenAddr.String()), slog.String("error", closeErr.Error()))
+			}
+
+			db.db = nil
+		})
 	}
 
 	err = db.waitUpgrade(bootstrap, ext)

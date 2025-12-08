@@ -112,6 +112,8 @@ func Authenticate(s state.State, r *http.Request, hostAddress string, trustedCer
 		return false, err
 	}
 
+	logger = logger.With(slog.String("origin", r.RemoteAddr), slog.String("destination", r.URL.String()), slog.String("method", r.Method))
+
 	// Check if it's the core API listener and if it is using the server.crt.
 	// This indicates that the daemon is in a pre-init state and is listening on the PreInitListenAddress.
 	endpoint := intState.Endpoints.Get(endpoints.EndpointsCore)
@@ -135,7 +137,7 @@ func Authenticate(s state.State, r *http.Request, hostAddress string, trustedCer
 			for _, cert := range r.TLS.PeerCertificates {
 				trusted, fingerprint := checkMutualTLS(r.Context(), *cert, trustedCerts)
 				if trusted {
-					logger.Debug("Authenticated request", slog.String("origin", r.RemoteAddr), slog.String("destination", r.URL.String()), slog.String("fingerprint", fingerprint))
+					logger.Debug("Authenticated request", slog.String("fingerprint", fingerprint))
 					return trusted, nil
 				}
 			}

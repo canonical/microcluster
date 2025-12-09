@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 
@@ -229,6 +228,8 @@ func IsNotFoundError(err error) bool {
 
 // ParseResponse takes an HTTP response, parses it and returns the extracted result.
 func ParseResponse(resp *http.Response) (*api.Response, error) {
+	defer resp.Body.Close()
+
 	decoder := json.NewDecoder(resp.Body)
 	response := api.Response{}
 
@@ -243,12 +244,6 @@ func ParseResponse(resp *http.Response) (*api.Response, error) {
 
 	if response.Type == api.ErrorResponse {
 		return nil, api.StatusErrorf(resp.StatusCode, "%s", response.Error)
-	}
-
-	defer resp.Body.Close()
-	_, err = io.Copy(io.Discard, resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to read response body: %w", err)
 	}
 
 	return &response, nil

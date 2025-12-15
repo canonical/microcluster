@@ -111,6 +111,9 @@ linters:
       - linters:
           - staticcheck
         text: "ST1005:" # ST1005: error strings should not be capitalized
+      - linters:
+          - revive
+        text: "var-naming: avoid meaningless package names"
 formatters:
   enable:
     - gci

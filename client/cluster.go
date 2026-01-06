@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"sync"
 )
@@ -10,8 +11,29 @@ import (
 type Cluster []Client
 
 // SelectRandom returns a randomly selected client.
+// Deprecated: Use SelectRandomClient instead.
 func (c Cluster) SelectRandom() Client {
-	return c[rand.Intn(len(c))]
+	client, err := c.SelectRandomClient()
+	if err != nil {
+		panic(err)
+	}
+
+	return *client
+}
+
+// SelectRandomClient returns a randomly selected client.
+func (c Cluster) SelectRandomClient() (*Client, error) {
+	switch len(c) {
+	case 0:
+		// Returns an error if the cluster is uninitialized (not bootstrapped, not joined).
+		return nil, fmt.Errorf("cluster is uninitialized or has no members")
+	case 1:
+		// Returns the only available client if cluster size is 1.
+		return &c[0], nil
+	default:
+		// Returns a randomly selected client for clusters with multiple members.
+		return &c[rand.Intn(len(c))], nil
+	}
 }
 
 // Query executes the given hook across all members of the cluster.

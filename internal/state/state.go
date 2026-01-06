@@ -189,6 +189,11 @@ func (s *InternalState) Cluster(isNotification bool) (client.Cluster, error) {
 		}
 	}
 
+	// Return error if no other cluster members exist.
+	if len(clients) == 0 {
+		return nil, fmt.Errorf("No other cluster members available.")
+	}
+
 	return clients, nil
 }
 

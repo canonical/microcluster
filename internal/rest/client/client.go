@@ -168,6 +168,11 @@ func tlsHTTPClient(clientCert *shared.CertInfo, remoteCert *x509.Certificate, pr
 	return client, nil
 }
 
+// HTTP returns the underlying HTTP client to allow direct modification.
+func (c *Client) HTTP() *http.Client {
+	return c.Client
+}
+
 // SetClusterNotification sets the client's proxy to apply the forwarding headers to a request.
 func (c *Client) SetClusterNotification() {
 	c.Transport.(*http.Transport).Proxy = forwardingProxy
@@ -284,11 +289,11 @@ func (c *Client) mergeURL(endpointType types.EndpointPrefix, endpoint *url.URL) 
 	return localURL
 }
 
-// QueryStruct sends a request of the specified method to the provided endpoint (optional) on the API matching the endpointType.
+// Query sends a request of the specified method to the provided endpoint (optional) on the API matching the endpointType.
 // The response gets unpacked into the target struct. POST requests can optionally provide raw data to be sent through.
 //
 // The final URL is that provided as the endpoint combined with the applicable prefix for the endpointType and the scheme and host from the client.
-func (c *Client) QueryStruct(ctx context.Context, method string, endpointType types.EndpointPrefix, endpoint *url.URL, data any, target any) error {
+func (c *Client) Query(ctx context.Context, method string, endpointType types.EndpointPrefix, endpoint *url.URL, data any, target any) error {
 	resp, err := c.QueryStructRaw(ctx, method, endpointType, endpoint, data)
 	if err != nil {
 		return err
@@ -306,6 +311,24 @@ func (c *Client) QueryStruct(ctx context.Context, method string, endpointType ty
 	}
 
 	return nil
+}
+
+// QueryRaw is a helper for initiating a request on any endpoints defined external to microcluster.
+// Unlike Query it returns the raw HTTP response.
+func (c *Client) QueryRaw(ctx context.Context, method string, prefix types.EndpointPrefix, path *url.URL, in any) (*http.Response, error) {
+	queryCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	return c.QueryStructRaw(queryCtx, method, prefix, path, in)
+}
+
+// Websocket is a helper for upgrading a request to websocket on any endpoints defined external to microcluster.
+// This function should be used for all client methods defined externally from microcluster.
+func (c *Client) Websocket(ctx context.Context, prefix types.EndpointPrefix, path *url.URL) (*websocket.Conn, error) {
+	websocketCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	return c.RawWebsocket(websocketCtx, prefix, path)
 }
 
 // QueryStructRaw sends a request of the specified method to the provided endpoint (optional) on the API matching the endpointType.
@@ -379,12 +402,12 @@ func (c *Client) RawWebsocket(ctx context.Context, endpointType types.EndpointPr
 }
 
 // URL returns the address used for the client.
-func (c *Client) URL() api.URL {
-	return c.url
+func (c *Client) URL() *url.URL {
+	return &c.url.URL
 }
 
 // UseTarget returns a new client with the query "?target=name" set.
-func (c *Client) UseTarget(name string) *Client {
+func (c *Client) UseTarget(name string) types.Client {
 	localURL := api.NewURL()
 	localURL.URL.Host = c.url.URL.Host
 	localURL.URL.Scheme = c.url.URL.Scheme

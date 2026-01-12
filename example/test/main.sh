@@ -68,7 +68,10 @@ shutdown_systems() {
 
   # The cluster doesn't always shut down right away; we've given it a chance
   for job_pid in $(jobs -p); do
-    kill -9 "${job_pid}"
+    # Check if process still exists before trying to kill it
+    if kill -0 "${job_pid}" 2>/dev/null; then
+      kill -9 "${job_pid}" 2>/dev/null || true
+    fi
   done
 }
 

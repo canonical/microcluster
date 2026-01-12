@@ -22,7 +22,6 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/mattn/go-sqlite3"
 
-	"github.com/canonical/microcluster/v3/client"
 	"github.com/canonical/microcluster/v3/internal/cluster"
 	internalConfig "github.com/canonical/microcluster/v3/internal/config"
 	"github.com/canonical/microcluster/v3/internal/db"
@@ -636,7 +635,7 @@ func (d *Daemon) StartAPI(ctx context.Context, bootstrap bool, initConfig map[st
 		return err
 	}
 
-	cluster, err := d.trustStore.Remotes().Cluster(false, d.ServerCert(), publicKey)
+	clients, err := d.trustStore.Remotes().Cluster(false, d.ServerCert(), publicKey)
 	if err != nil {
 		return err
 	}
@@ -654,14 +653,14 @@ func (d *Daemon) StartAPI(ctx context.Context, bootstrap bool, initConfig map[st
 	if len(joinAddresses) > 0 {
 		var lastErr error
 		var clusterConfirmation bool
-		err = cluster.Query(d.shutdownCtx, true, func(ctx context.Context, c *client.Client) error {
+		err = clients.Query(d.shutdownCtx, true, func(ctx context.Context, c types.Client) error {
 			// No need to send a request to ourselves.
-			if d.Address().URL.Host == c.URL().URL.Host {
+			if d.Address().URL.Host == c.URL().Host {
 				return nil
 			}
 
 			// Propagate trust to all reachable cluster members for fault tolerance.
-			err := internalClient.AddTrustStoreEntry(ctx, &c.Client, localMemberInfo)
+			err := internalClient.AddTrustStoreEntry(ctx, c, localMemberInfo)
 			if err != nil {
 				lastErr = err
 				// Continue trying other nodes even if this one fails
@@ -678,7 +677,7 @@ func (d *Daemon) StartAPI(ctx context.Context, bootstrap bool, initConfig map[st
 		}
 
 		if !clusterConfirmation {
-			return fmt.Errorf("Failed to confirm new member %q on any existing system (%d): %w", localMemberInfo.Name, len(cluster)-1, lastErr)
+			return fmt.Errorf("Failed to confirm new member %q on any existing system (%d): %w", localMemberInfo.Name, len(clients)-1, lastErr)
 		}
 	}
 
@@ -692,11 +691,11 @@ func (d *Daemon) StartAPI(ctx context.Context, bootstrap bool, initConfig map[st
 	var successCount, attemptCount int32
 	var counterMu sync.Mutex
 
-	err = cluster.Query(d.shutdownCtx, true, func(ctx context.Context, c *client.Client) error {
+	err = clients.Query(d.shutdownCtx, true, func(ctx context.Context, c types.Client) error {
 		c.SetClusterNotification()
 
 		// No need to send a request to ourselves.
-		if d.Address().URL.Host == c.URL().URL.Host {
+		if d.Address().URL.Host == c.URL().Host {
 			return nil
 		}
 
@@ -712,21 +711,21 @@ func (d *Daemon) StartAPI(ctx context.Context, bootstrap bool, initConfig map[st
 
 		// If this was a join request, instruct all peers to run their OnNewMember hook.
 		if len(joinAddresses) > 0 {
-			addrPort, err := types.ParseAddrPort(c.URL().URL.Host)
+			addrPort, err := types.ParseAddrPort(c.URL().Host)
 			if err != nil {
 				return err
 			}
 
 			remote := remotes.RemoteByAddress(addrPort)
 			if remote == nil {
-				return fmt.Errorf("No remote found at address %q run the post-remove hook", c.URL().URL.Host)
+				return fmt.Errorf("No remote found at address %q to run the post-remove hook", c.URL().Host)
 			}
 
 			// Run the OnNewMember hook, and skip errors on any nodes that are still in the process of joining.
-			err = internalClient.RunNewMemberHook(ctx, c.Client.UseTarget(remote.Name), types.HookNewMemberOptions{NewMember: localMemberInfo})
+			err = internalClient.RunNewMemberHook(ctx, c.UseTarget(remote.Name), types.HookNewMemberOptions{NewMember: localMemberInfo})
 			if err != nil && !api.StatusErrorCheck(err, http.StatusServiceUnavailable) {
 				// log error but continue with other nodes
-				d.log().Warn("Failed running OnNewMember hook on node", slog.String("node", c.URL().URL.Host), slog.String("error", err.Error()))
+				d.log().Warn("Failed running OnNewMember hook on node", slog.String("node", c.URL().Host), slog.String("error", err.Error()))
 				return nil
 			}
 		}
@@ -957,11 +956,10 @@ func (d *Daemon) addExtensionServers(preInit bool, fallbackCert *shared.CertInfo
 	return nil
 }
 
-func (d *Daemon) sendUpgradeNotification(ctx context.Context, c *client.Client) error {
-	path := c.URL()
+func (d *Daemon) sendUpgradeNotification(ctx context.Context, c types.Client) error {
 	parts := strings.Split(string(types.InternalEndpoint), "/")
 	parts = append(parts, "database")
-	path = *path.Path(parts...)
+	path := c.URL().JoinPath(parts...)
 	upgradeRequest, err := http.NewRequest("PATCH", path.String(), nil)
 	if err != nil {
 		return err
@@ -970,7 +968,7 @@ func (d *Daemon) sendUpgradeNotification(ctx context.Context, c *client.Client) 
 	upgradeRequest.Header.Set("X-Dqlite-Version", fmt.Sprintf("%d", 1))
 	upgradeRequest = upgradeRequest.WithContext(ctx)
 
-	resp, err := c.Do(upgradeRequest)
+	resp, err := c.HTTP().Do(upgradeRequest)
 	if err != nil {
 		d.log().Error("Failed to send database upgrade request", slog.String("error", err.Error()))
 		return nil

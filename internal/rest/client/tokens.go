@@ -21,7 +21,7 @@ func RequestToken(ctx context.Context, c types.Client, name string, expireAfter 
 	return token, err
 }
 
-// DeleteTokenRecord deletes the toekn record.
+// DeleteTokenRecord deletes the token record.
 func DeleteTokenRecord(ctx context.Context, c types.Client, name string) error {
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()

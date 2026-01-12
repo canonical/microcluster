@@ -57,6 +57,11 @@ func (c Clients) SelectRandom() (*Client, error) {
 	}
 }
 
+// UserAgentNotifier is the user agent used for cluster wide notifications.
+// It's using the "lxd-" prefix for backwards compatibility with older cluster members
+// as originally the constant from LXD's client package was used.
+const UserAgentNotifier = "lxd-cluster-notifier"
+
 // Query executes the given hook across all members of the cluster.
 func (c Clients) Query(ctx context.Context, concurrent bool, query func(context.Context, Client) error) error {
 	if !concurrent {
@@ -81,4 +86,9 @@ func (c Clients) Query(ctx context.Context, concurrent bool, query func(context.
 	// Wait for all queries to complete and check for any errors.
 	// The first observed error will be returned.
 	return g.Wait()
+}
+
+// IsNotification determines if this request is to be considered a cluster-wide notification.
+func IsNotification(r *http.Request) bool {
+	return r.Header.Get("User-Agent") == UserAgentNotifier
 }

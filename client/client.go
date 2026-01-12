@@ -16,11 +16,6 @@ type Client struct {
 	client.Client
 }
 
-// IsNotification determines if this request is to be considered a cluster-wide notification.
-func IsNotification(r *http.Request) bool {
-	return r.Header.Get("User-Agent") == client.UserAgentNotifier
-}
-
 // Query is a helper for initiating a request on any endpoints defined external to microcluster. This function should be used for all client
 // methods defined externally from microcluster.
 func (c *Client) Query(ctx context.Context, method string, prefix types.EndpointPrefix, path *url.URL, in any, out any) error {

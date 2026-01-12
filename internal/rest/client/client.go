@@ -39,11 +39,6 @@ const (
 	CtxAccess CtxKey = "access"
 )
 
-// UserAgentNotifier is the user agent used for cluster wide notifications.
-// It's using the "lxd-" prefix for backwards compatibility with older cluster members
-// as originally the constant from LXD's client package was used.
-const UserAgentNotifier = "lxd-cluster-notifier"
-
 // New returns a new client configured with the given url and certificates.
 func New(url api.URL, clientCert *shared.CertInfo, remoteCert *x509.Certificate, forwarding bool) (*Client, error) {
 	var err error
@@ -179,14 +174,14 @@ func (c *Client) SetClusterNotification() {
 }
 
 func forwardingProxy(r *http.Request) (*url.URL, error) {
-	r.Header.Set("User-Agent", UserAgentNotifier)
+	r.Header.Set("User-Agent", types.UserAgentNotifier)
 
 	return shared.ProxyFromEnvironment(r)
 }
 
 // IsForwardedRequest determines if this request has been forwarded from another cluster member.
 func IsForwardedRequest(r *http.Request) bool {
-	return r.Header.Get("User-Agent") == UserAgentNotifier
+	return r.Header.Get("User-Agent") == types.UserAgentNotifier
 }
 
 func (c *Client) rawQuery(ctx context.Context, method string, url *url.URL, data any) (*http.Response, error) {

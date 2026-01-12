@@ -3,8 +3,6 @@ package types
 import (
 	"context"
 	"crypto/x509"
-	"fmt"
-	"math/rand"
 	"net/http"
 	"net/url"
 
@@ -40,21 +38,9 @@ type Connector interface {
 
 	// Member returns a client to the specified member.
 	Member(url *url.URL, isNotification bool, cert *x509.Certificate) (Client, error)
-}
 
-// SelectRandom returns a randomly selected client.
-func (c Clients) SelectRandom() (*Client, error) {
-	switch len(c) {
-	case 0:
-		// Returns an error if the cluster is uninitialized (not bootstrapped, not joined).
-		return nil, fmt.Errorf("Cluster is uninitialized or has no members")
-	case 1:
-		// Returns the only available client if cluster size is 1.
-		return &c[0], nil
-	default:
-		// Returns a randomly selected client for clusters with multiple members.
-		return &c[rand.Intn(len(c))], nil
-	}
+	// RandomMember returns a client to a random member.
+	RandomMember(isNotification bool) (Client, error)
 }
 
 // UserAgentNotifier is the user agent used for cluster wide notifications.

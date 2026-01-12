@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/x509"
 	"fmt"
+	"math/rand"
 	"net/url"
 	"time"
 
@@ -249,6 +250,28 @@ func (s *InternalState) Member(url *url.URL, isNotification bool, cert *x509.Cer
 	}
 
 	return c, nil
+}
+
+// RandomMember returns a client for a random cluster member.
+func (s *InternalState) RandomMember(isNotification bool) (types.Client, error) {
+	clusterClients, err := s.Cluster(isNotification)
+	if err != nil {
+		return nil, err
+	}
+
+	clusterClientNum := len(clusterClients)
+
+	switch clusterClientNum {
+	case 0:
+		// Returns an error if the cluster is uninitialized (not bootstrapped, not joined).
+		return nil, fmt.Errorf("Cluster is uninitialized or has no members")
+	case 1:
+		// Returns the only available client if cluster size is 1.
+		return clusterClients[0], nil
+	default:
+		// Returns a randomly selected client for clusters with multiple members.
+		return clusterClients[rand.Intn(clusterClientNum)], nil
+	}
 }
 
 // ToInternal returns the underlying InternalState from the exposed State interface.

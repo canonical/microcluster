@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/canonical/microcluster/v3/client"
 	"github.com/canonical/microcluster/v3/internal/cluster"
 	"github.com/canonical/microcluster/v3/internal/log"
 	internalState "github.com/canonical/microcluster/v3/internal/state"
@@ -188,7 +187,7 @@ func beginHeartbeat(ctx context.Context, s state.State, hbReq types.HeartbeatInf
 		}
 	}
 
-	clusterClients, err := s.Cluster(false)
+	clusterClients, err := s.Connect().Cluster(false)
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -197,8 +196,8 @@ func beginHeartbeat(ctx context.Context, s state.State, hbReq types.HeartbeatInf
 	mapLock := sync.RWMutex{}
 	// Send heartbeat to non-leader members, updating their local member cache and updating the node.
 	// If we sent a heartbeat to this node within double the request timeout, then we can skip the node this round.
-	err = clusterClients.Query(ctx, true, func(ctx context.Context, c *client.Client) error {
-		addr := c.URL().URL.Host
+	err = clusterClients.Query(ctx, true, func(ctx context.Context, c types.Client) error {
+		addr := c.URL().Host
 
 		mapLock.RLock()
 		currentMember, ok := hbInfo.ClusterMembers[addr]
@@ -214,7 +213,7 @@ func beginHeartbeat(ctx context.Context, s state.State, hbReq types.HeartbeatInf
 			return nil
 		}
 
-		err := intState.InternalDatabase.SendHeartbeat(ctx, &c.Client, hbInfo)
+		err := intState.InternalDatabase.SendHeartbeat(ctx, c, hbInfo)
 		if err != nil {
 			logger.Error("Received error sending heartbeat to cluster member", slog.String("target", addr), slog.String("error", err.Error()))
 			return nil

@@ -23,7 +23,6 @@ import (
 	"github.com/gorilla/mux"
 	"golang.org/x/sys/unix"
 
-	"github.com/canonical/microcluster/v3/client"
 	"github.com/canonical/microcluster/v3/internal/cluster"
 	"github.com/canonical/microcluster/v3/internal/log"
 	"github.com/canonical/microcluster/v3/internal/rest/access"
@@ -103,12 +102,12 @@ func clusterPost(s state.State, r *http.Request) response.Response {
 
 	// Forward request to leader.
 	if leaderInfo.Address != s.Address().URL.Host {
-		client, err := s.Leader()
+		client, err := s.Connect().Leader(false)
 		if err != nil {
 			return response.SmartError(err)
 		}
 
-		tokenResponse, err := internalClient.AddClusterMember(r.Context(), &client.Client, req)
+		tokenResponse, err := internalClient.AddClusterMember(r.Context(), client, req)
 		if err != nil {
 			return response.SmartError(err)
 		}
@@ -302,7 +301,7 @@ func clusterGet(s state.State, r *http.Request) response.Response {
 				return response.SmartError(fmt.Errorf("Failed to create HTTPS client for cluster member with address %q: %w", addr.String(), err))
 			}
 
-			err = d.CheckReady(r.Context())
+			err = internalClient.CheckReady(r.Context(), d)
 			if err == nil {
 				apiClusterMembers[i].Status = types.MemberOnline
 			} else {
@@ -460,12 +459,12 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 			}()
 		}
 
-		client, err := s.Leader()
+		client, err := s.Connect().Leader(false)
 		if err != nil {
 			return response.SmartError(err)
 		}
 
-		err = client.DeleteClusterMember(r.Context(), name, force)
+		err = internalClient.DeleteClusterMember(r.Context(), client, name, force)
 		if err != nil {
 			return response.SmartError(err)
 		}
@@ -568,7 +567,7 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 			return response.SmartError(err)
 		}
 
-		client, err := s.Leader()
+		client, err := s.Connect().Leader(false)
 		if err != nil {
 			return response.SmartError(err)
 		}
@@ -588,7 +587,7 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 			clusterDisableMu.Unlock()
 		}()
 
-		err = client.DeleteClusterMember(r.Context(), name, force)
+		err = internalClient.DeleteClusterMember(r.Context(), client, name, force)
 		if err != nil {
 			return response.SmartError(err)
 		}
@@ -646,7 +645,7 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 	url := api.NewURL()
 	url.URL = *s.FileSystem().ControlSocket()
 
-	localClient, err := internalClient.New(*url, nil, nil, false)
+	localClient, err := s.Connect().Member(&url.URL, false, nil)
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -656,18 +655,15 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	c, err = internalClient.New(remote.URL(), s.ServerCert(), publicKey, false)
+	remoteURL := remote.URL()
+
+	client, err := s.Connect().Member(&remoteURL.URL, false, publicKey)
 	if err != nil {
 		return response.SmartError(err)
 	}
 
-	err = internalClient.ResetClusterMember(r.Context(), c, name, force)
+	err = internalClient.ResetClusterMember(r.Context(), client, name, force)
 	if err != nil && !force {
-		return response.SmartError(err)
-	}
-
-	cluster, err := s.Cluster(false)
-	if err != nil {
 		return response.SmartError(err)
 	}
 
@@ -684,21 +680,26 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
+	clients, err := s.Connect().Cluster(false)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
 	// Run the PostRemove hook on all other members.
 	remotes := s.Remotes()
-	err = cluster.Query(r.Context(), true, func(ctx context.Context, c *client.Client) error {
+	err = clients.Query(r.Context(), true, func(ctx context.Context, c types.Client) error {
 		c.SetClusterNotification()
-		addrPort, err := types.ParseAddrPort(c.URL().URL.Host)
+		addrPort, err := types.ParseAddrPort(c.URL().Host)
 		if err != nil {
 			return err
 		}
 
 		remote := remotes.RemoteByAddress(addrPort)
 		if remote == nil {
-			return fmt.Errorf("No remote found at address %q run the post-remove hook", c.URL().URL.Host)
+			return fmt.Errorf("No remote found at address %q to run the post-remove hook", c.URL().Host)
 		}
 
-		return internalClient.RunPostRemoveHook(ctx, c.Client.UseTarget(remote.Name), types.HookRemoveMemberOptions{Force: force})
+		return internalClient.RunPostRemoveHook(ctx, c.UseTarget(remote.Name), types.HookRemoveMemberOptions{Force: force})
 	})
 	if err != nil {
 		return response.SmartError(err)

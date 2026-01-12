@@ -12,7 +12,6 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/canonical/microcluster/v3/client"
 	"github.com/canonical/microcluster/v3/internal/log"
 	"github.com/canonical/microcluster/v3/internal/rest/access"
 	internalClient "github.com/canonical/microcluster/v3/internal/rest/client"
@@ -54,8 +53,8 @@ func trustPost(s state.State, r *http.Request) response.Response {
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
-	if !client.IsNotification(r) {
-		cluster, err := s.Cluster(true)
+	if !types.IsNotification(r) {
+		clients, err := s.Connect().Cluster(true)
 		if err != nil {
 			return response.SmartError(err)
 		}
@@ -71,9 +70,9 @@ func trustPost(s state.State, r *http.Request) response.Response {
 
 		// Try to add the truststore entry to all other nodes in the cluster.
 		// We don't fail the entire operation if some nodes are unreachable.
-		err = cluster.Query(ctx, true, func(ctx context.Context, c *client.Client) error {
+		err = clients.Query(ctx, true, func(ctx context.Context, c types.Client) error {
 			// No need to send a request to ourselves, or to the node we are adding.
-			if s.Address().URL.Host == c.URL().URL.Host || req.Address.String() == c.URL().URL.Host {
+			if s.Address().URL.Host == c.URL().Host || req.Address.String() == c.URL().Host {
 				return nil
 			}
 
@@ -81,10 +80,10 @@ func trustPost(s state.State, r *http.Request) response.Response {
 			attemptCount++
 			counterMu.Unlock()
 
-			err := internalClient.AddTrustStoreEntry(ctx, &c.Client, req)
+			err := internalClient.AddTrustStoreEntry(ctx, c, req)
 			if err != nil {
 				// log error but continue with other nodes
-				logger.Warn("Failed adding truststore entry to node", slog.String("node", c.URL().URL.Host), slog.String("error", err.Error()))
+				logger.Warn("Failed adding truststore entry to node", slog.String("node", c.URL().Host), slog.String("error", err.Error()))
 				return nil
 			}
 
@@ -131,19 +130,19 @@ func trustDelete(s state.State, r *http.Request) response.Response {
 		return response.SmartError(fmt.Errorf("No truststore entry found for node with name %q", name))
 	}
 
-	if !client.IsNotification(r) {
-		cluster, err := s.Cluster(true)
+	if !types.IsNotification(r) {
+		clients, err := s.Connect().Cluster(true)
 		if err != nil {
 			return response.SmartError(err)
 		}
 
-		err = cluster.Query(ctx, true, func(ctx context.Context, c *client.Client) error {
+		err = clients.Query(ctx, true, func(ctx context.Context, c types.Client) error {
 			// No need to send a request to ourselves, or to the node we are adding.
-			if s.Address().URL.Host == c.URL().URL.Host || nodeToRemove.URL().URL.Host == c.URL().URL.Host {
+			if s.Address().URL.Host == c.URL().Host || nodeToRemove.URL().URL.Host == c.URL().Host {
 				return nil
 			}
 
-			return internalClient.DeleteTrustStoreEntry(ctx, &c.Client, name)
+			return internalClient.DeleteTrustStoreEntry(ctx, c, name)
 		})
 		if err != nil {
 			return response.SmartError(err)

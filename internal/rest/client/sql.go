@@ -10,7 +10,7 @@ import (
 )
 
 // GetSQL gets a SQL dump of the database.
-func GetSQL(ctx context.Context, c *Client, schema bool) (*types.SQLDump, error) {
+func GetSQL(ctx context.Context, c types.Client, schema bool) (*types.SQLDump, error) {
 	reqCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
@@ -21,7 +21,7 @@ func GetSQL(ctx context.Context, c *Client, schema bool) (*types.SQLDump, error)
 		endpoint.WithQuery("schema", "1")
 	}
 
-	err := c.QueryStruct(reqCtx, "GET", types.InternalEndpoint, &endpoint.URL, nil, dump)
+	err := c.Query(reqCtx, "GET", types.InternalEndpoint, &endpoint.URL, nil, dump)
 	if err != nil {
 		return nil, err
 	}
@@ -30,12 +30,12 @@ func GetSQL(ctx context.Context, c *Client, schema bool) (*types.SQLDump, error)
 }
 
 // PostSQL executes a SQL query against the database.
-func PostSQL(ctx context.Context, c *Client, query types.SQLQuery) (*types.SQLBatch, error) {
+func PostSQL(ctx context.Context, c types.Client, query types.SQLQuery) (*types.SQLBatch, error) {
 	reqCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	batch := &types.SQLBatch{}
-	err := c.QueryStruct(reqCtx, "POST", types.InternalEndpoint, &api.NewURL().Path("sql").URL, query, batch)
+	err := c.Query(reqCtx, "POST", types.InternalEndpoint, &api.NewURL().Path("sql").URL, query, batch)
 	if err != nil {
 		return nil, err
 	}

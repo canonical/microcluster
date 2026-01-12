@@ -15,5 +15,5 @@ func (c *Client) UpdateServers(ctx context.Context, config map[string]types.Serv
 	defer cancel()
 
 	endpoint := api.NewURL().Path("daemon", "servers")
-	return c.QueryStruct(queryCtx, "PUT", types.PublicEndpoint, &endpoint.URL, config, nil)
+	return c.Query(queryCtx, "PUT", types.PublicEndpoint, &endpoint.URL, config, nil)
 }

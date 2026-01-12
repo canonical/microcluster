@@ -10,34 +10,34 @@ import (
 )
 
 // RequestToken requests a join token with the given name.
-func (c *Client) RequestToken(ctx context.Context, name string, expireAfter time.Duration) (string, error) {
+func RequestToken(ctx context.Context, c types.Client, name string, expireAfter time.Duration) (string, error) {
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	var token string
 	tokenRecord := types.TokenRequest{Name: name, ExpireAfter: expireAfter}
-	err := c.QueryStruct(queryCtx, "POST", types.ControlEndpoint, &api.NewURL().Path("tokens").URL, tokenRecord, &token)
+	err := c.Query(queryCtx, "POST", types.ControlEndpoint, &api.NewURL().Path("tokens").URL, tokenRecord, &token)
 
 	return token, err
 }
 
 // DeleteTokenRecord deletes the toekn record.
-func (c *Client) DeleteTokenRecord(ctx context.Context, name string) error {
+func DeleteTokenRecord(ctx context.Context, c types.Client, name string) error {
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	err := c.QueryStruct(queryCtx, "DELETE", types.PublicEndpoint, &api.NewURL().Path("tokens", name).URL, nil, nil)
+	err := c.Query(queryCtx, "DELETE", types.PublicEndpoint, &api.NewURL().Path("tokens", name).URL, nil, nil)
 
 	return err
 }
 
 // GetTokenRecords returns the token records.
-func (c *Client) GetTokenRecords(ctx context.Context) ([]types.TokenRecord, error) {
+func GetTokenRecords(ctx context.Context, c types.Client) ([]types.TokenRecord, error) {
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	tokenRecords := []types.TokenRecord{}
-	err := c.QueryStruct(queryCtx, "GET", types.ControlEndpoint, &api.NewURL().Path("tokens").URL, nil, &tokenRecords)
+	err := c.Query(queryCtx, "GET", types.ControlEndpoint, &api.NewURL().Path("tokens").URL, nil, &tokenRecords)
 
 	return tokenRecords, err
 }

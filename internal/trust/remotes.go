@@ -4,7 +4,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"math/rand"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,7 +14,6 @@ import (
 	"github.com/google/renameio"
 	"gopkg.in/yaml.v3"
 
-	"github.com/canonical/microcluster/v3/client"
 	internalClient "github.com/canonical/microcluster/v3/internal/rest/client"
 	"github.com/canonical/microcluster/v3/microcluster/types"
 )
@@ -235,19 +233,6 @@ func (r *Remotes) Replace(dir string, newRemotes ...types.ClusterMember) error {
 	r.data = remoteData
 
 	return nil
-}
-
-// SelectRandom returns a random remote.
-func (r *Remotes) SelectRandom() *Remote {
-	r.updateMu.RLock()
-	defer r.updateMu.RUnlock()
-
-	allRemotes := make([]Remote, 0, len(r.data))
-	for _, r := range r.data {
-		allRemotes = append(allRemotes, r)
-	}
-
-	return &allRemotes[rand.Intn(len(allRemotes))]
 }
 
 // Addresses returns just the host:port addresses of the remotes.

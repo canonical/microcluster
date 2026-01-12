@@ -100,6 +100,16 @@ func (m *MicroCluster) Start(ctx context.Context, daemonArgs DaemonArgs) error {
 	return nil
 }
 
+// Shutdown stops the local Microcluster daemon.
+func (m *MicroCluster) Shutdown(ctx context.Context) error {
+	c, err := m.LocalClient()
+	if err != nil {
+		return err
+	}
+
+	return internalClient.ShutdownDaemon(ctx, c)
+}
+
 // Status returns basic status information about the cluster.
 func (m *MicroCluster) Status(ctx context.Context) (*types.Server, error) {
 	c, err := m.LocalClient()
@@ -209,6 +219,16 @@ func (m *MicroCluster) JoinCluster(ctx context.Context, name string, address str
 	return internalClient.ControlDaemon(ctx, c, types.Control{JoinToken: token, Address: addr, Name: name, InitConfig: initConfig})
 }
 
+// GetClusterMembers returns a list of cluster members.
+func (m *MicroCluster) GetClusterMembers(ctx context.Context) ([]types.ClusterMember, error) {
+	c, err := m.LocalClient()
+	if err != nil {
+		return nil, err
+	}
+
+	return internalClient.GetClusterMembers(ctx, c)
+}
+
 // GetDqliteClusterMembers retrieves the current local cluster configuration
 // (derived from the trust store & dqlite metadata); it does not query the
 // database.
@@ -300,6 +320,16 @@ func (m *MicroCluster) RevokeJoinToken(ctx context.Context, name string) error {
 	}
 
 	return nil
+}
+
+// RemoveClusterMember removes a member from the cluster.
+func (m *MicroCluster) RemoveClusterMember(ctx context.Context, name string, force bool) error {
+	c, err := m.LocalClient()
+	if err != nil {
+		return err
+	}
+
+	return internalClient.DeleteClusterMember(ctx, c, name, force)
 }
 
 // LocalClient returns a client connected to the local control socket.

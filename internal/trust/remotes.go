@@ -249,8 +249,8 @@ func (r *Remotes) Addresses() map[string]types.AddrPort {
 }
 
 // Cluster returns a set of clients for every remote, which can be concurrently queried.
-func (r *Remotes) Cluster(isNotification bool, serverCert *shared.CertInfo, publicKey *x509.Certificate) (client.Cluster, error) {
-	cluster := make(client.Cluster, 0, r.Count()-1)
+func (r *Remotes) Cluster(isNotification bool, serverCert *shared.CertInfo, publicKey *x509.Certificate) (types.Clients, error) {
+	cluster := make(types.Clients, 0, r.Count()-1)
 	for _, addr := range r.Addresses() {
 		url := api.NewURL().Scheme("https").Host(addr.String())
 		c, err := internalClient.New(*url, serverCert, publicKey, isNotification)
@@ -258,7 +258,7 @@ func (r *Remotes) Cluster(isNotification bool, serverCert *shared.CertInfo, publ
 			return nil, err
 		}
 
-		cluster = append(cluster, client.Client{Client: *c})
+		cluster = append(cluster, c)
 	}
 
 	return cluster, nil

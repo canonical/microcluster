@@ -10,7 +10,7 @@ import (
 )
 
 // UpdateServers updates the additional servers config.
-func (c *Client) UpdateServers(ctx context.Context, config map[string]types.ServerConfig) error {
+func UpdateServers(ctx context.Context, c types.Client, config map[string]types.ServerConfig) error {
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 

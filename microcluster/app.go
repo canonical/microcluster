@@ -457,3 +457,23 @@ func (m *MicroCluster) LoggerFromContext(ctx context.Context) *slog.Logger {
 
 	return logger
 }
+
+// UpdateServers updates the extension servers defined when starting the daemon.
+func (m *MicroCluster) UpdateServers(ctx context.Context, config map[string]types.ServerConfig) error {
+	c, err := m.LocalClient()
+	if err != nil {
+		return err
+	}
+
+	return internalClient.UpdateServers(ctx, c, config)
+}
+
+// UpdateCertificates updates the named certificate of either the core or extension server.
+func (m *MicroCluster) UpdateCertificates(ctx context.Context, name types.CertificateName, args types.KeyPair) error {
+	c, err := m.LocalClient()
+	if err != nil {
+		return err
+	}
+
+	return internalClient.UpdateCertificate(ctx, c, name, args)
+}

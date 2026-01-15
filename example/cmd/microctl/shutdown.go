@@ -33,16 +33,11 @@ func (c *cmdShutdown) run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	client, err := m.LocalClient()
-	if err != nil {
-		return err
-	}
-
 	chResult := make(chan error, 1)
 	go func() {
 		defer close(chResult)
 
-		err := client.ShutdownDaemon(cmd.Context())
+		err := m.Shutdown(cmd.Context())
 		if err != nil {
 			chResult <- err
 			return

@@ -16,7 +16,6 @@ import (
 	"github.com/canonical/lxd/shared/api"
 	"golang.org/x/sys/unix"
 
-	"github.com/canonical/microcluster/v3/client"
 	"github.com/canonical/microcluster/v3/internal/daemon"
 	"github.com/canonical/microcluster/v3/internal/log"
 	"github.com/canonical/microcluster/v3/internal/recover"
@@ -44,7 +43,7 @@ type Args struct {
 	// If none is provided a default handler is used.
 	LogHandler slog.Handler
 
-	Client *client.Client
+	Client types.Client
 	Proxy  func(*http.Request) (*url.URL, error)
 }
 
@@ -101,6 +100,16 @@ func (m *MicroCluster) Start(ctx context.Context, daemonArgs DaemonArgs) error {
 	return nil
 }
 
+// Shutdown stops the local Microcluster daemon.
+func (m *MicroCluster) Shutdown(ctx context.Context) error {
+	c, err := m.LocalClient()
+	if err != nil {
+		return err
+	}
+
+	return internalClient.ShutdownDaemon(ctx, c)
+}
+
 // Status returns basic status information about the cluster.
 func (m *MicroCluster) Status(ctx context.Context) (*types.Server, error) {
 	c, err := m.LocalClient()
@@ -109,7 +118,7 @@ func (m *MicroCluster) Status(ctx context.Context) (*types.Server, error) {
 	}
 
 	server := types.Server{}
-	err = c.QueryStruct(ctx, "GET", types.PublicEndpoint, nil, nil, &server)
+	err = c.Query(ctx, "GET", types.PublicEndpoint, nil, nil, &server)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get cluster status: %w", err)
 	}
@@ -155,7 +164,7 @@ func (m *MicroCluster) Ready(ctx context.Context) error {
 				logger.Debug(fmt.Sprintf("Checking if MicroCluster daemon is ready (attempt %d)", i))
 			}
 
-			err = c.CheckReady(ctx)
+			err = internalClient.CheckReady(ctx, c)
 			if err != nil {
 				errLast = err
 				if doLog {
@@ -192,7 +201,7 @@ func (m *MicroCluster) NewCluster(ctx context.Context, name string, address stri
 		return fmt.Errorf("Received invalid address %q: %w", address, err)
 	}
 
-	return c.ControlDaemon(ctx, types.Control{Bootstrap: true, Address: addr, Name: name, InitConfig: config})
+	return internalClient.ControlDaemon(ctx, c, types.Control{Bootstrap: true, Address: addr, Name: name, InitConfig: config})
 }
 
 // JoinCluster joins an existing cluster with a join token supplied by an existing cluster member.
@@ -207,7 +216,17 @@ func (m *MicroCluster) JoinCluster(ctx context.Context, name string, address str
 		return fmt.Errorf("Received invalid address %q: %w", address, err)
 	}
 
-	return c.ControlDaemon(ctx, types.Control{JoinToken: token, Address: addr, Name: name, InitConfig: initConfig})
+	return internalClient.ControlDaemon(ctx, c, types.Control{JoinToken: token, Address: addr, Name: name, InitConfig: initConfig})
+}
+
+// GetClusterMembers returns a list of cluster members.
+func (m *MicroCluster) GetClusterMembers(ctx context.Context) ([]types.ClusterMember, error) {
+	c, err := m.LocalClient()
+	if err != nil {
+		return nil, err
+	}
+
+	return internalClient.GetClusterMembers(ctx, c)
 }
 
 // GetDqliteClusterMembers retrieves the current local cluster configuration
@@ -265,7 +284,7 @@ func (m *MicroCluster) NewJoinToken(ctx context.Context, name string, expireAfte
 		return "", err
 	}
 
-	secret, err := c.RequestToken(ctx, name, expireAfter)
+	secret, err := internalClient.RequestToken(ctx, c, name, expireAfter)
 	if err != nil {
 		return "", err
 	}
@@ -280,7 +299,7 @@ func (m *MicroCluster) ListJoinTokens(ctx context.Context) ([]types.TokenRecord,
 		return nil, err
 	}
 
-	records, err := c.GetTokenRecords(ctx)
+	records, err := internalClient.GetTokenRecords(ctx, c)
 	if err != nil {
 		return nil, err
 	}
@@ -295,7 +314,7 @@ func (m *MicroCluster) RevokeJoinToken(ctx context.Context, name string) error {
 		return err
 	}
 
-	err = c.DeleteTokenRecord(ctx, name)
+	err = internalClient.DeleteTokenRecord(ctx, c, name)
 	if err != nil {
 		return err
 	}
@@ -303,8 +322,18 @@ func (m *MicroCluster) RevokeJoinToken(ctx context.Context, name string) error {
 	return nil
 }
 
+// RemoveClusterMember removes a member from the cluster.
+func (m *MicroCluster) RemoveClusterMember(ctx context.Context, name string, force bool) error {
+	c, err := m.LocalClient()
+	if err != nil {
+		return err
+	}
+
+	return internalClient.DeleteClusterMember(ctx, c, name, force)
+}
+
 // LocalClient returns a client connected to the local control socket.
-func (m *MicroCluster) LocalClient() (*client.Client, error) {
+func (m *MicroCluster) LocalClient() (types.Client, error) {
 	c := m.args.Client
 	if c == nil {
 		url := api.NewURL()
@@ -315,17 +344,17 @@ func (m *MicroCluster) LocalClient() (*client.Client, error) {
 			return nil, err
 		}
 
-		c = &client.Client{Client: *internalClient}
+		c = internalClient
 	}
 
 	if m.args.Proxy != nil {
-		tx, ok := c.Transport.(*http.Transport)
+		tx, ok := c.HTTP().Transport.(*http.Transport)
 		if !ok {
-			return nil, fmt.Errorf("Invalid underlying client transport, expected %T, got %T", &http.Transport{}, c.Transport)
+			return nil, fmt.Errorf("Invalid underlying client transport, expected %T, got %T", &http.Transport{}, c.HTTP().Transport)
 		}
 
 		tx.Proxy = m.args.Proxy
-		c.Transport = tx
+		c.HTTP().Transport = tx
 	}
 
 	return c, nil
@@ -333,7 +362,7 @@ func (m *MicroCluster) LocalClient() (*client.Client, error) {
 
 // RemoteClient gets a client for the specified cluster member URL.
 // The filesystem will be parsed for the cluster and server certificates.
-func (m *MicroCluster) RemoteClient(address string) (*client.Client, error) {
+func (m *MicroCluster) RemoteClient(address string) (types.Client, error) {
 	var publicKey *x509.Certificate
 	clusterCert, err := m.FileSystem.ClusterCert()
 	if err == nil {
@@ -348,7 +377,7 @@ func (m *MicroCluster) RemoteClient(address string) (*client.Client, error) {
 
 // RemoteClientWithCert gets a client for the specified cluster member URL using the remote server cert.
 // The filesystem will be parsed for the server client certificate.
-func (m *MicroCluster) RemoteClientWithCert(address string, cert *x509.Certificate) (*client.Client, error) {
+func (m *MicroCluster) RemoteClientWithCert(address string, cert *x509.Certificate) (types.Client, error) {
 	c := m.args.Client
 	if c == nil {
 		serverCert, err := m.FileSystem.ServerCert()
@@ -362,17 +391,17 @@ func (m *MicroCluster) RemoteClientWithCert(address string, cert *x509.Certifica
 			return nil, err
 		}
 
-		c = &client.Client{Client: *internalClient}
+		c = internalClient
 	}
 
 	if m.args.Proxy != nil {
-		tx, ok := c.Transport.(*http.Transport)
+		tx, ok := c.HTTP().Transport.(*http.Transport)
 		if !ok {
-			return nil, fmt.Errorf("Invalid underlying client transport, expected %T, got %T", &http.Transport{}, c.Transport)
+			return nil, fmt.Errorf("Invalid underlying client transport, expected %T, got %T", &http.Transport{}, c.HTTP().Transport)
 		}
 
 		tx.Proxy = m.args.Proxy
-		c.Transport = tx
+		c.HTTP().Transport = tx
 	}
 
 	return c, nil
@@ -396,7 +425,7 @@ func (m *MicroCluster) SQL(ctx context.Context, query string) (string, *types.SQ
 	}
 
 	if query == ".dump" || query == ".schema" {
-		dump, err := internalClient.GetSQL(ctx, &c.Client, query == ".schema")
+		dump, err := internalClient.GetSQL(ctx, c, query == ".schema")
 		if err != nil {
 			return "", nil, fmt.Errorf("failed to parse dump response: %w", err)
 		}
@@ -408,7 +437,7 @@ func (m *MicroCluster) SQL(ctx context.Context, query string) (string, *types.SQ
 		Query: query,
 	}
 
-	batch, err := internalClient.PostSQL(ctx, &c.Client, data)
+	batch, err := internalClient.PostSQL(ctx, c, data)
 
 	return "", batch, err
 }
@@ -427,4 +456,24 @@ func (m *MicroCluster) LoggerFromContext(ctx context.Context) *slog.Logger {
 	}
 
 	return logger
+}
+
+// UpdateServers updates the extension servers defined when starting the daemon.
+func (m *MicroCluster) UpdateServers(ctx context.Context, config map[string]types.ServerConfig) error {
+	c, err := m.LocalClient()
+	if err != nil {
+		return err
+	}
+
+	return internalClient.UpdateServers(ctx, c, config)
+}
+
+// UpdateCertificates updates the named certificate of either the core or extension server.
+func (m *MicroCluster) UpdateCertificates(ctx context.Context, name types.CertificateName, args types.KeyPair) error {
+	c, err := m.LocalClient()
+	if err != nil {
+		return err
+	}
+
+	return internalClient.UpdateCertificate(ctx, c, name, args)
 }

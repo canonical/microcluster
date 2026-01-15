@@ -2,7 +2,6 @@ package types
 
 import (
 	"encoding/json"
-	"math/rand"
 	"net/netip"
 )
 
@@ -111,9 +110,4 @@ func (a AddrPorts) Strings() []string {
 	}
 
 	return addrPortStrs
-}
-
-// SelectRandom returns a randomly selected AddrPort from AddrPorts.
-func (a AddrPorts) SelectRandom() AddrPort {
-	return a[rand.Intn(len(a))]
 }

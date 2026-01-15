@@ -10,9 +10,9 @@ import (
 )
 
 // ShutdownDaemon begins the daemon shutdown sequence.
-func (c *Client) ShutdownDaemon(ctx context.Context) error {
+func ShutdownDaemon(ctx context.Context, c types.Client) error {
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	return c.QueryStruct(queryCtx, "POST", types.ControlEndpoint, &api.NewURL().Path("shutdown").URL, nil, nil)
+	return c.Query(queryCtx, "POST", types.ControlEndpoint, &api.NewURL().Path("shutdown").URL, nil, nil)
 }

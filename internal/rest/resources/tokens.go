@@ -16,11 +16,12 @@ import (
 
 	"github.com/canonical/microcluster/v2/cluster"
 	internalTypes "github.com/canonical/microcluster/v2/internal/rest/types"
-	"github.com/canonical/microcluster/v2/internal/state"
+	internalState "github.com/canonical/microcluster/v2/internal/state"
 	"github.com/canonical/microcluster/v2/internal/utils"
 	"github.com/canonical/microcluster/v2/rest"
 	"github.com/canonical/microcluster/v2/rest/access"
 	"github.com/canonical/microcluster/v2/rest/types"
+	"github.com/canonical/microcluster/v2/state"
 )
 
 var tokensCmd = rest.Endpoint{
@@ -48,6 +49,18 @@ func tokensPost(state state.State, r *http.Request) response.Response {
 	err = utils.ValidateFQDN(req.Name)
 	if err != nil {
 		return response.SmartError(fmt.Errorf("Token name %q is not a valid FQDN: %w", req.Name, err))
+	}
+
+	// Check cluster membership consistency before allowing token creation
+	// This ensures core_cluster_members, truststore, and dqlite are all in sync
+	intState, err := internalState.ToInternal(state)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	err = intState.CheckMembershipConsistency(r.Context())
+	if err != nil {
+		return response.SmartError(err)
 	}
 
 	// Generate join token for new member. This will be stored alongside the join

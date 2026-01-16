@@ -112,7 +112,7 @@ func clusterPost(s state.State, r *http.Request) response.Response {
 	}
 
 	// Forward request to leader.
-	if leaderInfo.Address != s.Address().URL.Host {
+	if leaderInfo.Address != s.Address().Host {
 		client, err := s.Connect().Leader(false)
 		if err != nil {
 			return response.SmartError(err)
@@ -301,8 +301,8 @@ func clusterGet(s state.State, r *http.Request) response.Response {
 		}
 
 		for i, clusterMember := range apiClusterMembers {
-			addr := api.NewURL().Scheme("https").Host(clusterMember.Address.String())
-			d, err := internalClient.New(*addr, s.ServerCert(), clusterCert, false)
+			addr := &api.NewURL().Scheme("https").Host(clusterMember.Address.String()).URL
+			d, err := internalClient.New(addr, s.ServerCert(), clusterCert, false)
 			if err != nil {
 				return response.SmartError(fmt.Errorf("Failed to create HTTPS client for cluster member with address %q: %w", addr.String(), err))
 			}
@@ -461,8 +461,8 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 	}
 
 	// If we are not the leader, just forward the request.
-	if leaderInfo.Address != s.Address().URL.Host {
-		if allRemotes[name].Address.String() == s.Address().URL.Host {
+	if leaderInfo.Address != s.Address().Host {
+		if allRemotes[name].Address.String() == s.Address().Host {
 			// If the member being removed is ourselves and we are not the leader, then lock the
 			// clusterPutDisableMu before we forward the request to the leader, so that when the leader
 			// goes on to request clusterPutDisable back to ourselves it won't be actioned until we
@@ -674,9 +674,7 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	remoteURL := remote.URL()
-
-	client, err := s.Connect().Member(&remoteURL.URL, false, publicKey)
+	client, err := s.Connect().Member(remote.URL(), false, publicKey)
 	if err != nil {
 		return response.SmartError(err)
 	}

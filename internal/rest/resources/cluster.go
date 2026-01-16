@@ -100,6 +100,18 @@ func clusterPost(s state.State, r *http.Request) response.Response {
 		return response.SmartError(fmt.Errorf("Remote with address %q exists", req.Address.String()))
 	}
 
+	// Check cluster membership consistency before allowing joins
+	// This ensures core_cluster_members, truststore, and dqlite are all in sync
+	intState, err := internalState.ToInternal(s)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	err = intState.CheckMembershipConsistency(ctx)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
 	// Forward request to leader.
 	if leaderInfo.Address != s.Address().URL.Host {
 		client, err := s.Connect().Leader(false)
@@ -113,11 +125,6 @@ func clusterPost(s state.State, r *http.Request) response.Response {
 		}
 
 		return response.SyncResponse(true, tokenResponse)
-	}
-
-	intState, err := internalState.ToInternal(s)
-	if err != nil {
-		return response.SmartError(err)
 	}
 
 	// Check if the joining node's extensions are compatible with the leader's.
@@ -425,6 +432,20 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*60)
 	defer cancel()
+
+	// Check cluster membership consistency before allowing removals (unless forced)
+	// This ensures core_cluster_members, truststore, and dqlite are all in sync
+	if !force {
+		intState, err := internalState.ToInternal(s)
+		if err != nil {
+			return response.SmartError(err)
+		}
+
+		err = intState.CheckMembershipConsistency(ctx)
+		if err != nil {
+			return response.SmartError(err)
+		}
+	}
 
 	leader, err := s.Database().Leader(ctx)
 	if err != nil {

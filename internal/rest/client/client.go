@@ -28,7 +28,7 @@ import (
 // Client is a rest client for the daemon.
 type Client struct {
 	*http.Client
-	url api.URL
+	url *url.URL
 }
 
 // CtxKey is the type used for all fields stored in the request context by Microcluster.
@@ -40,14 +40,14 @@ const (
 )
 
 // New returns a new client configured with the given url and certificates.
-func New(url api.URL, clientCert *shared.CertInfo, remoteCert *x509.Certificate, forwarding bool) (*Client, error) {
+func New(url *url.URL, clientCert *shared.CertInfo, remoteCert *x509.Certificate, forwarding bool) (*Client, error) {
 	var err error
 	var httpClient *http.Client
 
 	// If the url is an absolute path to the control.socket, return a client to the local unix socket.
 	if strings.HasSuffix(url.String(), "control.socket") && path.IsAbs(url.Hostname()) {
 		httpClient, err = unixHTTPClient(shared.HostPath(url.Hostname()))
-		url.Host(filepath.Base(url.Hostname()))
+		url.Host = filepath.Base(url.Hostname())
 	} else {
 		proxy := shared.ProxyFromEnvironment
 		if forwarding {
@@ -274,8 +274,8 @@ func (c *Client) mergeURL(endpointType types.EndpointPrefix, endpoint *url.URL) 
 		localURL = &newURL
 	}
 
-	localURL.Host = c.url.URL.Host
-	localURL.Scheme = c.url.URL.Scheme
+	localURL.Host = c.url.Host
+	localURL.Scheme = c.url.Scheme
 	localURL.Path = filepath.Join("/", string(endpointType), localURL.Path)
 	localURL.RawPath = filepath.Join("/", string(endpointType), localURL.RawPath)
 
@@ -356,7 +356,7 @@ func (c *Client) RawWebsocket(ctx context.Context, endpointType types.EndpointPr
 	localURL := c.mergeURL(endpointType, endpoint)
 
 	// Pick the right scheme based on the client configuration.
-	if c.url.URL.Scheme == "http" {
+	if c.url.Scheme == "http" {
 		localURL.Scheme = "ws"
 	} else {
 		localURL.Scheme = "wss"
@@ -403,20 +403,20 @@ func (c *Client) RawWebsocket(ctx context.Context, endpointType types.EndpointPr
 
 // URL returns the address used for the client.
 func (c *Client) URL() *url.URL {
-	return &c.url.URL
+	return c.url
 }
 
 // UseTarget returns a new client with the query "?target=name" set.
 func (c *Client) UseTarget(name string) types.Client {
 	localURL := api.NewURL()
-	localURL.URL.Host = c.url.URL.Host
-	localURL.URL.Scheme = c.url.URL.Scheme
-	localURL.URL.Path = c.url.URL.Path
+	localURL.URL.Host = c.url.Host
+	localURL.URL.Scheme = c.url.Scheme
+	localURL.URL.Path = c.url.Path
 	localURL.RawQuery = c.url.RawQuery
 	localURL = localURL.WithQuery("target", name)
 
 	return &Client{
 		Client: c.Client,
-		url:    *localURL,
+		url:    &localURL.URL,
 	}
 }

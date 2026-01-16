@@ -3,14 +3,19 @@ package state
 import (
 	"context"
 	"crypto/x509"
+	"database/sql"
 	"fmt"
 	"math/rand"
 	"net/url"
+	"slices"
+	"sort"
 	"time"
 
+	dqliteClient "github.com/canonical/go-dqlite/v3/client"
 	"github.com/canonical/lxd/shared"
 	"github.com/canonical/lxd/shared/api"
 
+	"github.com/canonical/microcluster/v3/internal/cluster"
 	internalConfig "github.com/canonical/microcluster/v3/internal/config"
 	"github.com/canonical/microcluster/v3/internal/db"
 	"github.com/canonical/microcluster/v3/internal/endpoints"
@@ -282,4 +287,99 @@ func ToInternal(s State) (*InternalState, error) {
 	}
 
 	return nil, fmt.Errorf("Underlying State is not an InternalState")
+}
+
+// CheckMembershipConsistency verifies that core_cluster_members, truststore, and dqlite
+// all have consistent membership information. This should be called before any member
+// add/remove operations or join token generation to ensure the cluster is in a healthy state.
+func (s *InternalState) CheckMembershipConsistency(ctx context.Context) error {
+	// Assign a context timeout if we don't already have one.
+	_, ok := ctx.Deadline()
+	if !ok {
+		timeoutCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		ctx = timeoutCtx
+		defer cancel()
+	}
+
+	for {
+		coreClusterMembers, truststoreRemotes, dqliteNodes, err := s.getMembershipData(ctx)
+		if err != nil {
+			return fmt.Errorf("Failed to gather membership data for consistency check: %w", err)
+		}
+
+		err = s.checkMembershipConsistency(coreClusterMembers, truststoreRemotes, dqliteNodes)
+		if err != nil {
+			select {
+			case <-ctx.Done():
+				return fmt.Errorf("Membership consistency check failed after timeout: %w", err)
+			case <-time.After(200 * time.Millisecond):
+				continue
+			}
+		}
+
+		return nil
+	}
+}
+
+// getMembershipData retrieves membership information from all sources.
+func (s *InternalState) getMembershipData(ctx context.Context) ([]cluster.CoreClusterMember, map[string]trust.Remote, []dqliteClient.NodeInfo, error) {
+	// Get database core cluster members
+	var coreClusterMembers []cluster.CoreClusterMember
+	err := s.Database().Transaction(ctx, func(ctx context.Context, tx *sql.Tx) error {
+		var err error
+		coreClusterMembers, err = cluster.GetCoreClusterMembers(ctx, tx)
+		return err
+	})
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("Failed to get core cluster members from database: %w", err)
+	}
+
+	// Get truststore remotes
+	truststoreRemotes := s.Remotes().RemotesByName()
+
+	// Get dqlite cluster info
+	leaderClient, err := s.Database().Leader(ctx)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("Failed to get dqlite leader: %w", err)
+	}
+
+	// Get dqlite cluster members
+	dqliteNodes, err := s.Database().Cluster(ctx, leaderClient)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("Failed to get dqlite cluster info: %w", err)
+	}
+
+	return coreClusterMembers, truststoreRemotes, dqliteNodes, nil
+}
+
+// checkMembershipConsistency checks consistency across all three membership sources using addresses.
+func (s *InternalState) checkMembershipConsistency(coreClusterMembers []cluster.CoreClusterMember, truststoreRemotes map[string]trust.Remote, dqliteNodes []dqliteClient.NodeInfo) error {
+	// Collect addresses from each source into sorted slices
+	var coreClusterAddresses []string
+	for _, member := range coreClusterMembers {
+		coreClusterAddresses = append(coreClusterAddresses, member.Address)
+	}
+
+	sort.Strings(coreClusterAddresses)
+
+	var trustAddresses []string
+	for _, remote := range truststoreRemotes {
+		trustAddresses = append(trustAddresses, remote.Address.String())
+	}
+
+	sort.Strings(trustAddresses)
+
+	var dqliteAddresses []string
+	for _, node := range dqliteNodes {
+		dqliteAddresses = append(dqliteAddresses, node.Address)
+	}
+
+	sort.Strings(dqliteAddresses)
+
+	// Check if all three slices are equal
+	if !slices.Equal(coreClusterAddresses, trustAddresses) || !slices.Equal(coreClusterAddresses, dqliteAddresses) {
+		return fmt.Errorf("Microcluster node membership is inconsistent across core_cluster_members (%v), truststore (%v) and dqlite (%v)", coreClusterAddresses, trustAddresses, dqliteAddresses)
+	}
+
+	return nil
 }

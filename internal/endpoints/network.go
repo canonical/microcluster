@@ -7,19 +7,19 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/canonical/lxd/shared"
-	"github.com/canonical/lxd/shared/api"
 
 	"github.com/canonical/microcluster/v3/internal/log"
 )
 
 // Network represents an HTTPS listener and its server.
 type Network struct {
-	address     api.URL
+	address     *url.URL
 	certMu      sync.RWMutex
 	cert        *shared.CertInfo
 	networkType EndpointType
@@ -34,7 +34,7 @@ type Network struct {
 }
 
 // NewNetwork assigns an address, certificate, and server to the Network.
-func NewNetwork(ctx context.Context, endpointType EndpointType, server *http.Server, address api.URL, cert *shared.CertInfo, drainConnTimeout time.Duration) *Network {
+func NewNetwork(ctx context.Context, endpointType EndpointType, server *http.Server, address *url.URL, cert *shared.CertInfo, drainConnTimeout time.Duration) *Network {
 	ctx, cancel := context.WithCancel(ctx)
 
 	return &Network{
@@ -63,7 +63,7 @@ func (n *Network) Type() EndpointType {
 
 // Listen on the given address.
 func (n *Network) Listen() error {
-	listenAddress := canonicalNetworkAddress(n.address.URL.Host, shared.HTTPSDefaultPort)
+	listenAddress := canonicalNetworkAddress(n.address.Host, shared.HTTPSDefaultPort)
 	protocol := "tcp"
 
 	if strings.HasPrefix(listenAddress, "0.0.0.0") {

@@ -91,14 +91,14 @@ func proxyTarget(action rest.EndpointAction, s state.State, r *http.Request) res
 		return action.Handler(s, r)
 	}
 
-	var targetURL *api.URL
+	var targetURL *url.URL
 	err = s.Database().Transaction(r.Context(), func(ctx context.Context, tx *sql.Tx) error {
 		clusterMember, err := cluster.GetCoreClusterMember(ctx, tx, target)
 		if err != nil {
 			return fmt.Errorf("Failed to get cluster member for request target name %q: %w", target, err)
 		}
 
-		targetURL = api.NewURL().Scheme("https").Host(clusterMember.Address).Path(r.URL.Path)
+		targetURL = &api.NewURL().Scheme("https").Host(clusterMember.Address).Path(r.URL.Path).URL
 
 		return nil
 	})
@@ -111,16 +111,16 @@ func proxyTarget(action rest.EndpointAction, s state.State, r *http.Request) res
 		return response.InternalError(fmt.Errorf("Failed to parse cluster certificate for request: %w", err))
 	}
 
-	client, err := client.New(*targetURL, s.ServerCert(), clusterCert, false)
+	client, err := client.New(targetURL, s.ServerCert(), clusterCert, false)
 	if err != nil {
-		return response.InternalError(fmt.Errorf("Failed to get a client for the target %q at address %q: %w", target, targetURL.URL.Host, err))
+		return response.InternalError(fmt.Errorf("Failed to get a client for the target %q at address %q: %w", target, targetURL.Host, err))
 	}
 
 	// Update request URL.
 	r.RequestURI = ""
-	r.URL.Scheme = targetURL.URL.Scheme
-	r.URL.Host = targetURL.URL.Host
-	r.Host = targetURL.URL.Host
+	r.URL.Scheme = targetURL.Scheme
+	r.URL.Host = targetURL.Host
+	r.Host = targetURL.Host
 
 	logger.Info("Forwarding request to specified target", slog.String("source", s.Name()), slog.String("target", target))
 
@@ -141,7 +141,7 @@ func proxyTarget(action rest.EndpointAction, s state.State, r *http.Request) res
 			// Use the actual request URL to retain query parameters.
 			connToTarget, err := client.RawWebsocket(r.Context(), "", r.URL)
 			if err != nil {
-				return fmt.Errorf("Failed to upgrade connection for the target %q at address %q to websocket: %w", target, targetURL.URL.Host, err)
+				return fmt.Errorf("Failed to upgrade connection for the target %q at address %q to websocket: %w", target, targetURL.Host, err)
 			}
 
 			// Close connection to target when the proxy returns.
@@ -273,7 +273,7 @@ func HandleEndpoint(state state.State, mux *mux.Router, version string, e rest.E
 			handleRequest = handleDatabaseRequest
 		}
 
-		trusted, err := access.Authenticate(state, r, state.Address().URL.Host, state.Remotes().CertificatesNative())
+		trusted, err := access.Authenticate(state, r, state.Address().Host, state.Remotes().CertificatesNative())
 		if err != nil && !errors.As(err, &access.ErrInvalidHost{}) {
 			resp = response.Forbidden(fmt.Errorf("Failed to authenticate request: %w", err))
 		} else {

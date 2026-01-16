@@ -31,7 +31,7 @@ type State interface {
 	FileSystem() types.OS
 
 	// Listen Address.
-	Address() *api.URL
+	Address() *url.URL
 
 	// Name of the cluster member.
 	Name() string
@@ -103,7 +103,7 @@ type InternalState struct {
 	Hooks *Hooks
 
 	InternalFileSystem       func() types.OS
-	InternalAddress          func() *api.URL
+	InternalAddress          func() *url.URL
 	InternalName             func() string
 	InternalVersion          func() string
 	InternalServerCert       func() *shared.CertInfo
@@ -119,7 +119,7 @@ func (s *InternalState) FileSystem() types.OS {
 }
 
 // Address returns the core microcluster listen address.
-func (s *InternalState) Address() *api.URL {
+func (s *InternalState) Address() *url.URL {
 	return s.InternalAddress()
 }
 
@@ -191,7 +191,7 @@ func (s *InternalState) Cluster(isNotification bool) (types.Clients, error) {
 	// Filter out ourselves from the client list
 	clients := make(types.Clients, 0, len(allClients)-1)
 	for _, client := range allClients {
-		if s.Address().URL.Host != client.URL().Host {
+		if s.Address().Host != client.URL().Host {
 			clients = append(clients, client)
 		}
 	}
@@ -224,8 +224,8 @@ func (s *InternalState) Leader(isNotification bool) (types.Client, error) {
 		return nil, err
 	}
 
-	url := api.NewURL().Scheme("https").Host(leaderInfo.Address)
-	c, err := internalClient.New(*url, s.ServerCert(), publicKey, isNotification)
+	url := &api.NewURL().Scheme("https").Host(leaderInfo.Address).URL
+	c, err := internalClient.New(url, s.ServerCert(), publicKey, isNotification)
 	if err != nil {
 		return nil, err
 	}
@@ -246,10 +246,7 @@ func (s *InternalState) Member(url *url.URL, isNotification bool, cert *x509.Cer
 		}
 	}
 
-	apiURL := api.NewURL()
-	apiURL.URL = *url
-
-	c, err := internalClient.New(*apiURL, s.ServerCert(), cert, isNotification)
+	c, err := internalClient.New(url, s.ServerCert(), cert, isNotification)
 	if err != nil {
 		return nil, err
 	}

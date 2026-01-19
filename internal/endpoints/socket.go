@@ -7,13 +7,13 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/user"
 	"strconv"
 	"time"
 
 	"github.com/canonical/lxd/shared"
-	"github.com/canonical/lxd/shared/api"
 
 	"github.com/canonical/microcluster/v3/internal/log"
 )
@@ -33,7 +33,7 @@ type Socket struct {
 }
 
 // NewSocket returns a Socket struct with no listener attached yet.
-func NewSocket(ctx context.Context, server *http.Server, path api.URL, group string, drainConnTimeout time.Duration) *Socket {
+func NewSocket(ctx context.Context, server *http.Server, path *url.URL, group string, drainConnTimeout time.Duration) *Socket {
 	ctx, cancel := context.WithCancel(ctx)
 	return &Socket{
 		Path:  path.Hostname(),

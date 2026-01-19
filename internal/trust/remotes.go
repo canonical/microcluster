@@ -4,6 +4,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -252,8 +253,8 @@ func (r *Remotes) Addresses() map[string]types.AddrPort {
 func (r *Remotes) Cluster(isNotification bool, serverCert *shared.CertInfo, publicKey *x509.Certificate) (types.Clients, error) {
 	cluster := make(types.Clients, 0, r.Count()-1)
 	for _, addr := range r.Addresses() {
-		url := api.NewURL().Scheme("https").Host(addr.String())
-		c, err := internalClient.New(*url, serverCert, publicKey, isNotification)
+		url := &api.NewURL().Scheme("https").Host(addr.String()).URL
+		c, err := internalClient.New(url, serverCert, publicKey, isNotification)
 		if err != nil {
 			return nil, err
 		}
@@ -340,6 +341,6 @@ func (r *Remotes) RemotesByName() map[string]Remote {
 }
 
 // URL returns the parsed URL of the Remote.
-func (r *Remote) URL() api.URL {
-	return *api.NewURL().Scheme("https").Host(r.Address.String())
+func (r *Remote) URL() *url.URL {
+	return &api.NewURL().Scheme("https").Host(r.Address.String()).URL
 }

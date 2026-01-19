@@ -336,10 +336,7 @@ func (m *MicroCluster) RemoveClusterMember(ctx context.Context, name string, for
 func (m *MicroCluster) LocalClient() (types.Client, error) {
 	c := m.args.Client
 	if c == nil {
-		url := api.NewURL()
-		url.URL = *m.FileSystem.ControlSocket()
-
-		internalClient, err := internalClient.New(*url, nil, nil, false)
+		internalClient, err := internalClient.New(m.FileSystem.ControlSocket(), nil, nil, false)
 		if err != nil {
 			return nil, err
 		}
@@ -385,8 +382,8 @@ func (m *MicroCluster) RemoteClientWithCert(address string, cert *x509.Certifica
 			return nil, err
 		}
 
-		url := api.NewURL().Scheme("https").Host(address)
-		internalClient, err := internalClient.New(*url, serverCert, cert, false)
+		url := &api.NewURL().Scheme("https").Host(address).URL
+		internalClient, err := internalClient.New(url, serverCert, cert, false)
 		if err != nil {
 			return nil, err
 		}

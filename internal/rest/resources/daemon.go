@@ -57,7 +57,7 @@ func daemonServersPut(s state.State, r *http.Request) response.Response {
 
 	// Validate if there is an address conflict.
 	// Initialize the list of active server addresses with the server's address.
-	var serverAddresses = []string{s.Address().URL.Host}
+	var serverAddresses = []string{s.Address().Host}
 	for _, server := range req {
 		serverAddress := server.Address.String()
 

@@ -228,14 +228,14 @@ func (t *daemonsSuite) Test_UpdateServers() {
 
 		// Check if servers are up.
 		for _, addr := range test.listeningOn {
-			url := api.NewURL().Scheme("https").Host(addr.String())
+			url := &api.NewURL().Scheme("https").Host(addr.String()).URL
 
 			// The remote server uses the cluster certificate.
 			remoteCert, err := daemon.ClusterCert().PublicKeyX509()
 			require.NoError(t.T(), err)
 
 			// We also use the cluster certificate as a client certificate for this test.
-			client, err := client.New(*url, daemon.ClusterCert(), remoteCert, false)
+			client, err := client.New(url, daemon.ClusterCert(), remoteCert, false)
 			require.NoError(t.T(), err)
 
 			// Use embedded Get from Go's HTTP client.
@@ -247,12 +247,12 @@ func (t *daemonsSuite) Test_UpdateServers() {
 
 		// Check if servers are down.
 		for _, addr := range test.notListeningOn {
-			url := api.NewURL().Scheme("https").Host(addr.String())
+			url := &api.NewURL().Scheme("https").Host(addr.String()).URL
 
 			remoteCert, err := daemon.ClusterCert().PublicKeyX509()
 			require.NoError(t.T(), err)
 
-			client, err := client.New(*url, daemon.ClusterCert(), remoteCert, false)
+			client, err := client.New(url, daemon.ClusterCert(), remoteCert, false)
 			require.NoError(t.T(), err)
 
 			_, err = client.Get(url.String())

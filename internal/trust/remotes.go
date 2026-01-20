@@ -4,7 +4,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,20 +20,8 @@ import (
 
 // Remotes is a convenient alias as we will often deal with groups of yaml files.
 type Remotes struct {
-	data     map[string]Remote
+	data     map[string]types.Remote
 	updateMu sync.RWMutex
-}
-
-// Remote represents a yaml file with credentials to be read by the daemon.
-type Remote struct {
-	Location    `yaml:",inline"`
-	Certificate types.X509Certificate `yaml:"certificate"`
-}
-
-// Location represents configurable identifying information about a remote.
-type Location struct {
-	Name    string         `yaml:"name"`
-	Address types.AddrPort `yaml:"address"`
 }
 
 // disallowedFileNameSubcontents contains the list of disallowed substrings in remote names.
@@ -75,7 +62,7 @@ func (r *Remotes) Load(dir string) error {
 		return fmt.Errorf("Unable to read trust directory: %q: %w", dir, err)
 	}
 
-	remoteData := map[string]Remote{}
+	remoteData := map[string]types.Remote{}
 	for _, file := range files {
 		fileName := file.Name()
 		if file.IsDir() || !strings.HasSuffix(fileName, ".yaml") {
@@ -87,7 +74,7 @@ func (r *Remotes) Load(dir string) error {
 			return fmt.Errorf("Unable to read file %q: %w", fileName, err)
 		}
 
-		remote := &Remote{}
+		remote := &types.Remote{}
 		err = yaml.Unmarshal(content, remote)
 		if err != nil {
 			return fmt.Errorf("Unable to parse yaml for %q: %w", fileName, err)
@@ -112,7 +99,7 @@ func (r *Remotes) Load(dir string) error {
 }
 
 // Add adds a new local cluster member record for the remotes.
-func (r *Remotes) Add(dir string, remotes ...Remote) error {
+func (r *Remotes) Add(dir string, remotes ...types.Remote) error {
 	r.updateMu.Lock()
 	defer r.updateMu.Unlock()
 
@@ -171,10 +158,10 @@ func (r *Remotes) Replace(dir string, newRemotes ...types.ClusterMember) error {
 		return fmt.Errorf("Received empty remotes")
 	}
 
-	remoteData := map[string]Remote{}
+	remoteData := map[string]types.Remote{}
 	for _, remote := range newRemotes {
-		newRemote := Remote{
-			Location:    Location{Name: remote.Name, Address: remote.Address},
+		newRemote := types.Remote{
+			Location:    types.Location{Name: remote.Name, Address: remote.Address},
 			Certificate: remote.Certificate,
 		}
 
@@ -236,8 +223,8 @@ func (r *Remotes) Replace(dir string, newRemotes ...types.ClusterMember) error {
 	return nil
 }
 
-// Addresses returns just the host:port addresses of the remotes.
-func (r *Remotes) Addresses() map[string]types.AddrPort {
+// RemoteAddresses returns just the host:port addresses of the remotes.
+func (r *Remotes) RemoteAddresses() map[string]types.AddrPort {
 	r.updateMu.RLock()
 	defer r.updateMu.RUnlock()
 
@@ -249,10 +236,10 @@ func (r *Remotes) Addresses() map[string]types.AddrPort {
 	return addrs
 }
 
-// Cluster returns a set of clients for every remote, which can be concurrently queried.
-func (r *Remotes) Cluster(isNotification bool, serverCert *shared.CertInfo, publicKey *x509.Certificate) (types.Clients, error) {
+// RemoteClients returns a set of clients for every remote, which can be concurrently queried.
+func (r *Remotes) RemoteClients(isNotification bool, serverCert *shared.CertInfo, publicKey *x509.Certificate) (types.Clients, error) {
 	cluster := make(types.Clients, 0, r.Count()-1)
-	for _, addr := range r.Addresses() {
+	for _, addr := range r.RemoteAddresses() {
 		url := &api.NewURL().Scheme("https").Host(addr.String()).URL
 		c, err := internalClient.New(url, serverCert, publicKey, isNotification)
 		if err != nil {
@@ -266,7 +253,7 @@ func (r *Remotes) Cluster(isNotification bool, serverCert *shared.CertInfo, publ
 }
 
 // RemoteByAddress returns a Remote matching the given host address (or nil if none are found).
-func (r *Remotes) RemoteByAddress(addrPort types.AddrPort) *Remote {
+func (r *Remotes) RemoteByAddress(addrPort types.AddrPort) *types.Remote {
 	r.updateMu.RLock()
 	defer r.updateMu.RUnlock()
 
@@ -280,7 +267,7 @@ func (r *Remotes) RemoteByAddress(addrPort types.AddrPort) *Remote {
 }
 
 // RemoteByCertificateFingerprint returns a remote whose certificate fingerprint matches the provided fingerprint.
-func (r *Remotes) RemoteByCertificateFingerprint(fingerprint string) *Remote {
+func (r *Remotes) RemoteByCertificateFingerprint(fingerprint string) *types.Remote {
 	r.updateMu.RLock()
 	defer r.updateMu.RUnlock()
 
@@ -293,8 +280,8 @@ func (r *Remotes) RemoteByCertificateFingerprint(fingerprint string) *Remote {
 	return nil
 }
 
-// Certificates returns a map of remotes certificates by fingerprint.
-func (r *Remotes) Certificates() map[string]types.X509Certificate {
+// RemoteCertificates returns a map of remotes certificates by fingerprint.
+func (r *Remotes) RemoteCertificates() map[string]types.X509Certificate {
 	r.updateMu.RLock()
 	defer r.updateMu.RUnlock()
 
@@ -306,8 +293,8 @@ func (r *Remotes) Certificates() map[string]types.X509Certificate {
 	return certMap
 }
 
-// CertificatesNative returns the Certificates map with values as native x509.Certificate type.
-func (r *Remotes) CertificatesNative() map[string]x509.Certificate {
+// RemoteCertificatesNative returns the Certificates map with values as native x509.Certificate type.
+func (r *Remotes) RemoteCertificatesNative() map[string]x509.Certificate {
 	r.updateMu.RLock()
 	defer r.updateMu.RUnlock()
 
@@ -328,19 +315,14 @@ func (r *Remotes) Count() int {
 }
 
 // RemotesByName returns a copy of the list of peers, keyed by each system's name.
-func (r *Remotes) RemotesByName() map[string]Remote {
+func (r *Remotes) RemotesByName() map[string]types.Remote {
 	r.updateMu.RLock()
 	defer r.updateMu.RUnlock()
 
-	remoteData := make(map[string]Remote, len(r.data))
+	remoteData := make(map[string]types.Remote, len(r.data))
 	for name, data := range r.data {
 		remoteData[name] = data
 	}
 
 	return remoteData
-}
-
-// URL returns the parsed URL of the Remote.
-func (r *Remote) URL() *url.URL {
-	return &api.NewURL().Scheme("https").Host(r.Address.String()).URL
 }

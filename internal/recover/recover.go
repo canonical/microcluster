@@ -111,7 +111,7 @@ func RecoverFromQuorumLoss(ctx context.Context, filesystem types.OS, members []t
 		return "", err
 	}
 
-	clients, err := remotes.Cluster(false, serverCert, clusterKey)
+	clients, err := remotes.RemoteClients(false, serverCert, clusterKey)
 	if err != nil {
 		return "", err
 	}

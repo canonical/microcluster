@@ -500,7 +500,7 @@ func (d *Daemon) initServer(resources ...rest.Resources) *http.Server {
 
 	return &http.Server{
 		Handler:  mux,
-		ErrorLog: log.New(newLogFilter(d.log(), state.Remotes().Addresses), "", 0),
+		ErrorLog: log.New(newLogFilter(d.log(), state.Truststore().RemoteAddresses), "", 0),
 		// Set a base context for the server.
 		// This allows passing the logger on the daemon's shutdown context on to each handler.
 		BaseContext: func(_ net.Listener) context.Context {
@@ -510,7 +510,7 @@ func (d *Daemon) initServer(resources ...rest.Resources) *http.Server {
 }
 
 // setConfig applies and commits to memory the supplied daemon configuration.
-func (d *Daemon) setConfig(newConfig trust.Location) error {
+func (d *Daemon) setConfig(newConfig types.Location) error {
 	d.config.SetAddress(newConfig.Address)
 	d.config.SetName(newConfig.Name)
 
@@ -535,8 +535,8 @@ func (d *Daemon) StartAPI(ctx context.Context, bootstrap bool, initConfig map[st
 		return fmt.Errorf("Failed to parse listen address when bootstrapping API: %w", err)
 	}
 
-	localNode := trust.Remote{
-		Location:    trust.Location{Name: d.config.GetName(), Address: addrPort},
+	localNode := types.Remote{
+		Location:    types.Location{Name: d.config.GetName(), Address: addrPort},
 		Certificate: types.X509Certificate{Certificate: serverCert},
 	}
 
@@ -619,7 +619,7 @@ func (d *Daemon) StartAPI(ctx context.Context, bootstrap bool, initConfig map[st
 			return fmt.Errorf("Failed to join cluster: %w", err)
 		}
 	} else {
-		err = d.db.StartWithCluster(d.Extensions, d.Address(), d.trustStore.Remotes().Addresses())
+		err = d.db.StartWithCluster(d.Extensions, d.Address(), d.trustStore.Remotes().RemoteAddresses())
 		if err != nil {
 			return fmt.Errorf("Failed to re-establish cluster connection: %w", err)
 		}
@@ -636,7 +636,7 @@ func (d *Daemon) StartAPI(ctx context.Context, bootstrap bool, initConfig map[st
 		return err
 	}
 
-	clients, err := d.trustStore.Remotes().Cluster(false, d.ServerCert(), publicKey)
+	clients, err := d.trustStore.Remotes().RemoteClients(false, d.ServerCert(), publicKey)
 	if err != nil {
 		return err
 	}

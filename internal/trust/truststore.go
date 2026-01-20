@@ -7,6 +7,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 
 	"github.com/canonical/microcluster/v3/internal/sys"
+	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
 // Store represents a directory of remotes watched by the fsnotify Watcher.
@@ -24,7 +25,7 @@ func Init(watcher *sys.Watcher, onUpdate func(oldRemotes, newRemotes Remotes) er
 	ts.remotesMu.Lock()
 	defer ts.remotesMu.Unlock()
 
-	ts.remotes.data = map[string]Remote{}
+	ts.remotes.data = map[string]types.Remote{}
 	err := ts.remotes.Load(dir)
 	if err != nil {
 		return nil, err

@@ -49,7 +49,7 @@ type State interface {
 	Database() db.DB
 
 	// Local truststore access.
-	Remotes() *trust.Remotes
+	Truststore() types.Store
 
 	// Returns a connector for interconnection with the cluster.
 	Connect() types.Connector
@@ -79,7 +79,7 @@ type InternalState struct {
 	LocalConfig func() *internalConfig.DaemonConfig
 
 	// SetConfig Applies and commits to memory the supplied daemon configuration.
-	SetConfig func(trust.Location) error
+	SetConfig func(types.Location) error
 
 	// Initialize APIs and bootstrap/join database.
 	StartAPI func(ctx context.Context, bootstrap bool, initConfig map[string]string, joinAddresses ...string) error
@@ -149,8 +149,8 @@ func (s *InternalState) Database() db.DB {
 	return s.InternalDatabase
 }
 
-// Remotes returns the local record of cluster members in the truststore.
-func (s *InternalState) Remotes() *trust.Remotes {
+// Truststore returns the local record of cluster members in the truststore.
+func (s *InternalState) Truststore() types.Store {
 	return s.InternalRemotes()
 }
 
@@ -182,8 +182,8 @@ func (s *InternalState) Cluster(isNotification bool) (types.Clients, error) {
 
 	// Use trust store instead of database - it's updated on heartbeats
 	// and is more likely to reflect current reachable cluster state
-	remotes := s.Remotes()
-	allClients, err := remotes.Cluster(isNotification, s.ServerCert(), publicKey)
+	remotes := s.Truststore()
+	allClients, err := remotes.RemoteClients(isNotification, s.ServerCert(), publicKey)
 	if err != nil {
 		return nil, err
 	}
@@ -319,7 +319,7 @@ func (s *InternalState) CheckMembershipConsistency(ctx context.Context) error {
 }
 
 // getMembershipData retrieves membership information from all sources.
-func (s *InternalState) getMembershipData(ctx context.Context) ([]cluster.CoreClusterMember, map[string]trust.Remote, []dqliteClient.NodeInfo, error) {
+func (s *InternalState) getMembershipData(ctx context.Context) ([]cluster.CoreClusterMember, map[string]types.Remote, []dqliteClient.NodeInfo, error) {
 	// Get database core cluster members
 	var coreClusterMembers []cluster.CoreClusterMember
 	err := s.Database().Transaction(ctx, func(ctx context.Context, tx *sql.Tx) error {
@@ -332,7 +332,7 @@ func (s *InternalState) getMembershipData(ctx context.Context) ([]cluster.CoreCl
 	}
 
 	// Get truststore remotes
-	truststoreRemotes := s.Remotes().RemotesByName()
+	truststoreRemotes := s.Truststore().RemotesByName()
 
 	// Get dqlite cluster info
 	leaderClient, err := s.Database().Leader(ctx)
@@ -350,7 +350,7 @@ func (s *InternalState) getMembershipData(ctx context.Context) ([]cluster.CoreCl
 }
 
 // checkMembershipConsistency checks consistency across all three membership sources using addresses.
-func (s *InternalState) checkMembershipConsistency(coreClusterMembers []cluster.CoreClusterMember, truststoreRemotes map[string]trust.Remote, dqliteNodes []dqliteClient.NodeInfo) error {
+func (s *InternalState) checkMembershipConsistency(coreClusterMembers []cluster.CoreClusterMember, truststoreRemotes map[string]types.Remote, dqliteNodes []dqliteClient.NodeInfo) error {
 	// Collect addresses from each source into sorted slices
 	var coreClusterAddresses []string
 	for _, member := range coreClusterMembers {

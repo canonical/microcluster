@@ -117,7 +117,7 @@ func GetClusterMemberSchemaVersions(ctx context.Context, tx *sql.Tx) (internalSc
 		return nil, nil, err
 	}
 
-	sql := fmt.Sprintf("SELECT schema_internal,schema_external FROM %s WHERE NOT role='pending'", tableName)
+	sql := fmt.Sprintf("SELECT %s.schema_internal,%s.schema_external FROM %s JOIN core_cluster_member_roles ON core_cluster_member_roles.member_id = %s.id WHERE NOT core_cluster_member_roles.dqlite_role='pending'", tableName, tableName, tableName, tableName)
 
 	internalSchema = []uint64{}
 	externalSchema = []uint64{}
@@ -199,7 +199,7 @@ func GetClusterMemberAPIExtensions(ctx context.Context, tx *sql.Tx) ([]extension
 		return nil, err
 	}
 
-	query := fmt.Sprintf("SELECT api_extensions FROM %s WHERE NOT role='pending'", table)
+	query := fmt.Sprintf("SELECT %s.api_extensions FROM %s JOIN core_cluster_member_roles ON core_cluster_member_roles.member_id = %s.id WHERE NOT core_cluster_member_roles.dqlite_role='pending'", table, table, table)
 	rows, err := tx.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err

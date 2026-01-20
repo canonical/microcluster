@@ -28,7 +28,6 @@ import (
 	"github.com/canonical/microcluster/v3/internal/rest/access"
 	internalClient "github.com/canonical/microcluster/v3/internal/rest/client"
 	internalState "github.com/canonical/microcluster/v3/internal/state"
-	"github.com/canonical/microcluster/v3/internal/trust"
 	"github.com/canonical/microcluster/v3/internal/utils"
 	"github.com/canonical/microcluster/v3/microcluster/rest"
 	"github.com/canonical/microcluster/v3/microcluster/rest/response"
@@ -94,7 +93,7 @@ func clusterPost(s state.State, r *http.Request) response.Response {
 	}
 
 	// Check if any of the remote's addresses are currently in use.
-	existingRemote := s.Remotes().RemoteByAddress(req.Address)
+	existingRemote := s.Truststore().RemoteByAddress(req.Address)
 	if existingRemote != nil {
 		return response.SmartError(fmt.Errorf("Remote with address %q exists", req.Address.String()))
 	}
@@ -168,7 +167,7 @@ func clusterPost(s state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	remotes := s.Remotes()
+	remotes := s.Truststore()
 	clusterMembers := make([]types.ClusterMemberLocal, 0, remotes.Count())
 	for _, clusterMember := range remotes.RemotesByName() {
 		clusterMember := types.ClusterMemberLocal{
@@ -194,13 +193,13 @@ func clusterPost(s state.State, r *http.Request) response.Response {
 		ClusterMembers: clusterMembers,
 	}
 
-	newRemote := trust.Remote{
-		Location:    trust.Location{Name: req.Name, Address: req.Address},
+	newRemote := types.Remote{
+		Location:    types.Location{Name: req.Name, Address: req.Address},
 		Certificate: req.Certificate,
 	}
 
 	// Add the cluster member to our local store for authentication.
-	err = s.Remotes().Add(s.FileSystem().TrustDir(), newRemote)
+	err = s.Truststore().Add(s.FileSystem().TrustDir(), newRemote)
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -423,7 +422,7 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	allRemotes := s.Remotes().RemotesByName()
+	allRemotes := s.Truststore().RemotesByName()
 	remote, ok := allRemotes[name]
 	if !ok {
 		return response.SmartError(fmt.Errorf("No remote exists with the given name %q", name))
@@ -703,7 +702,7 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 	}
 
 	// Run the PostRemove hook on all other members.
-	remotes := s.Remotes()
+	remotes := s.Truststore()
 	err = clients.Query(ctx, true, func(ctx context.Context, c types.Client) error {
 		c.SetClusterNotification()
 		addrPort, err := types.ParseAddrPort(c.URL().Host)

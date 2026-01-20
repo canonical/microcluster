@@ -15,7 +15,6 @@ import (
 	"github.com/canonical/microcluster/v3/internal/log"
 	"github.com/canonical/microcluster/v3/internal/rest/access"
 	internalClient "github.com/canonical/microcluster/v3/internal/rest/client"
-	"github.com/canonical/microcluster/v3/internal/trust"
 	"github.com/canonical/microcluster/v3/microcluster/rest"
 	"github.com/canonical/microcluster/v3/microcluster/rest/response"
 	"github.com/canonical/microcluster/v3/microcluster/types"
@@ -45,8 +44,8 @@ func trustPost(s state.State, r *http.Request) response.Response {
 		return response.BadRequest(err)
 	}
 
-	newRemote := trust.Remote{
-		Location:    trust.Location{Name: req.Name, Address: req.Address},
+	newRemote := types.Remote{
+		Location:    types.Location{Name: req.Name, Address: req.Address},
 		Certificate: req.Certificate,
 	}
 
@@ -103,7 +102,7 @@ func trustPost(s state.State, r *http.Request) response.Response {
 	}
 
 	// At this point, the node has joined dqlite so we can add a local record for it if we haven't already from a heartbeat (or if we are the leader).
-	remotes := s.Remotes()
+	remotes := s.Truststore()
 	_, ok := remotes.RemotesByName()[newRemote.Name]
 	if !ok {
 		err = remotes.Add(s.FileSystem().TrustDir(), newRemote)
@@ -124,7 +123,7 @@ func trustDelete(s state.State, r *http.Request) response.Response {
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
-	remotesMap := s.Remotes().RemotesByName()
+	remotesMap := s.Truststore().RemotesByName()
 	nodeToRemove, ok := remotesMap[name]
 	if !ok {
 		return response.SmartError(fmt.Errorf("No truststore entry found for node with name %q", name))
@@ -149,7 +148,7 @@ func trustDelete(s state.State, r *http.Request) response.Response {
 		}
 	}
 
-	remotes := s.Remotes()
+	remotes := s.Truststore()
 	remotesMap = remotes.RemotesByName()
 	delete(remotesMap, name)
 

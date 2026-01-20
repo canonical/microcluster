@@ -18,7 +18,6 @@ import (
 	"github.com/canonical/microcluster/v3/internal/rest/access"
 	internalClient "github.com/canonical/microcluster/v3/internal/rest/client"
 	internalState "github.com/canonical/microcluster/v3/internal/state"
-	"github.com/canonical/microcluster/v3/internal/trust"
 	"github.com/canonical/microcluster/v3/internal/utils"
 	"github.com/canonical/microcluster/v3/microcluster/rest"
 	"github.com/canonical/microcluster/v3/microcluster/rest/response"
@@ -59,7 +58,7 @@ func controlPost(state state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	daemonConfig := trust.Location{Address: req.Address, Name: req.Name}
+	daemonConfig := types.Location{Address: req.Address, Name: req.Name}
 	err = intState.SetConfig(daemonConfig)
 	if err != nil {
 		return response.SmartError(err)
@@ -164,7 +163,7 @@ func controlPost(state state.State, r *http.Request) response.Response {
 	}
 
 	var joinAddrs []string
-	var localClusterMember *trust.Remote
+	var localClusterMember *types.Remote
 	if req.JoinToken != "" {
 		joinInfo, localClusterMember, err = joinWithToken(state, r, req)
 		if err != nil {
@@ -187,7 +186,7 @@ func controlPost(state state.State, r *http.Request) response.Response {
 	return response.EmptySyncResponse
 }
 
-func joinWithToken(state state.State, r *http.Request, req *types.Control) (*types.TokenResponse, *trust.Remote, error) {
+func joinWithToken(state state.State, r *http.Request, req *types.Control) (*types.TokenResponse, *types.Remote, error) {
 	token, err := types.DecodeToken(req.JoinToken)
 	if err != nil {
 		return nil, nil, err
@@ -204,8 +203,8 @@ func joinWithToken(state state.State, r *http.Request, req *types.Control) (*typ
 	}
 
 	// Add the local node to the list of clusterMembers.
-	daemonConfig := &trust.Location{Address: req.Address, Name: req.Name}
-	localClusterMember := trust.Remote{
+	daemonConfig := &types.Location{Address: req.Address, Name: req.Name}
+	localClusterMember := types.Remote{
 		Location:    *daemonConfig,
 		Certificate: types.X509Certificate{Certificate: serverCert},
 	}
@@ -290,7 +289,7 @@ func writeCert(dir, prefix string, cert, key, ca []byte) error {
 	return nil
 }
 
-func setupLocalMember(state state.State, localClusterMember *trust.Remote, joinInfo *types.TokenResponse) ([]string, error) {
+func setupLocalMember(state state.State, localClusterMember *types.Remote, joinInfo *types.TokenResponse) ([]string, error) {
 	// Set up cluster certificate.
 	err := writeCert(state.FileSystem().StateDir(), string(types.ClusterCertificateName), []byte(joinInfo.ClusterCert.String()), []byte(joinInfo.ClusterKey), nil)
 	if err != nil {
@@ -312,10 +311,10 @@ func setupLocalMember(state state.State, localClusterMember *trust.Remote, joinI
 	}
 
 	joinAddrs := types.AddrPorts{}
-	clusterMembers := make([]trust.Remote, 0, len(joinInfo.ClusterMembers)+1)
+	clusterMembers := make([]types.Remote, 0, len(joinInfo.ClusterMembers)+1)
 	for _, clusterMember := range joinInfo.ClusterMembers {
-		remote := trust.Remote{
-			Location:    trust.Location{Name: clusterMember.Name, Address: clusterMember.Address},
+		remote := types.Remote{
+			Location:    types.Location{Name: clusterMember.Name, Address: clusterMember.Address},
 			Certificate: clusterMember.Certificate,
 		}
 
@@ -324,7 +323,7 @@ func setupLocalMember(state state.State, localClusterMember *trust.Remote, joinI
 	}
 
 	clusterMembers = append(clusterMembers, *localClusterMember)
-	err = state.Remotes().Add(state.FileSystem().TrustDir(), clusterMembers...)
+	err = state.Truststore().Add(state.FileSystem().TrustDir(), clusterMembers...)
 	if err != nil {
 		return nil, err
 	}

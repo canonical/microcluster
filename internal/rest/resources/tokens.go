@@ -75,7 +75,7 @@ func tokensPost(state state.State, r *http.Request) response.Response {
 	}
 
 	joinAddresses := []types.AddrPort{}
-	for _, addr := range state.Remotes().Addresses() {
+	for _, addr := range state.Truststore().RemoteAddresses() {
 		joinAddresses = append(joinAddresses, addr)
 	}
 
@@ -138,7 +138,7 @@ func tokensGet(state state.State, r *http.Request) response.Response {
 	}
 
 	joinAddresses := []types.AddrPort{}
-	for _, addr := range state.Remotes().Addresses() {
+	for _, addr := range state.Truststore().RemoteAddresses() {
 		joinAddresses = append(joinAddresses, addr)
 	}
 

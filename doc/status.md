@@ -25,6 +25,8 @@ Database is offline                | Set when the database is explicitly turned 
 
 # Dqlite roles
 
-The current Dqlite role is stored in the `role` column of `core_cluster_members`. It follows typical Dqlite roles (`voter`, `standby`, `spare`) with the addition of `PENDING` for systems that have recently joined the cluster, but have not yet received a heartbeat through the Dqlite roles adjustment hook.
-* At least 1 non-`PENDING` cluster member must be present to remove other members.
-* Once a heartbeat detects that a `PENDING` member exists in Dqlite, it will assign it the correct role.
+The current Dqlite role is stored in the `dqlite_role` column of `core_cluster_member_roles`. It follows typical
+Dqlite roles (`voter`, `standby`, `spare`) with the addition of `PENDING` for systems that have recently joined
+the cluster, but have not yet received a heartbeat through the Dqlite roles adjustment hook. At least 1
+non-`PENDING` cluster member must be present to remove other members. Once a heartbeat detects that a `PENDING`
+member exists in Dqlite, it will assign it the correct role.

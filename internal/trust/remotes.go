@@ -4,7 +4,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -23,18 +22,6 @@ import (
 type Remotes struct {
 	data     map[string]Remote
 	updateMu sync.RWMutex
-}
-
-// Remote represents a yaml file with credentials to be read by the daemon.
-type Remote struct {
-	Location    `yaml:",inline"`
-	Certificate types.X509Certificate `yaml:"certificate"`
-}
-
-// Location represents configurable identifying information about a remote.
-type Location struct {
-	Name    string         `yaml:"name"`
-	Address types.AddrPort `yaml:"address"`
 }
 
 // disallowedFileNameSubcontents contains the list of disallowed substrings in remote names.
@@ -338,9 +325,4 @@ func (r *Remotes) RemotesByName() map[string]Remote {
 	}
 
 	return remoteData
-}
-
-// URL returns the parsed URL of the Remote.
-func (r *Remote) URL() *url.URL {
-	return &api.NewURL().Scheme("https").Host(r.Address.String()).URL
 }

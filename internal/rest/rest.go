@@ -273,7 +273,7 @@ func HandleEndpoint(state state.State, mux *mux.Router, version string, e rest.E
 			handleRequest = handleDatabaseRequest
 		}
 
-		trusted, err := access.Authenticate(state, r, state.Address().Host, state.Remotes().CertificatesNative())
+		trusted, err := access.Authenticate(state, r, state.Address().Host, state.Truststore().RemoteCertificatesNative())
 		if err != nil && !errors.As(err, &access.ErrInvalidHost{}) {
 			resp = response.Forbidden(fmt.Errorf("Failed to authenticate request: %w", err))
 		} else {

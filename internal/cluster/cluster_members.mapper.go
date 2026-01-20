@@ -16,21 +16,24 @@ import (
 var _ = api.ServerEnvironment{}
 
 var coreClusterMemberObjects = clusterDB.RegisterStmt(`
-SELECT core_cluster_members.id, core_cluster_members.name, core_cluster_members.address, core_cluster_members.certificate, core_cluster_members.schema_internal, core_cluster_members.schema_external, core_cluster_members.api_extensions, core_cluster_members.heartbeat, core_cluster_members.role
+SELECT core_cluster_members.id, core_cluster_members.name, core_cluster_members.address, core_cluster_members.certificate, core_cluster_members.schema_internal, core_cluster_members.schema_external, core_cluster_members.api_extensions, core_cluster_members.heartbeat, core_cluster_member_roles.dqlite_role
   FROM core_cluster_members
+  JOIN core_cluster_member_roles ON core_cluster_member_roles.member_id = core_cluster_members.id
   ORDER BY core_cluster_members.name
 `)
 
 var coreClusterMemberObjectsByAddress = clusterDB.RegisterStmt(`
-SELECT core_cluster_members.id, core_cluster_members.name, core_cluster_members.address, core_cluster_members.certificate, core_cluster_members.schema_internal, core_cluster_members.schema_external, core_cluster_members.api_extensions, core_cluster_members.heartbeat, core_cluster_members.role
+SELECT core_cluster_members.id, core_cluster_members.name, core_cluster_members.address, core_cluster_members.certificate, core_cluster_members.schema_internal, core_cluster_members.schema_external, core_cluster_members.api_extensions, core_cluster_members.heartbeat, core_cluster_member_roles.dqlite_role
   FROM core_cluster_members
+  JOIN core_cluster_member_roles ON core_cluster_member_roles.member_id = core_cluster_members.id
   WHERE ( core_cluster_members.address = ? )
   ORDER BY core_cluster_members.name
 `)
 
 var coreClusterMemberObjectsByName = clusterDB.RegisterStmt(`
-SELECT core_cluster_members.id, core_cluster_members.name, core_cluster_members.address, core_cluster_members.certificate, core_cluster_members.schema_internal, core_cluster_members.schema_external, core_cluster_members.api_extensions, core_cluster_members.heartbeat, core_cluster_members.role
+SELECT core_cluster_members.id, core_cluster_members.name, core_cluster_members.address, core_cluster_members.certificate, core_cluster_members.schema_internal, core_cluster_members.schema_external, core_cluster_members.api_extensions, core_cluster_members.heartbeat, core_cluster_member_roles.dqlite_role
   FROM core_cluster_members
+  JOIN core_cluster_member_roles ON core_cluster_member_roles.member_id = core_cluster_members.id
   WHERE ( core_cluster_members.name = ? )
   ORDER BY core_cluster_members.name
 `)
@@ -41,8 +44,13 @@ SELECT core_cluster_members.id FROM core_cluster_members
 `)
 
 var coreClusterMemberCreate = clusterDB.RegisterStmt(`
-INSERT INTO core_cluster_members (name, address, certificate, schema_internal, schema_external, api_extensions, heartbeat, role)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO core_cluster_members (name, address, certificate, schema_internal, schema_external, api_extensions, heartbeat)
+  VALUES (?, ?, ?, ?, ?, ?, ?)
+`)
+
+var coreClusterMemberRoleCreate = clusterDB.RegisterStmt(`
+INSERT INTO core_cluster_member_roles (member_id, control_plane, dqlite_role)
+  VALUES (?, ?, ?)
 `)
 
 var coreClusterMemberDeleteByAddress = clusterDB.RegisterStmt(`
@@ -51,8 +59,14 @@ DELETE FROM core_cluster_members WHERE address = ?
 
 var coreClusterMemberUpdate = clusterDB.RegisterStmt(`
 UPDATE core_cluster_members
-  SET name = ?, address = ?, certificate = ?, schema_internal = ?, schema_external = ?, api_extensions = ?, heartbeat = ?, role = ?
+  SET name = ?, address = ?, certificate = ?, schema_internal = ?, schema_external = ?, api_extensions = ?, heartbeat = ?
  WHERE id = ?
+`)
+
+var coreClusterMemberRoleUpdate = clusterDB.RegisterStmt(`
+UPDATE core_cluster_member_roles
+  SET dqlite_role = ?
+ WHERE member_id = ?
 `)
 
 // getCoreClusterMembers can be used to run handwritten sql.Stmts to return a slice of objects.
@@ -260,7 +274,7 @@ func CreateCoreClusterMember(ctx context.Context, tx *sql.Tx, object CoreCluster
 		return -1, api.StatusErrorf(http.StatusConflict, "This \"core_cluster_members\" entry already exists")
 	}
 
-	args := make([]any, 8)
+	args := make([]any, 7)
 
 	// Populate the statement arguments.
 	args[0] = object.Name
@@ -270,7 +284,6 @@ func CreateCoreClusterMember(ctx context.Context, tx *sql.Tx, object CoreCluster
 	args[4] = object.SchemaExternal
 	args[5] = object.APIExtensions
 	args[6] = object.Heartbeat
-	args[7] = object.Role
 
 	// Prepared statement to use.
 	stmt, err := clusterDB.Stmt(tx, coreClusterMemberCreate)
@@ -287,6 +300,16 @@ func CreateCoreClusterMember(ctx context.Context, tx *sql.Tx, object CoreCluster
 	id, err := result.LastInsertId()
 	if err != nil {
 		return -1, fmt.Errorf("Failed to fetch \"core_cluster_members\" entry ID: %w", err)
+	}
+
+	stmt, err = clusterDB.Stmt(tx, coreClusterMemberRoleCreate)
+	if err != nil {
+		return -1, fmt.Errorf("Failed to get \"coreClusterMemberRoleCreate\" prepared statement: %w", err)
+	}
+
+	_, err = stmt.Exec(id, 0, object.Role)
+	if err != nil {
+		return -1, fmt.Errorf("Failed to create \"core_cluster_member_roles\" entry: %w", err)
 	}
 
 	return id, nil
@@ -330,12 +353,31 @@ func UpdateCoreClusterMember(ctx context.Context, tx *sql.Tx, name string, objec
 		return fmt.Errorf("Failed to get \"coreClusterMemberUpdate\" prepared statement: %w", err)
 	}
 
-	result, err := stmt.Exec(object.Name, object.Address, object.Certificate, object.SchemaInternal, object.SchemaExternal, object.APIExtensions, object.Heartbeat, object.Role, id)
+	result, err := stmt.Exec(object.Name, object.Address, object.Certificate, object.SchemaInternal, object.SchemaExternal, object.APIExtensions, object.Heartbeat, id)
 	if err != nil {
 		return fmt.Errorf("Update \"core_cluster_members\" entry failed: %w", err)
 	}
 
 	n, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("Fetch affected rows: %w", err)
+	}
+
+	if n != 1 {
+		return fmt.Errorf("Query updated %d rows instead of 1", n)
+	}
+
+	stmt, err = clusterDB.Stmt(tx, coreClusterMemberRoleUpdate)
+	if err != nil {
+		return fmt.Errorf("Failed to get \"coreClusterMemberRoleUpdate\" prepared statement: %w", err)
+	}
+
+	result, err = stmt.Exec(object.Role, id)
+	if err != nil {
+		return fmt.Errorf("Update \"core_cluster_member_roles\" entry failed: %w", err)
+	}
+
+	n, err = result.RowsAffected()
 	if err != nil {
 		return fmt.Errorf("Fetch affected rows: %w", err)
 	}

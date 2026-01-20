@@ -87,10 +87,11 @@ WHERE name IN ('api_extensions');
 	}
 
 	// Fetch all cluster members with a smaller schema version than we expect.
-	stmt = `SELECT id, name, address, certificate, schema_internal, schema_external, %s, heartbeat, role
+	stmt = fmt.Sprintf(`SELECT id, name, address, certificate, schema_internal, schema_external, %s, heartbeat, core_cluster_member_roles.dqlite_role
   FROM %s
+  JOIN core_cluster_member_roles ON core_cluster_member_roles.member_id = %s.id
   ORDER BY name
-	`
+	`, "%s", tableName, tableName)
 
 	// If API extensions are supported, ensure the list for each cluster member also matches what we expect,
 	// and only return cluster members for whom it does not.
@@ -99,7 +100,7 @@ WHERE name IN ('api_extensions');
 		apiField = "api_extensions"
 	}
 
-	stmt = fmt.Sprintf(stmt, apiField, tableName)
+	stmt = fmt.Sprintf(stmt, apiField)
 	allMembers, err = getCoreClusterMembersRaw(ctx, tx, stmt)
 	if err != nil {
 		return nil, nil, err

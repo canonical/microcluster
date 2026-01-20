@@ -93,6 +93,50 @@ func (s *updateSuite) Test_updateFromV1ClusterMembers() {
 	s.NoError(db.Close())
 }
 
+// Ensures updateFromV6 moves roles to core_cluster_member_roles and drops the role column.
+func (s *updateSuite) Test_updateFromV6ClusterMemberRoles() {
+	db, err := sql.Open("sqlite3", ":memory:")
+	s.NoError(err)
+
+	ctx := context.Background()
+	mgr := NewSchema()
+	mgr.SetInternalUpdates([]clusterDB.Update{
+		updateFromV0,
+		updateFromV1,
+		updateFromV2,
+		mgr.updateFromV3,
+		updateFromV4,
+		updateFromV5,
+	})
+	mgr.SetExternalUpdates([]clusterDB.Update{})
+
+	_, err = mgr.Schema().Ensure(ctx, db)
+	s.NoError(err)
+
+	_, err = db.Exec(`INSERT INTO core_cluster_members (name, address, certificate, schema_internal, schema_external, api_extensions, heartbeat, role)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, "member-1", "10.0.0.1:8443", "cert-1", 1, 1, "[]", time.Time{}, "voter")
+	s.NoError(err)
+
+	tx, err := db.BeginTx(ctx, nil)
+	s.NoError(err)
+	s.NoError(updateFromV6(ctx, tx))
+	s.NoError(tx.Commit())
+
+	var count int
+	err = db.QueryRow("SELECT count(name) FROM pragma_table_info('core_cluster_members') WHERE name = 'role'").Scan(&count)
+	s.NoError(err)
+	s.Equal(0, count)
+
+	var role string
+	var controlPlane int
+	err = db.QueryRow("SELECT control_plane, dqlite_role FROM core_cluster_member_roles").Scan(&controlPlane, &role)
+	s.NoError(err)
+	s.Equal(0, controlPlane)
+	s.Equal("voter", role)
+
+	s.NoError(db.Close())
+}
+
 // Ensures the schema is properly split by the updateFromV1 function from various update patterns.
 func (s *updateSuite) Test_updateFromV1() {
 	dummyUpdate := func(ctx context.Context, tx *sql.Tx) error { return nil }

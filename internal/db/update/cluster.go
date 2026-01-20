@@ -117,7 +117,12 @@ func GetClusterMemberSchemaVersions(ctx context.Context, tx *sql.Tx) (internalSc
 		return nil, nil, err
 	}
 
-	sql := fmt.Sprintf("SELECT %s.schema_internal,%s.schema_external FROM %s JOIN core_cluster_member_roles ON core_cluster_member_roles.member_id = %s.id WHERE NOT core_cluster_member_roles.dqlite_role='pending'", tableName, tableName, tableName, tableName)
+	roleClause, roleField, err := roleSelectClause(ctx, tx, tableName)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	sql := fmt.Sprintf("SELECT %s.schema_internal,%s.schema_external FROM %s %s WHERE NOT %s='pending'", tableName, tableName, tableName, roleClause, roleField)
 
 	internalSchema = []uint64{}
 	externalSchema = []uint64{}
@@ -199,7 +204,12 @@ func GetClusterMemberAPIExtensions(ctx context.Context, tx *sql.Tx) ([]extension
 		return nil, err
 	}
 
-	query := fmt.Sprintf("SELECT %s.api_extensions FROM %s JOIN core_cluster_member_roles ON core_cluster_member_roles.member_id = %s.id WHERE NOT core_cluster_member_roles.dqlite_role='pending'", table, table, table)
+	roleClause, roleField, err := roleSelectClause(ctx, tx, table)
+	if err != nil {
+		return nil, err
+	}
+
+	query := fmt.Sprintf("SELECT %s.api_extensions FROM %s %s WHERE NOT %s='pending'", table, table, roleClause, roleField)
 	rows, err := tx.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
@@ -250,4 +260,29 @@ func getClusterTableName(ctx context.Context, tx *sql.Tx) (string, error) {
 	}
 
 	return tables[0], nil
+}
+
+func roleSelectClause(ctx context.Context, tx *sql.Tx, tableName string) (clause string, roleField string, err error) {
+	stmt := fmt.Sprintf("SELECT count(name) FROM pragma_table_info('%s') WHERE name IN ('role');", tableName)
+	var count int
+	err = tx.QueryRowContext(ctx, stmt).Scan(&count)
+	if err != nil {
+		return "", "", err
+	}
+
+	if count == 1 {
+		return "", "role", nil
+	}
+
+	stmt = "SELECT count(name) FROM sqlite_master WHERE type = 'table' AND name = 'core_cluster_member_roles'"
+	err = tx.QueryRowContext(ctx, stmt).Scan(&count)
+	if err != nil {
+		return "", "", err
+	}
+
+	if count != 1 {
+		return "", "", fmt.Errorf("No cluster member roles table found")
+	}
+
+	return fmt.Sprintf("JOIN core_cluster_member_roles ON core_cluster_member_roles.member_id = %s.id", tableName), "core_cluster_member_roles.dqlite_role", nil
 }

@@ -37,6 +37,7 @@ func NewSchema() *SchemaUpdateManager {
 			mgr.updateFromV3,
 			updateFromV4,
 			updateFromV5,
+			updateFromV6,
 		},
 	}
 
@@ -92,6 +93,55 @@ ALTER TABLE core_token_records_new RENAME TO core_token_records;
 
 	_, err := tx.ExecContext(ctx, stmt)
 
+	return err
+}
+
+// updateFromV6 moves cluster member roles into a dedicated table.
+func updateFromV6(ctx context.Context, tx *sql.Tx) error {
+	stmt := `
+CREATE TABLE core_cluster_member_roles_new (
+  member_id     INTEGER  NOT NULL,
+  control_plane INTEGER  NOT NULL DEFAULT 0,
+  dqlite_role   TEXT     NOT NULL,
+  PRIMARY KEY (member_id)
+);
+
+INSERT INTO core_cluster_member_roles_new (member_id, control_plane, dqlite_role)
+SELECT id, 0, role FROM core_cluster_members;
+
+CREATE TABLE core_cluster_members_new (
+  id                   INTEGER   PRIMARY  KEY    AUTOINCREMENT  NOT  NULL,
+  name                 TEXT      NOT      NULL,
+  address              TEXT      NOT      NULL,
+  certificate          TEXT      NOT      NULL,
+  schema_internal      INTEGER   NOT      NULL,
+  schema_external      INTEGER   NOT      NULL,
+  api_extensions       TEXT      NOT      NULL DEFAULT '[]',
+  heartbeat            DATETIME  NOT      NULL,
+  UNIQUE(name),
+  UNIQUE(certificate)
+);
+
+INSERT INTO core_cluster_members_new (id, name, address, certificate, schema_internal, schema_external, api_extensions, heartbeat)
+SELECT id, name, address, certificate, schema_internal, schema_external, api_extensions, heartbeat FROM core_cluster_members;
+
+DROP TABLE core_cluster_members;
+ALTER TABLE core_cluster_members_new RENAME TO core_cluster_members;
+
+CREATE TABLE core_cluster_member_roles (
+  member_id     INTEGER  NOT NULL REFERENCES core_cluster_members(id) ON DELETE CASCADE,
+  control_plane INTEGER  NOT NULL DEFAULT 0,
+  dqlite_role   TEXT     NOT NULL,
+  PRIMARY KEY (member_id)
+);
+
+INSERT INTO core_cluster_member_roles (member_id, control_plane, dqlite_role)
+SELECT member_id, control_plane, dqlite_role FROM core_cluster_member_roles_new;
+
+DROP TABLE core_cluster_member_roles_new;
+`
+
+	_, err := tx.ExecContext(ctx, stmt)
 	return err
 }
 

@@ -49,7 +49,7 @@ type State interface {
 	Database() db.DB
 
 	// Local truststore access.
-	Remotes() *trust.Remotes
+	Truststore() types.Store
 
 	// Returns a connector for interconnection with the cluster.
 	Connect() types.Connector

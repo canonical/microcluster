@@ -2,8 +2,10 @@ package types
 
 import (
 	"crypto/x509"
+	"net/url"
 
 	"github.com/canonical/lxd/shared"
+	"github.com/canonical/lxd/shared/api"
 )
 
 // Store represents a local truststore.
@@ -34,4 +36,21 @@ type Store interface {
 
 	// Replace remotes in the truststore.
 	Replace(dir string, newRemotes ...ClusterMember) error
+}
+
+// Location represents configurable identifying information about a remote.
+type Location struct {
+	Name    string   `yaml:"name"`
+	Address AddrPort `yaml:"address"`
+}
+
+// Remote represents a yaml file with credentials to be read by the daemon.
+type Remote struct {
+	Location    `yaml:",inline"`
+	Certificate X509Certificate `yaml:"certificate"`
+}
+
+// URL returns the parsed URL of the Remote.
+func (r *Remote) URL() *url.URL {
+	return &api.NewURL().Scheme("https").Host(r.Address.String()).URL
 }

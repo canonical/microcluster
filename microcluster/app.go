@@ -76,6 +76,9 @@ func App(args Args) (*MicroCluster, error) {
 
 // Start starts up a brand new MicroCluster daemon. Only the local control socket will be available at this stage, no
 // database exists yet. Any api or schema extensions can be applied here.
+// If daemonArgs.ShutdownSignals is provided, the daemon will automatically handle those signals for graceful shutdown.
+// If nil, default signals (SIGPWR, SIGTERM, SIGINT, SIGQUIT) will be used for graceful shutdown.
+// If set to an empty slice, no signal handling will be performed.
 func (m *MicroCluster) Start(ctx context.Context, daemonArgs DaemonArgs) error {
 	logger := m.LoggerFromContext(ctx)
 
@@ -83,11 +86,18 @@ func (m *MicroCluster) Start(ctx context.Context, daemonArgs DaemonArgs) error {
 	defer logger.Info("Daemon stopped")
 	d := daemon.NewDaemon()
 
-	chIgnore := make(chan os.Signal, 1)
-	signal.Notify(chIgnore, unix.SIGHUP)
+	// Use default signals if none provided (nil slice).
+	// If an empty but not-nil slice is provided, no signal handling will be performed.
+	if daemonArgs.ShutdownSignals == nil {
+		daemonArgs.ShutdownSignals = []os.Signal{unix.SIGPWR, unix.SIGTERM, unix.SIGINT, unix.SIGQUIT}
+	}
 
-	ctx, cancel := signal.NotifyContext(ctx, unix.SIGPWR, unix.SIGTERM, unix.SIGINT, unix.SIGQUIT)
-	defer cancel()
+	// Handle shutdown signals if any are configured.
+	if len(daemonArgs.ShutdownSignals) > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = signal.NotifyContext(ctx, daemonArgs.ShutdownSignals...)
+		defer cancel()
+	}
 
 	// Attach the logger to the parent context.
 	ctx = context.WithValue(ctx, log.CtxLogger, logger)

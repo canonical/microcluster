@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/sys/unix"
 
 	"github.com/canonical/microcluster/v3/example/api"
 	"github.com/canonical/microcluster/v3/example/database"
@@ -82,6 +83,9 @@ func (c *cmdDaemon) run(cmd *cobra.Command, args []string) error {
 		ExtensionsSchema: database.SchemaExtensions,
 		APIExtensions:    api.Extensions(),
 		ExtensionServers: api.Servers,
+
+		// Set up signal handling with custom signals, in this example SIGPWR is omitted.
+		ShutdownSignals: []os.Signal{unix.SIGTERM, unix.SIGINT, unix.SIGQUIT},
 	}
 
 	// exampleHooks are some example post-action hooks that can be run by MicroCluster.

@@ -73,6 +73,11 @@ type Args struct {
 	// DrainConnectionsTimeout is the amount of time to allow for all core server connections to drain when shutting down.
 	// If it's 0, the connections are not drained when shutting down.
 	DrainConnectionsTimeout time.Duration
+
+	// ShutdownSignals are the signals that will trigger daemon shutdown.
+	// If nil, default signals (SIGPWR, SIGTERM, SIGINT, SIGQUIT) will be used.
+	// If set to an empty slice, no signal handling will be performed.
+	ShutdownSignals []os.Signal
 }
 
 // Daemon holds information for the microcluster daemon.

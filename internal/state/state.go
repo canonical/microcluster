@@ -196,11 +196,6 @@ func (s *InternalState) Cluster(isNotification bool) (types.Clients, error) {
 		}
 	}
 
-	// Return error if no other cluster members exist.
-	if len(clients) == 0 {
-		return nil, fmt.Errorf("No other cluster members available.")
-	}
-
 	return clients, nil
 }
 
@@ -266,7 +261,7 @@ func (s *InternalState) RandomMember(isNotification bool) (types.Client, error) 
 	switch clusterClientNum {
 	case 0:
 		// Returns an error if the cluster is uninitialized (not bootstrapped, not joined).
-		return nil, fmt.Errorf("Cluster is uninitialized or has no members")
+		return nil, fmt.Errorf("Cluster is uninitialized or has no other members")
 	case 1:
 		// Returns the only available client if cluster size is 1.
 		return clusterClients[0], nil

@@ -58,13 +58,21 @@ func ResetClusterMember(ctx context.Context, c types.Client, name string, force 
 }
 
 // DeleteClusterMember deletes the cluster member with the given name.
-func DeleteClusterMember(ctx context.Context, c types.Client, name string, force bool) error {
+// If `address` is non-empty it is sent as a query parameter to target dqlite
+// removal by address when the truststore cannot map name to address.
+// Dqlite does not track names, so this is useful when the name is no longer
+// resolvable.
+func DeleteClusterMember(ctx context.Context, c types.Client, name string, address string, force bool) error {
 	queryCtx, cancel := withTimeoutIfUnset(ctx)
 	defer cancel()
 
 	endpoint := api.NewURL().Path("cluster", name)
 	if force {
 		endpoint = endpoint.WithQuery("force", "1")
+	}
+
+	if address != "" {
+		endpoint = endpoint.WithQuery("address", address)
 	}
 
 	return c.Query(queryCtx, "DELETE", types.PublicEndpoint, &endpoint.URL, nil, nil)

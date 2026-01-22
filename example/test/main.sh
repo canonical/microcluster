@@ -488,7 +488,108 @@ test_membership_consistency() {
     cat /tmp/token_error
   fi
 
+  # Test member force flag overrides during removal with inconsistent state works
+  echo "  -> Testing member force removal with inconsistent state"
+  if microctl --state-dir "${test_dir}/c1" cluster remove c2 --force --address 127.0.0.1:9002; then
+    echo "  -> Member c2 force removal succeeded as expected"
+  else
+    echo "ERROR: Member force removal should have succeeded despite inconsistent state"
+    exit 1
+  fi
+
+  # Generating a new token should now succeed
+  echo "  -> Testing token generation after resolving inconsistency"
+  if microctl --state-dir "${test_dir}/c1" tokens add c5 2>/tmp/token_resp; then
+    echo "  -> Token generation succeeded as expected after resolving inconsistency"
+    cat /tmp/token_resp
+  else
+    echo "ERROR: Token generation should have succeeded after resolving inconsistency"
+    cat /tmp/token_resp
+    exit 1
+  fi
   echo "  -> Membership consistency checks working as expected"
+  
+  shutdown_systems
+}
+
+test_truststore_force_removal() {
+  echo "Testing force removal"
+  
+  new_systems 3 --heartbeat 2s
+  
+  # Bootstrap first member
+  microctl --state-dir "${test_dir}/c1" init "c1" 127.0.0.1:9001 --bootstrap
+  
+  # Join second and third members
+  token_c2=$(microctl --state-dir "${test_dir}/c1" tokens add "c2")
+  microctl --state-dir "${test_dir}/c2" init "c2" 127.0.0.1:9002 --token "${token_c2}"
+  
+  token_c3=$(microctl --state-dir "${test_dir}/c1" tokens add "c3")
+  microctl --state-dir "${test_dir}/c3" init "c3" 127.0.0.1:9003 --token "${token_c3}"
+  
+  # Wait for cluster to stabilize
+  echo "  -> Waiting for cluster to stabilize"
+  retry_count=0
+  max_retries=10
+  while [[ -n "$(microctl --state-dir "${test_dir}/c1" cluster list -f yaml | yq '.[] | select(.role == "PENDING")')" ]] && [[ ${retry_count} -lt ${max_retries} ]]; do
+    sleep 2
+    retry_count=$((retry_count + 1))
+  done
+  
+  echo "  -> Cluster established with 3 members"
+  microctl --state-dir "${test_dir}/c1" cluster list
+
+  # Test force removal of non-existing member and random address
+  echo "  -> Testing force removal of non-existing member with random address"
+  if microctl --state-dir "${test_dir}/c1" cluster remove nonexist --force --address 127.0.0.1:9999 2>/tmp/remove_error; then
+    echo "ERROR: Force removal of non-existing member should have failed"
+    cat /tmp/remove_error
+    exit 1
+  else
+    echo "  -> Force removal of non-existing member failed as expected"
+    cat /tmp/remove_error
+  fi
+  
+  # Simulate truststore corruption: remove c3 from truststore while keeping DB and dqlite entries
+  # Need to remove from all nodes' truststores to prevent repopulation
+  echo "  -> Simulating truststore deletion of c3 from all nodes (keeping DB and dqlite entries)"
+  rm -f "${test_dir}/c1/truststore/c3.yaml"
+  rm -f "${test_dir}/c2/truststore/c3.yaml"
+  rm -f "${test_dir}/c3/truststore/c3.yaml"
+
+  # Attempt normal removal should fail (membership inconsistency detected)
+  echo "  -> Testing normal removal of c3 (should fail due to missing truststore)"
+  if microctl --state-dir "${test_dir}/c1" cluster remove c3 --address 127.0.0.1:9003 2>/tmp/remove_error; then
+    echo "ERROR: Normal removal should have failed"
+    exit 1
+  else
+    echo "  -> Normal removal blocked as expected"
+    cat /tmp/remove_error
+  fi
+  
+  # Force remove with explicit address should succeed
+  echo "  -> Testing force removal of c3 with address override"
+  if microctl --state-dir "${test_dir}/c1" cluster remove c3 --force --address 127.0.0.1:9003; then
+    echo "  -> Force removal of c3 succeeded"
+  else
+    echo "ERROR: Force removal should have succeeded"
+    exit 1
+  fi
+
+  # Now generate a new token - this should succeed because membership is now consistent
+  echo "  -> Testing token generation after force removal (should succeed)"
+  if microctl --state-dir "${test_dir}/c1" tokens add "c4" 2>/tmp/token_resp; then
+    echo "  -> Token generation succeeded - membership is now consistent"
+    cat /tmp/token_resp
+  else
+    echo "ERROR: Token generation should have succeeded after force removal"
+    cat /tmp/token_resp
+    exit 1
+  fi
+  
+  echo "SUCCESS: Force removal of non-existing member and random address blocked as expected"
+  echo "SUCCESS: Force removal of truststore-orphaned node successful"
+  echo "SUCCESS: Verified membership consistency restored after force removal"
   
   shutdown_systems
 }
@@ -580,6 +681,7 @@ if [ "${1:-"all"}" = "all" ] || [ "${1}" = "" ]; then
   test_join_token_before_cluster_formed
   test_extended_endpoints
   test_membership_consistency
+  test_truststore_force_removal
   test_parallel_joins
 elif [ "${1}" = "recover" ]; then
   test_recover
@@ -595,6 +697,8 @@ elif [ "${1}" = "extended" ]; then
   test_extended_endpoints
 elif [ "${1}" = "membership" ]; then
   test_membership_consistency
+elif [ "${1}" = "force-removal" ]; then
+  test_truststore_force_removal
 elif [ "${1}" = "parallel-join" ]; then
   test_parallel_joins
 else

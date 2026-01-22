@@ -119,6 +119,42 @@ for i, result := range batch.Results {
 
 Learn more about the Dqlite database in [doc/database.md](doc/database.md).
 
+### Signal Handling
+
+MicroCluster provides built-in signal handling for graceful daemon shutdown. By default, MicroCluster handles `SIGPWR`, `SIGTERM`, `SIGINT`, and `SIGQUIT` signals. You can customize this behavior by setting `ShutdownSignals` in your `DaemonArgs`:
+
+```go
+import "golang.org/x/sys/unix"
+
+// Use default signals (SIGPWR, SIGTERM, SIGINT, SIGQUIT)
+dargs := microcluster.DaemonArgs{
+    // ShutdownSignals not set (nil), defaults will be used.
+}
+
+// Or customize the signals:
+dargs := microcluster.DaemonArgs{
+    ShutdownSignals: []os.Signal{unix.SIGTERM, unix.SIGINT, unix.SIGQUIT}, // Omit SIGPWR.
+    // other configuration...
+}
+
+// Disable signal handling entirely:
+dargs := microcluster.DaemonArgs{
+    ShutdownSignals: []os.Signal{}, // Empty slice, no signal handling.
+}
+```
+
+For simpler cases, you can handle only specific signals:
+
+```go
+// Shutdown only on SIGINT (Ctrl+C)
+dargs := microcluster.DaemonArgs{
+    ShutdownSignals: []os.Signal{unix.SIGINT},
+}
+```
+
+When `ShutdownSignals` is not set (nil), MicroCluster uses default signals for graceful shutdown. When set to an empty slice, no signal handling is performed.
+
+
 ### Create your own API endpoints
 
 ```go

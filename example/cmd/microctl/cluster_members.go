@@ -139,7 +139,8 @@ func (c *cmdClusterMembersList) listLocalClusterMembers(m *microcluster.MicroClu
 type cmdClusterMemberRemove struct {
 	common *CmdControl
 
-	flagForce bool
+	flagForce   bool
+	flagAddress string
 }
 
 func (c *cmdClusterMemberRemove) command() *cobra.Command {
@@ -150,7 +151,7 @@ func (c *cmdClusterMemberRemove) command() *cobra.Command {
 	}
 
 	cmd.Flags().BoolVarP(&c.flagForce, "force", "f", false, "Forcibly remove the cluster member")
-
+	cmd.Flags().StringVar(&c.flagAddress, "address", "", "Optional fallback address of the cluster member to remove")
 	return cmd
 }
 
@@ -164,7 +165,7 @@ func (c *cmdClusterMemberRemove) run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	return m.RemoveClusterMember(cmd.Context(), args[0], c.flagForce)
+	return m.RemoveClusterMember(cmd.Context(), args[0], c.flagAddress, c.flagForce)
 }
 
 type cmdClusterEdit struct {

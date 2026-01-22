@@ -417,18 +417,49 @@ func resetClusterMember(ctx context.Context, s state.State, force bool) (reExec 
 // clusterMemberDelete Removes a cluster member from dqlite and re-execs its daemon.
 func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 	force := r.URL.Query().Get("force") == "1"
+	addr := r.URL.Query().Get("address")
 	name, err := url.PathUnescape(mux.Vars(r)["name"])
 	if err != nil {
 		return response.SmartError(err)
 	}
 
-	allRemotes := s.Truststore().RemotesByName()
-	remote, ok := allRemotes[name]
-	if !ok {
-		return response.SmartError(fmt.Errorf("No remote exists with the given name %q", name))
+	ctx := r.Context()
+
+	logger, err := log.LoggerFromContext(ctx)
+	if err != nil {
+		return response.InternalError(err)
 	}
 
-	ctx := r.Context()
+	allRemotes := s.Truststore().RemotesByName()
+	remote, remotePresent := allRemotes[name]
+
+	// Determine the address to use for dqlite removal:
+	// - If remote exists in truststore and no address provided, use the truststore address.
+	// - If remote missing and no address provided, require explicit address.
+	// - If address provided, it must match the truststore address (if remote exists) or be valid (if not).
+	if remotePresent && addr == "" {
+		addr = remote.Address.String()
+	} else if !remotePresent && addr == "" {
+		// If the remote is not present in the truststore and no address is provided, we cannot proceed.
+		return response.SmartError(fmt.Errorf("Cluster member %q not found in truststore; please provide a node address", name))
+	} else if remotePresent && addr != "" && remote.Address.String() != addr {
+		// Reject if provided address doesn't match the truststore address for this remote name.
+		return response.SmartError(fmt.Errorf("Provided address %q does not match the address %q of the remote with name %q", addr, remote.Address.String(), name))
+	} else if !remotePresent && addr != "" {
+		// Remote missing from truststore; validate the fallback address format.
+		addrPort, err := types.ParseAddrPort(addr)
+		if err != nil {
+			return response.SmartError(fmt.Errorf("Invalid address %q: %w", addr, err))
+		}
+
+		// Ensure the fallback address isn't claimed by another remote in the truststore.
+		existingRemote := s.Truststore().RemoteByAddress(addrPort)
+		if existingRemote != nil {
+			return response.SmartError(fmt.Errorf("Address %q is already used by remote %q (address %q); address is only a fallback for %q when it is missing from the truststore", addr, existingRemote.Name, existingRemote.Address.String(), name))
+		}
+
+		logger.Warn("Cluster member not found in truststore; proceeding with provided fallback address", slog.String("member", name), slog.String("address", addr))
+	}
 
 	// Check cluster membership consistency before allowing removals (unless forced)
 	// This ensures core_cluster_members, truststore, and dqlite are all in sync
@@ -454,14 +485,9 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	logger, err := log.LoggerFromContext(ctx)
-	if err != nil {
-		return response.InternalError(err)
-	}
-
 	// If we are not the leader, just forward the request.
 	if leaderInfo.Address != s.Address().Host {
-		if allRemotes[name].Address.String() == s.Address().Host {
+		if addr == s.Address().Host {
 			// If the member being removed is ourselves and we are not the leader, then lock the
 			// clusterPutDisableMu before we forward the request to the leader, so that when the leader
 			// goes on to request clusterPutDisable back to ourselves it won't be actioned until we
@@ -482,7 +508,7 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 			return response.SmartError(err)
 		}
 
-		err = internalClient.DeleteClusterMember(ctx, client, name, force)
+		err = internalClient.DeleteClusterMember(ctx, client, name, addr, force)
 		if err != nil {
 			return response.SmartError(err)
 		}
@@ -511,7 +537,7 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 
 	index := -1
 	for i, node := range info {
-		if node.Address == remote.Address.String() {
+		if node.Address == addr {
 			index = i
 			break
 		}
@@ -519,7 +545,7 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 
 	// If we can't find the node in dqlite, that means it failed to fully initialize. It still might have a record in our database so continue along anyway.
 	if index < 0 {
-		logger.Error(fmt.Sprintf("No dqlite record exists for %q, deleting from internal record instead", remote.Name))
+		logger.Error("No dqlite record exists for the member", slog.String("member", name))
 	}
 
 	var clusterMembers []cluster.CoreClusterMember
@@ -531,6 +557,20 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 	})
 	if err != nil {
 		return response.SmartError(err)
+	}
+
+	// Check if member exists in the database.
+	memberInDB := false
+	for _, m := range clusterMembers {
+		if m.Address == addr {
+			memberInDB = true
+			break
+		}
+	}
+
+	// If member not found in dqlite and not in database, return error.
+	if index < 0 && !memberInDB {
+		return response.SmartError(fmt.Errorf("Cluster member %q with address %q not found in dqlite or database", name, addr))
 	}
 
 	numPending := 0
@@ -549,7 +589,7 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 	}
 
 	// If we are removing the leader of a 2-node cluster, ensure the remaining node is a voter.
-	if len(info) == 2 && allRemotes[name].Address.String() == leaderInfo.Address {
+	if len(info) == 2 && addr == leaderInfo.Address {
 		for _, node := range info {
 			if node.Address != leaderInfo.Address && node.Role != dqliteClient.Voter {
 				err = leader.Assign(ctx, node.ID, dqliteClient.Voter)
@@ -567,10 +607,10 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 	}
 
 	// If we are the leader and removing ourselves, reassign the leader role and perform the removal from there.
-	if allRemotes[name].Address.String() == leaderInfo.Address {
+	if remotePresent && addr == leaderInfo.Address {
 		otherNodes := []uint64{}
 		for _, node := range info {
-			if node.Address != allRemotes[name].Address.String() && node.Role == dqliteClient.Voter {
+			if node.Address != addr && node.Role == dqliteClient.Voter {
 				otherNodes = append(otherNodes, node.ID)
 			}
 		}
@@ -605,7 +645,7 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 			clusterDisableMu.Unlock()
 		}()
 
-		err = internalClient.DeleteClusterMember(ctx, client, name, force)
+		err = internalClient.DeleteClusterMember(ctx, client, name, addr, force)
 		if err != nil {
 			return response.SmartError(err)
 		}
@@ -632,22 +672,38 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	// Set the forwarded flag so that the the system to be removed knows the removal is in progress.
-	c, err := internalClient.New(remote.URL(), s.ServerCert(), publicKey, true)
-	if err != nil {
-		return response.SmartError(err)
+	var memberURL *url.URL
+	if !remotePresent {
+		memberURL, err = url.Parse("https://" + addr)
+		if err != nil {
+			return response.SmartError(fmt.Errorf("invalid address %q: %w", addr, err))
+		}
+	} else {
+		memberURL = remote.URL()
 	}
 
 	// Tell the cluster member to run its PreRemove hook and return.
-	err = internalClient.RunPreRemoveHook(ctx, c.UseTarget(name), types.HookRemoveMemberOptions{Force: force})
-	if err != nil && !force {
-		return response.SmartError(err)
+	// Set the forwarded flag so that the system to be removed knows the removal is in progress.
+	c, err := internalClient.New(memberURL, s.ServerCert(), publicKey, true)
+	if err != nil {
+		if !force {
+			return response.SmartError(err)
+		}
+
+		logger.Warn("Failed creating client for remote PreRemove (forcing)", slog.String("error", err.Error()))
+	} else {
+		err = internalClient.RunPreRemoveHook(ctx, c.UseTarget(name), types.HookRemoveMemberOptions{Force: force})
+		if err != nil && !force {
+			return response.SmartError(err)
+		}
 	}
 
-	// Remove the cluster member from the database.
+	// Remove the cluster member from the database using its address if available; otherwise
+	// return an error indicating that no address was provided or found.
 	err = s.Database().Transaction(ctx, func(ctx context.Context, tx *sql.Tx) error {
-		return cluster.DeleteCoreClusterMember(ctx, tx, remote.Address.String())
+		return cluster.DeleteCoreClusterMember(ctx, tx, addr)
 	})
+
 	if err != nil && !force {
 		return response.SmartError(err)
 	}
@@ -660,10 +716,10 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 		}
 	}
 
-	url := api.NewURL()
-	url.URL = *s.FileSystem().ControlSocket()
+	u := api.NewURL()
+	u.URL = *s.FileSystem().ControlSocket()
 
-	localClient, err := s.Connect().Member(&url.URL, false, nil)
+	localClient, err := s.Connect().Member(&u.URL, false, nil)
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -673,14 +729,18 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	client, err := s.Connect().Member(remote.URL(), false, publicKey)
+	client, err := s.Connect().Member(memberURL, false, publicKey)
 	if err != nil {
-		return response.SmartError(err)
-	}
+		if !force {
+			return response.SmartError(err)
+		}
 
-	err = internalClient.ResetClusterMember(ctx, client, name, force)
-	if err != nil && !force {
-		return response.SmartError(err)
+		logger.Warn("Failed connecting to cluster member to perform a node reset", slog.String("error", err.Error()), slog.Bool("force", force))
+	} else {
+		err = internalClient.ResetClusterMember(ctx, client, name, force)
+		if err != nil && !force {
+			return response.SmartError(err)
+		}
 	}
 
 	intState, err := internalState.ToInternal(s)

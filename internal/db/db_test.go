@@ -14,10 +14,10 @@ import (
 
 	"github.com/canonical/microcluster/v3/internal/cluster"
 	"github.com/canonical/microcluster/v3/internal/db/update"
-	"github.com/canonical/microcluster/v3/internal/extensions"
 	"github.com/canonical/microcluster/v3/internal/log"
 	"github.com/canonical/microcluster/v3/internal/sys"
 	clusterDB "github.com/canonical/microcluster/v3/microcluster/db"
+	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
 type dbSuite struct {
@@ -165,7 +165,7 @@ func (s *dbSuite) Test_waitUpgradeSchema() {
 		tx, err := db.db.BeginTx(db.ctx, nil)
 		s.NoError(err)
 
-		apiExtensions, err := extensions.NewExtensionRegistry(true)
+		apiExtensions, err := types.NewExtensionRegistry(true)
 		s.NoError(err)
 
 		// Generate a cluster member for the local node.
@@ -289,47 +289,47 @@ func (s *dbSuite) Test_waitUpgradeSchema() {
 func (s *dbSuite) Test_waitUpgradeAPI() {
 	tests := []struct {
 		name                       string
-		upgradedLocalAPIExtensions extensions.Extensions
-		clusterMembersExtensions   []extensions.Extensions
+		upgradedLocalAPIExtensions types.Extensions
+		clusterMembersExtensions   []types.Extensions
 		expectErr                  error
 		expectWait                 bool
 	}{
 		{
 			name:                       "No upgrade, no other nodes",
-			upgradedLocalAPIExtensions: extensions.Extensions{},
+			upgradedLocalAPIExtensions: types.Extensions{},
 		},
 		{
 			name:                       "API upgrade, no other nodes",
-			upgradedLocalAPIExtensions: extensions.Extensions{"internal:a", "ext"},
+			upgradedLocalAPIExtensions: types.Extensions{"internal:a", "ext"},
 		},
 		{
 			name:                       "All other nodes ahead",
-			upgradedLocalAPIExtensions: extensions.Extensions{"internal:a", "ext"},
-			clusterMembersExtensions:   []extensions.Extensions{{"internal:a", "ext", "ext2"}, {"internal:a", "ext", "ext2"}},
+			upgradedLocalAPIExtensions: types.Extensions{"internal:a", "ext"},
+			clusterMembersExtensions:   []types.Extensions{{"internal:a", "ext", "ext2"}, {"internal:a", "ext", "ext2"}},
 			expectErr:                  fmt.Errorf("This node's API extensions are behind, please upgrade"),
 		},
 		{
 			name:                       "Some other nodes ahead",
-			upgradedLocalAPIExtensions: extensions.Extensions{"internal:a", "ext"},
-			clusterMembersExtensions:   []extensions.Extensions{{"internal:a", "ext"}, {"internal:a", "ext", "ext2"}},
+			upgradedLocalAPIExtensions: types.Extensions{"internal:a", "ext"},
+			clusterMembersExtensions:   []types.Extensions{{"internal:a", "ext"}, {"internal:a", "ext", "ext2"}},
 			expectErr:                  fmt.Errorf("This node's API extensions are behind, please upgrade"),
 		},
 		{
 			name:                       "All other nodes behind",
-			upgradedLocalAPIExtensions: extensions.Extensions{"internal:a", "ext", "ext2"},
-			clusterMembersExtensions:   []extensions.Extensions{{"internal:a", "ext"}, {"internal:a", "ext"}},
+			upgradedLocalAPIExtensions: types.Extensions{"internal:a", "ext", "ext2"},
+			clusterMembersExtensions:   []types.Extensions{{"internal:a", "ext"}, {"internal:a", "ext"}},
 			expectWait:                 true,
 		},
 		{
 			name:                       "Some other nodes behind",
-			upgradedLocalAPIExtensions: extensions.Extensions{"internal:a", "ext", "ext2"},
-			clusterMembersExtensions:   []extensions.Extensions{{"internal:a", "ext", "ext2"}, {"internal:a", "ext"}},
+			upgradedLocalAPIExtensions: types.Extensions{"internal:a", "ext", "ext2"},
+			clusterMembersExtensions:   []types.Extensions{{"internal:a", "ext", "ext2"}, {"internal:a", "ext"}},
 			expectWait:                 true,
 		},
 		{
 			name:                       "Some nodes behind, others ahead",
-			upgradedLocalAPIExtensions: extensions.Extensions{"internal:a", "ext", "ext2"},
-			clusterMembersExtensions:   []extensions.Extensions{{"internal:a", "ext"}, {"internal:a", "ext", "ext2", "ext3"}},
+			upgradedLocalAPIExtensions: types.Extensions{"internal:a", "ext", "ext2"},
+			clusterMembersExtensions:   []types.Extensions{{"internal:a", "ext"}, {"internal:a", "ext", "ext2", "ext3"}},
 			expectErr:                  fmt.Errorf("This node's API extensions are behind, please upgrade"),
 		},
 	}
@@ -417,9 +417,9 @@ func (s *dbSuite) Test_waitUpgradeAPI() {
 
 		res, err := clusterDB.SelectStrings(ctx, tx, "SELECT api_extensions FROM core_cluster_members ORDER BY id")
 		s.NoError(err)
-		allExtensions := make([]extensions.Extensions, 0)
+		allExtensions := make([]types.Extensions, 0)
 		for _, r := range res {
-			e := extensions.Extensions{}
+			e := types.Extensions{}
 			err = json.Unmarshal([]byte(r), &e)
 			s.NoError(err)
 			allExtensions = append(allExtensions, e)
@@ -442,7 +442,7 @@ func (s *dbSuite) Test_waitUpgradeSchemaAndAPI() {
 	type versionsWithExtensions struct {
 		schemaInt uint64
 		schemaExt uint64
-		ext       extensions.Extensions
+		ext       types.Extensions
 	}
 
 	tests := []struct {
@@ -457,7 +457,7 @@ func (s *dbSuite) Test_waitUpgradeSchemaAndAPI() {
 			upgradedLocalInfo: versionsWithExtensions{
 				schemaInt: 0,
 				schemaExt: 0,
-				ext:       extensions.Extensions{"internal:a"},
+				ext:       types.Extensions{"internal:a"},
 			},
 		},
 		{
@@ -465,11 +465,11 @@ func (s *dbSuite) Test_waitUpgradeSchemaAndAPI() {
 			upgradedLocalInfo: versionsWithExtensions{
 				schemaInt: 0,
 				schemaExt: 0,
-				ext:       extensions.Extensions{"internal:a"},
+				ext:       types.Extensions{"internal:a"},
 			},
 			clusterMembers: []versionsWithExtensions{
-				{schemaInt: 1, schemaExt: 1, ext: extensions.Extensions{"internal:a"}},
-				{schemaInt: 1, schemaExt: 1, ext: extensions.Extensions{"internal:a"}},
+				{schemaInt: 1, schemaExt: 1, ext: types.Extensions{"internal:a"}},
+				{schemaInt: 1, schemaExt: 1, ext: types.Extensions{"internal:a"}},
 			},
 			expectErr: fmt.Errorf("This node's version is behind, please upgrade"),
 		},
@@ -478,11 +478,11 @@ func (s *dbSuite) Test_waitUpgradeSchemaAndAPI() {
 			upgradedLocalInfo: versionsWithExtensions{
 				schemaInt: 2,
 				schemaExt: 2,
-				ext:       extensions.Extensions{"internal:a", "b", "c"},
+				ext:       types.Extensions{"internal:a", "b", "c"},
 			},
 			clusterMembers: []versionsWithExtensions{
-				{schemaInt: 1, schemaExt: 1, ext: extensions.Extensions{"internal:a", "b", "c"}},
-				{schemaInt: 1, schemaExt: 1, ext: extensions.Extensions{"internal:a", "b", "c"}},
+				{schemaInt: 1, schemaExt: 1, ext: types.Extensions{"internal:a", "b", "c"}},
+				{schemaInt: 1, schemaExt: 1, ext: types.Extensions{"internal:a", "b", "c"}},
 			},
 			expectWait: true,
 		},
@@ -491,11 +491,11 @@ func (s *dbSuite) Test_waitUpgradeSchemaAndAPI() {
 			upgradedLocalInfo: versionsWithExtensions{
 				schemaInt: 1,
 				schemaExt: 1,
-				ext:       extensions.Extensions{"internal:a", "b"},
+				ext:       types.Extensions{"internal:a", "b"},
 			},
 			clusterMembers: []versionsWithExtensions{
-				{schemaInt: 2, schemaExt: 2, ext: extensions.Extensions{"internal:a", "b"}},
-				{schemaInt: 0, schemaExt: 0, ext: extensions.Extensions{"internal:a", "b"}},
+				{schemaInt: 2, schemaExt: 2, ext: types.Extensions{"internal:a", "b"}},
+				{schemaInt: 0, schemaExt: 0, ext: types.Extensions{"internal:a", "b"}},
 			},
 			expectErr: fmt.Errorf("This node's version is behind, please upgrade"),
 		},
@@ -518,7 +518,7 @@ func (s *dbSuite) Test_waitUpgradeSchemaAndAPI() {
 			Certificate:    fmt.Sprintf("test-cert-%d", 0),
 			SchemaInternal: 0,
 			SchemaExternal: 0,
-			APIExtensions:  extensions.Extensions{},
+			APIExtensions:  types.Extensions{},
 			Heartbeat:      time.Time{},
 			Role:           "voter",
 		})
@@ -599,9 +599,9 @@ func (s *dbSuite) Test_waitUpgradeSchemaAndAPI() {
 
 		res, err := clusterDB.SelectStrings(ctx, tx, "SELECT api_extensions FROM core_cluster_members ORDER BY id")
 		s.NoError(err)
-		allExtensions := make([]extensions.Extensions, 0)
+		allExtensions := make([]types.Extensions, 0)
 		for _, r := range res {
-			e := extensions.Extensions{}
+			e := types.Extensions{}
 			err = json.Unmarshal([]byte(r), &e)
 			s.NoError(err)
 			allExtensions = append(allExtensions, e)

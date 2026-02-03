@@ -6,7 +6,6 @@ import (
 
 	dqliteClient "github.com/canonical/go-dqlite/v3/client"
 
-	"github.com/canonical/microcluster/v3/internal/extensions"
 	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
@@ -30,5 +29,5 @@ type DB interface {
 	IsOpen(ctx context.Context) error
 
 	// SchemaVersion returns the current internal and external schema version, as well as all API extensions in memory.
-	SchemaVersion() (versionInternal uint64, versionExternal uint64, apiExtensions extensions.Extensions)
+	SchemaVersion() (versionInternal uint64, versionExternal uint64, apiExtensions types.Extensions)
 }

@@ -26,7 +26,6 @@ import (
 
 	"github.com/canonical/microcluster/v3/internal/cluster"
 	"github.com/canonical/microcluster/v3/internal/db/update"
-	"github.com/canonical/microcluster/v3/internal/extensions"
 	"github.com/canonical/microcluster/v3/internal/log"
 	internalClient "github.com/canonical/microcluster/v3/internal/rest/client"
 	"github.com/canonical/microcluster/v3/internal/sys"
@@ -114,7 +113,7 @@ func (db *DqliteDB) log() *slog.Logger {
 }
 
 // SetSchema sets schema and API extensions on the DB.
-func (db *DqliteDB) SetSchema(schemaExtensions []clusterDB.Update, apiExtensions extensions.Extensions) {
+func (db *DqliteDB) SetSchema(schemaExtensions []clusterDB.Update, apiExtensions types.Extensions) {
 	s := update.NewSchema()
 	s.AppendSchema(schemaExtensions, apiExtensions)
 	db.schema = s.Schema()
@@ -126,7 +125,7 @@ func (db *DqliteDB) Schema() *update.SchemaUpdate {
 }
 
 // SchemaVersion returns the current internal and external schema version, as well as all API extensions in memory.
-func (db *DqliteDB) SchemaVersion() (versionInternal uint64, versionExternal uint64, apiExtensions extensions.Extensions) {
+func (db *DqliteDB) SchemaVersion() (versionInternal uint64, versionExternal uint64, apiExtensions types.Extensions) {
 	return db.schema.Version()
 }
 
@@ -146,7 +145,7 @@ func (db *DqliteDB) isInitialized() (bool, error) {
 }
 
 // Bootstrap dqlite.
-func (db *DqliteDB) Bootstrap(extensions extensions.Extensions, addr *url.URL, clusterRecord cluster.CoreClusterMember) error {
+func (db *DqliteDB) Bootstrap(extensions types.Extensions, addr *url.URL, clusterRecord cluster.CoreClusterMember) error {
 	var err error
 	db.listenAddr = addr
 	db.dqlite, err = dqlite.New(db.os.DatabaseDir(),
@@ -196,7 +195,7 @@ func (db *DqliteDB) Bootstrap(extensions extensions.Extensions, addr *url.URL, c
 }
 
 // Join a dqlite cluster with the address of a member.
-func (db *DqliteDB) Join(extensions extensions.Extensions, addr *url.URL, joinAddresses ...string) error {
+func (db *DqliteDB) Join(extensions types.Extensions, addr *url.URL, joinAddresses ...string) error {
 	var err error
 	db.listenAddr = addr
 	db.dqlite, err = dqlite.New(db.os.DatabaseDir(),
@@ -248,7 +247,7 @@ func (db *DqliteDB) Join(extensions extensions.Extensions, addr *url.URL, joinAd
 }
 
 // StartWithCluster starts up dqlite and joins the cluster.
-func (db *DqliteDB) StartWithCluster(extensions extensions.Extensions, addr *url.URL, clusterMembers map[string]types.AddrPort) error {
+func (db *DqliteDB) StartWithCluster(extensions types.Extensions, addr *url.URL, clusterMembers map[string]types.AddrPort) error {
 	allClusterAddrs := []string{}
 	for _, clusterMemberAddrs := range clusterMembers {
 		allClusterAddrs = append(allClusterAddrs, clusterMemberAddrs.String())

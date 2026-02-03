@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/canonical/microcluster/v3/internal/extensions"
 	"github.com/canonical/microcluster/v3/internal/log"
 	clusterDB "github.com/canonical/microcluster/v3/microcluster/db"
+	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
 // PrepareUpdateV1 creates the temporary table `internal_cluster_members_new` if we have not yet run `updateFromV1`.
@@ -144,7 +144,7 @@ func GetClusterMemberSchemaVersions(ctx context.Context, tx *sql.Tx) (internalSc
 
 // UpdateClusterMemberAPIExtensions sets the API extensions for the cluster member with the given address.
 // This helper is non-generated to work before generated statements are loaded, as we update the API extensions.
-func UpdateClusterMemberAPIExtensions(ctx context.Context, tx *sql.Tx, apiExtensions extensions.Extensions, memberName string) error {
+func UpdateClusterMemberAPIExtensions(ctx context.Context, tx *sql.Tx, apiExtensions types.Extensions, memberName string) error {
 	table, err := getClusterTableName(ctx, tx)
 	if err != nil {
 		return err
@@ -193,7 +193,7 @@ WHERE name IN ('api_extensions');
 
 // GetClusterMemberAPIExtensions returns the API extensions from all cluster members that are not pending.
 // This helper is non-generated to work before generated statements are loaded, as we update the API extensions.
-func GetClusterMemberAPIExtensions(ctx context.Context, tx *sql.Tx) ([]extensions.Extensions, error) {
+func GetClusterMemberAPIExtensions(ctx context.Context, tx *sql.Tx) ([]types.Extensions, error) {
 	table, err := getClusterTableName(ctx, tx)
 	if err != nil {
 		return nil, err
@@ -216,9 +216,9 @@ func GetClusterMemberAPIExtensions(ctx context.Context, tx *sql.Tx) ([]extension
 		}
 	}()
 
-	var results []extensions.Extensions
+	var results []types.Extensions
 	for rows.Next() {
-		var ext extensions.Extensions
+		var ext types.Extensions
 		err := rows.Scan(&ext)
 		if err != nil {
 			return nil, err

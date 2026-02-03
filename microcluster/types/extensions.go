@@ -1,4 +1,4 @@
-package extensions
+package types
 
 import (
 	"database/sql/driver"

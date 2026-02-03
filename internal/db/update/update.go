@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/canonical/microcluster/v3/internal/extensions"
 	clusterDB "github.com/canonical/microcluster/v3/microcluster/db"
+	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
 // CreateSchema is the default schema applied when bootstrapping the database.
@@ -23,7 +23,7 @@ CREATE TABLE schemas (
 type SchemaUpdateManager struct {
 	updates map[updateType][]clusterDB.Update
 
-	apiExtensions extensions.Extensions
+	apiExtensions types.Extensions
 }
 
 // NewSchema returns a new SchemaUpdateManager containing microcluster schema updates.
@@ -69,7 +69,7 @@ func (s *SchemaUpdateManager) Schema() *SchemaUpdate {
 }
 
 // AppendSchema sets the given schema and API updates as the list of external extensions on the update manager.
-func (s *SchemaUpdateManager) AppendSchema(schemaExtensions []clusterDB.Update, apiExtensions extensions.Extensions) {
+func (s *SchemaUpdateManager) AppendSchema(schemaExtensions []clusterDB.Update, apiExtensions types.Extensions) {
 	s.updates[updateExternal] = schemaExtensions
 	s.apiExtensions = apiExtensions
 }

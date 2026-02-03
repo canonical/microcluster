@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/canonical/microcluster/v3/internal/db/update"
-	"github.com/canonical/microcluster/v3/internal/extensions"
 	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
@@ -25,7 +24,7 @@ type CoreClusterMember struct {
 	Certificate    string
 	SchemaInternal uint64
 	SchemaExternal uint64
-	APIExtensions  extensions.Extensions
+	APIExtensions  types.Extensions
 	Heartbeat      time.Time
 	Role           Role
 }
@@ -67,7 +66,7 @@ func (c CoreClusterMember) ToAPI() (*types.ClusterMember, error) {
 // GetUpgradingClusterMembers returns the list of all cluster members during an upgrade, as well as a map of members who we consider to be in a waiting state.
 // This function can be used immediately after dqlite is ready, before we have loaded any prepared statements.
 // A cluster member will be in a waiting state if a different cluster member still exists with a smaller API extension count or schema version.
-func GetUpgradingClusterMembers(ctx context.Context, tx *sql.Tx, schemaInternal uint64, schemaExternal uint64, apiExtensions extensions.Extensions) (allMembers []CoreClusterMember, awaitingMembers map[string]bool, err error) {
+func GetUpgradingClusterMembers(ctx context.Context, tx *sql.Tx, schemaInternal uint64, schemaExternal uint64, apiExtensions types.Extensions) (allMembers []CoreClusterMember, awaitingMembers map[string]bool, err error) {
 	tableName, err := update.PrepareUpdateV1(ctx, tx)
 	if err != nil {
 		return nil, nil, err

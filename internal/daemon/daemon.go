@@ -27,7 +27,6 @@ import (
 	internalConfig "github.com/canonical/microcluster/v3/internal/config"
 	"github.com/canonical/microcluster/v3/internal/db"
 	"github.com/canonical/microcluster/v3/internal/endpoints"
-	"github.com/canonical/microcluster/v3/internal/extensions"
 	internalLog "github.com/canonical/microcluster/v3/internal/log"
 	"github.com/canonical/microcluster/v3/internal/recover"
 	internalREST "github.com/canonical/microcluster/v3/internal/rest"
@@ -105,7 +104,7 @@ type Daemon struct {
 	shutdownDoneCh chan error         // Receives the result of state.Stop() when exit() is called and tells the daemon to end.
 	shutdownCancel context.CancelFunc // Cancels the shutdownCtx to indicate shutdown starting.
 
-	Extensions extensions.Extensions // Extensions supported at runtime by the daemon.
+	Extensions types.Extensions // Extensions supported at runtime by the daemon.
 
 	// stop is a sync.Once which wraps the daemon's stop sequence. Each call will block until the first one completes.
 	stop func() error
@@ -272,7 +271,7 @@ func (d *Daemon) init(listenAddress string, socketGroup string, heartbeatInterva
 	d.config.SetName(name)
 
 	// Initialize the extensions registry with the internal extensions.
-	d.Extensions, err = extensions.NewExtensionRegistry(true)
+	d.Extensions, err = types.NewExtensionRegistry(true)
 	if err != nil {
 		return err
 	}

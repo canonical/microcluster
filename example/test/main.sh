@@ -74,7 +74,10 @@ shutdown_systems() {
 
   # The cluster doesn't always shut down right away; we've given it a chance
   for job_pid in $(jobs -p); do
-    kill -9 "${job_pid}"
+    # Check if process still exists before trying to kill it
+    if kill -0 "${job_pid}" 2>/dev/null; then
+      kill -9 "${job_pid}" 2>/dev/null || true
+    fi
   done
 }
 
@@ -409,6 +412,140 @@ test_join_token_before_cluster_formed() {
   shutdown_systems
 }
 
+test_membership_consistency() {
+  echo "Testing membership consistency checks"
+  
+  new_systems 4 --heartbeat 2s
+  
+  # Bootstrap first member (daemon already running from new_systems)
+  microctl --state-dir "${test_dir}/c1" init "c1" 127.0.0.1:9001 --bootstrap
+  
+  # Join second member (daemon already running)
+  token_c2=$(microctl --state-dir "${test_dir}/c1" tokens add "c2")
+  microctl --state-dir "${test_dir}/c2" init "c2" 127.0.0.1:9002 --token "${token_c2}"
+
+  # Start third member and join cluster
+  token_c3=$(microctl --state-dir "${test_dir}/c1" tokens add "c3")
+  microctl --state-dir "${test_dir}/c3" init "c3" 127.0.0.1:9003 --token "${token_c3}"
+  
+  # Fetch join token for c4
+  token_c4=$(microctl --state-dir "${test_dir}/c1" tokens add "c4")
+
+  # Wait for cluster to stabilize
+  echo "  -> Waiting for cluster members to exit PENDING state"
+  
+  # Wait for all members to be promoted from PENDING
+  retry_count=0
+  max_retries=10
+  while [[ -n "$(microctl --state-dir "${test_dir}/c1" cluster list -f yaml | yq '.[] | select(.role == "PENDING")')" ]] && [[ ${retry_count} -lt ${max_retries} ]]; do
+    echo "  -> Still waiting for members to exit PENDING state..."
+    sleep 2
+    retry_count=$((retry_count + 1))
+  done
+  
+  echo "  -> Cluster established successfully"
+  
+  # Verify cluster is healthy
+  cluster_size=$(microctl --state-dir "${test_dir}/c1" cluster list -f yaml | yq '. | length')
+  if [ "${cluster_size}" != "3" ]; then
+    echo "ERROR: Expected cluster size 3, got ${cluster_size}"
+    exit 1
+  fi
+  
+  # Simulate inconsistent state by directly manipulating the database
+  # while keeping dqlite/truststore intact
+  echo "  -> Simulating inconsistent membership state"
+
+  # Remove c2's membership from core_cluster_members (simulating partial remove failure)
+  microctl --state-dir "${test_dir}/c1" sql "DELETE FROM core_cluster_members WHERE name = 'c2'"
+  
+  echo "  -> Created inconsistent state (c2 removed from database but still in truststore until heartbeat timeout)"
+
+  # Test member removal with inconsistent state
+  echo "  -> Testing member removal with inconsistent state"
+  if microctl --state-dir "${test_dir}/c1" cluster remove c2 2>/tmp/remove_error; then
+    echo "ERROR: Member removal should have failed due to inconsistent state"
+    cat /tmp/remove_error
+    exit 1
+  else
+    echo "  -> Member removal correctly blocked due to membership inconsistency"
+    cat /tmp/remove_error
+  fi
+  
+  # Try to join a new member - this should fail due to inconsistency
+  echo "  -> Testing join of new member c4 with inconsistent state"
+  if microctl --state-dir "${test_dir}/c4" init "c4" 127.0.0.1:9004 --token "${token_c4}" 2>/tmp/join_error; then
+    echo "ERROR: Member c4 should not have been able to join due to inconsistent state"
+    cat /tmp/join_error
+    exit 1
+  else
+    echo "  -> Membership inconsistency correctly detected, c4 join blocked"
+    cat /tmp/join_error
+  fi
+  
+  # Attempt to generate token should fail
+  echo "  -> Testing token generation with inconsistent state"
+  if microctl --state-dir "${test_dir}/c1" tokens add c5 2>/tmp/token_error; then
+    echo "ERROR: Token generation should have failed due to inconsistent state"
+    cat /tmp/token_error
+    exit 1
+  else
+    echo "  -> Token generation correctly blocked due to membership inconsistency"
+    cat /tmp/token_error
+  fi
+
+  echo "  -> Membership consistency checks working as expected"
+  
+  shutdown_systems
+}
+
+test_parallel_joins() {
+  echo "Testing parallel joins"
+
+  new_systems 4 --heartbeat 2s
+
+  # Bootstrap first member
+  microctl --state-dir "${test_dir}/c1" init "c1" 127.0.0.1:9001 --bootstrap
+
+  # Prepare tokens for remaining members
+  token_c2=$(microctl --state-dir "${test_dir}/c1" tokens add "c2")
+  token_c3=$(microctl --state-dir "${test_dir}/c1" tokens add "c3")
+  token_c4=$(microctl --state-dir "${test_dir}/c1" tokens add "c4")
+
+  # Kick off joins in parallel and collect PIDs
+  microctl --state-dir "${test_dir}/c2" init "c2" 127.0.0.1:9002 --token "${token_c2}" &
+  pids=($!)
+  microctl --state-dir "${test_dir}/c3" init "c3" 127.0.0.1:9003 --token "${token_c3}" &
+  pids+=($!)
+  microctl --state-dir "${test_dir}/c4" init "c4" 127.0.0.1:9004 --token "${token_c4}" &
+  pids+=($!)
+
+  for pid in "${pids[@]}"; do
+    if ! wait "${pid}"; then
+      echo "ERROR: parallel join failed (pid ${pid})"
+      return 1
+    fi
+  done
+
+  # Wait for cluster to stabilize
+  retry_count=0
+  max_retries=10
+  while [[ -n "$(microctl --state-dir "${test_dir}/c1" cluster list -f yaml | yq '.[] | select(.role == "PENDING")')" ]] && [[ ${retry_count} -lt ${max_retries} ]]; do
+    sleep 2
+    retry_count=$((retry_count + 1))
+  done
+
+  cluster_size=$(microctl --state-dir "${test_dir}/c1" cluster list -f yaml | yq '. | length')
+  if [ "${cluster_size}" != "4" ]; then
+    echo "ERROR: Expected cluster size 4 after parallel joins, got ${cluster_size}"
+    return 1
+  fi
+
+  echo "SUCCESS: parallel joins completed without failures"
+
+  shutdown_systems
+}
+
 test_extended_endpoints() {
   new_systems 4 --heartbeat 2s
 
@@ -448,6 +585,8 @@ if [ "${1:-"all"}" = "all" ] || [ "${1}" = "" ]; then
   test_join_token_after_cluster_formed
   test_join_token_before_cluster_formed
   test_extended_endpoints
+  test_membership_consistency
+  test_parallel_joins
 elif [ "${1}" = "recover" ]; then
   test_recover
 elif [ "${1}" = "tokens" ]; then
@@ -460,6 +599,10 @@ elif [ "${1}" = "join-before" ]; then
   test_join_token_before_cluster_formed
 elif [ "${1}" = "extended" ]; then
   test_extended_endpoints
+elif [ "${1}" = "membership" ]; then
+  test_membership_consistency
+elif [ "${1}" = "parallel-join" ]; then
+  test_parallel_joins
 else
   echo "Unknown test ${1}"
 fi

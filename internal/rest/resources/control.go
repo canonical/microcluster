@@ -131,7 +131,7 @@ func controlPost(state state.State, r *http.Request) response.Response {
 			<-r.Context().Done()
 
 			// Use `force=1` to ensure the node is fully removed, in case its listener hasn't been set up.
-			err = internalClient.DeleteClusterMember(context.Background(), client, req.Name, true)
+			err = internalClient.DeleteClusterMember(r.Context(), client, req.Name, "", true)
 			if err != nil {
 				logger.Error("Failed to clean up cluster state after join failure", slog.String("error", err.Error()))
 			}

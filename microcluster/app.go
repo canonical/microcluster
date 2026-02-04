@@ -333,13 +333,17 @@ func (m *MicroCluster) RevokeJoinToken(ctx context.Context, name string) error {
 }
 
 // RemoveClusterMember removes a member from the cluster.
-func (m *MicroCluster) RemoveClusterMember(ctx context.Context, name string, force bool) error {
+// If `address` is non-empty it is sent as a query parameter to target dqlite
+// removal by address when the truststore cannot map name to address.
+// Dqlite does not track names, so this is useful when the name is no longer
+// resolvable.
+func (m *MicroCluster) RemoveClusterMember(ctx context.Context, name string, address string, force bool) error {
 	c, err := m.LocalClient()
 	if err != nil {
 		return err
 	}
 
-	return internalClient.DeleteClusterMember(ctx, c, name, force)
+	return internalClient.DeleteClusterMember(ctx, c, name, address, force)
 }
 
 // LocalClient returns a client connected to the local control socket.

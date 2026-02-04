@@ -3,6 +3,7 @@ package response
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -116,6 +117,16 @@ func NotImplemented(err error) Response {
 // Unavailable returns an unavailable response (503) with the given error.
 func Unavailable(err error) Response {
 	return &errorResponse{http.StatusServiceUnavailable, err}
+}
+
+// Unauthorized returns an unauthorized response (401) with the given error.
+func Unauthorized(err error) Response {
+	return &errorResponse{http.StatusUnauthorized, err}
+}
+
+// ErrorResponse returns an error response with the given code and msg.
+func ErrorResponse(code int, msg string) Response {
+	return &errorResponse{code, errors.New(msg)}
 }
 
 func (r *errorResponse) Render(w http.ResponseWriter, req *http.Request) error {

@@ -45,7 +45,7 @@ type State interface {
 	ClusterCert() *shared.CertInfo
 
 	// Database.
-	Database() db.DB
+	Database() types.DB
 
 	// Local truststore access.
 	Truststore() types.Store
@@ -144,7 +144,7 @@ func (s *InternalState) ClusterCert() *shared.CertInfo {
 }
 
 // Database allows access to the dqlite database.
-func (s *InternalState) Database() db.DB {
+func (s *InternalState) Database() types.DB {
 	return s.InternalDatabase
 }
 

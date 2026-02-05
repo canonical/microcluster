@@ -63,7 +63,7 @@ type InternalState struct {
 	Extensions types.Extensions
 
 	// Hooks contain external implementations that are triggered by specific cluster actions.
-	Hooks *Hooks
+	Hooks *types.Hooks
 
 	InternalFileSystem       func() types.OS
 	InternalAddress          func() *url.URL
@@ -235,7 +235,7 @@ func (s *InternalState) RandomMember(isNotification bool) (types.Client, error) 
 }
 
 // ToInternal returns the underlying InternalState from the exposed State interface.
-func ToInternal(s State) (*InternalState, error) {
+func ToInternal(s types.State) (*InternalState, error) {
 	internal, ok := s.(*InternalState)
 	if ok {
 		return internal, nil

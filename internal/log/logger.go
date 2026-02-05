@@ -4,16 +4,13 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+
+	"github.com/canonical/microcluster/v3/microcluster/types"
 )
-
-type ctxKey string
-
-// CtxLogger is the name of the context value for the central logger.
-const CtxLogger ctxKey = "logger"
 
 // LoggerFromContext returns the logger from the given context.
 func LoggerFromContext(ctx context.Context) (*slog.Logger, error) {
-	logger, ok := ctx.Value(CtxLogger).(*slog.Logger)
+	logger, ok := ctx.Value(types.CtxLogger).(*slog.Logger)
 	if !ok {
 		return nil, errors.New("Logger does not exist on context")
 	}

@@ -26,7 +26,6 @@ import (
 
 	"github.com/canonical/microcluster/v3/internal/cluster"
 	"github.com/canonical/microcluster/v3/internal/db/update"
-	"github.com/canonical/microcluster/v3/internal/log"
 	internalClient "github.com/canonical/microcluster/v3/internal/rest/client"
 	"github.com/canonical/microcluster/v3/internal/sys"
 	clusterDB "github.com/canonical/microcluster/v3/microcluster/db"
@@ -109,7 +108,7 @@ func NewDB(ctx context.Context, serverCert func() *shared.CertInfo, clusterCert 
 // log is a convenience to retrieve the internal logger from the database's context.
 // We always expect the logger to be present.
 func (db *DqliteDB) log() *slog.Logger {
-	return db.ctx.Value(log.CtxLogger).(*slog.Logger) //nolint:revive
+	return db.ctx.Value(types.CtxLogger).(*slog.Logger) //nolint:revive
 }
 
 // SetSchema sets schema and API extensions on the DB.

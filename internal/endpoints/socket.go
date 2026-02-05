@@ -15,7 +15,7 @@ import (
 
 	"github.com/canonical/lxd/shared"
 
-	"github.com/canonical/microcluster/v3/internal/log"
+	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
 // Socket represents a unix socket with a given path.
@@ -50,7 +50,7 @@ func NewSocket(ctx context.Context, server *http.Server, path *url.URL, group st
 // log is a convenience to retrieve the internal logger from the socket's context.
 // We always expect the logger to be present.
 func (s *Socket) log() *slog.Logger {
-	return s.ctx.Value(log.CtxLogger).(*slog.Logger) //nolint:revive
+	return s.ctx.Value(types.CtxLogger).(*slog.Logger) //nolint:revive
 }
 
 // Type returns the type of the Endpoint.

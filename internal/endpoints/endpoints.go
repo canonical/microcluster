@@ -9,7 +9,7 @@ import (
 
 	"github.com/canonical/lxd/shared"
 
-	"github.com/canonical/microcluster/v3/internal/log"
+	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
 // Endpoints represents all listeners and servers for the microcluster daemon REST API.
@@ -28,7 +28,7 @@ func NewEndpoints(shutdownCtx context.Context, endpoints map[string]Endpoint) *E
 // log is a convenience to retrieve the internal logger from the shutdown context.
 // We always expect the logger to be present.
 func (e *Endpoints) log() *slog.Logger {
-	return e.shutdownCtx.Value(log.CtxLogger).(*slog.Logger) //nolint:revive
+	return e.shutdownCtx.Value(types.CtxLogger).(*slog.Logger) //nolint:revive
 }
 
 // Up calls Serve on each of the configured listeners.

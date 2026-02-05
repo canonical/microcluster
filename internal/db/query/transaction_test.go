@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"log/slog"
 	"testing"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -12,8 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/canonical/microcluster/v3/internal/db/query"
-	"github.com/canonical/microcluster/v3/internal/log"
 	clusterDB "github.com/canonical/microcluster/v3/microcluster/db"
+	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
 // Any error happening when beginning the transaction will be propagated.
@@ -36,7 +35,7 @@ func TestTransaction_FunctionError(t *testing.T) {
 	db := newDB(t)
 
 	// Populate the context with the logger as this is required for a failing transaction.
-	ctx := context.WithValue(context.TODO(), log.CtxLogger, slog.Default())
+	ctx := types.ContextWithLogger(context.TODO())
 
 	err := query.Transaction(ctx, db, func(ctx context.Context, tx *sql.Tx) error {
 		_, err := tx.Exec("CREATE TABLE test (id INTEGER)")

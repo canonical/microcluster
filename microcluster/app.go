@@ -100,7 +100,7 @@ func (m *MicroCluster) Start(ctx context.Context, daemonArgs DaemonArgs) error {
 	}
 
 	// Attach the logger to the parent context.
-	ctx = context.WithValue(ctx, log.CtxLogger, logger)
+	ctx = types.ContextWithLogger(ctx, logger)
 
 	err := d.Run(ctx, m.FileSystem.StateDir(), daemonArgs)
 	if err != nil {
@@ -280,7 +280,7 @@ func (m *MicroCluster) RecoverFromQuorumLoss(members []types.DqliteMember) (stri
 	// Derive a new context with the central logger attached.
 	// As we don't have a running daemon at this stage, we cannot use its context.
 	// Instead we use the logger populated for the app which uses the custom handler if supplied.
-	ctx := context.WithValue(context.Background(), log.CtxLogger, m.LoggerFromContext(context.Background()))
+	ctx := types.ContextWithLogger(context.Background(), m.LoggerFromContext(context.Background()))
 
 	return recover.RecoverFromQuorumLoss(ctx, m.FileSystem, members)
 }

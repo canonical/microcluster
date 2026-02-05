@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"testing"
 	"time"
 
@@ -14,7 +13,6 @@ import (
 
 	"github.com/canonical/microcluster/v3/internal/cluster"
 	"github.com/canonical/microcluster/v3/internal/db/update"
-	"github.com/canonical/microcluster/v3/internal/log"
 	"github.com/canonical/microcluster/v3/internal/sys"
 	clusterDB "github.com/canonical/microcluster/v3/microcluster/db"
 	"github.com/canonical/microcluster/v3/microcluster/types"
@@ -652,7 +650,7 @@ func (s *dbSuite) Test_waitUpgradeSchemaAndAPI() {
 func NewTestDB(extensionsExternal []clusterDB.Update) (*DqliteDB, error) {
 	var err error
 
-	ctx := context.WithValue(context.Background(), log.CtxLogger, slog.Default())
+	ctx := types.ContextWithLogger(context.Background())
 
 	db := &DqliteDB{
 		ctx:        ctx,

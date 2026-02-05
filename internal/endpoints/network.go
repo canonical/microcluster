@@ -14,7 +14,7 @@ import (
 
 	"github.com/canonical/lxd/shared"
 
-	"github.com/canonical/microcluster/v3/internal/log"
+	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
 // Network represents an HTTPS listener and its server.
@@ -53,7 +53,7 @@ func NewNetwork(ctx context.Context, endpointType EndpointType, server *http.Ser
 // log is a convenience to retrieve the internal logger from the network's context.
 // We always expect the logger to be present.
 func (n *Network) log() *slog.Logger {
-	return n.ctx.Value(log.CtxLogger).(*slog.Logger) //nolint:revive
+	return n.ctx.Value(types.CtxLogger).(*slog.Logger) //nolint:revive
 }
 
 // Type returns the type of the Endpoint.

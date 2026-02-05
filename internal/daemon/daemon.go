@@ -27,7 +27,6 @@ import (
 	internalConfig "github.com/canonical/microcluster/v3/internal/config"
 	"github.com/canonical/microcluster/v3/internal/db"
 	"github.com/canonical/microcluster/v3/internal/endpoints"
-	internalLog "github.com/canonical/microcluster/v3/internal/log"
 	"github.com/canonical/microcluster/v3/internal/recover"
 	internalREST "github.com/canonical/microcluster/v3/internal/rest"
 	internalClient "github.com/canonical/microcluster/v3/internal/rest/client"
@@ -153,7 +152,7 @@ func NewDaemon() *Daemon {
 // log is a convenience to retrieve the internal logger from the shutdown context.
 // We always expect the logger to be present.
 func (d *Daemon) log() *slog.Logger {
-	return d.shutdownCtx.Value(internalLog.CtxLogger).(*slog.Logger) //nolint:revive
+	return d.shutdownCtx.Value(types.CtxLogger).(*slog.Logger) //nolint:revive
 }
 
 // Run initializes the Daemon with the given configuration, starts the database,

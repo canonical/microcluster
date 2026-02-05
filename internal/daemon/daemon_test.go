@@ -2,7 +2,6 @@ package daemon
 
 import (
 	"context"
-	"log/slog"
 	"path/filepath"
 	"testing"
 
@@ -13,7 +12,6 @@ import (
 
 	"github.com/canonical/microcluster/v3/internal/config"
 	"github.com/canonical/microcluster/v3/internal/endpoints"
-	"github.com/canonical/microcluster/v3/internal/log"
 	"github.com/canonical/microcluster/v3/internal/rest/client"
 	"github.com/canonical/microcluster/v3/internal/sys"
 	"github.com/canonical/microcluster/v3/internal/trust"
@@ -189,7 +187,7 @@ func (t *daemonsSuite) Test_UpdateServers() {
 	for i, test := range tests {
 		t.T().Logf("%s (case %d)", test.name, i)
 
-		ctx := context.WithValue(context.TODO(), log.CtxLogger, slog.Default())
+		ctx := types.ContextWithLogger(context.TODO())
 		commonDir := t.T().TempDir()
 
 		// Create a temp watcher.

@@ -6,7 +6,6 @@ import (
 
 	"github.com/canonical/microcluster/v3/microcluster/rest/response"
 	"github.com/canonical/microcluster/v3/microcluster/types"
-	"github.com/canonical/microcluster/v3/state"
 )
 
 // EndpointAlias represents an alias URL of and Endpoint in our API.
@@ -17,8 +16,8 @@ type EndpointAlias struct {
 
 // EndpointAction represents an action on an API endpoint.
 type EndpointAction struct {
-	Handler        func(state state.State, r *http.Request) response.Response
-	AccessHandler  func(state state.State, r *http.Request) (trusted bool, resp response.Response)
+	Handler        func(state types.State, r *http.Request) response.Response
+	AccessHandler  func(state types.State, r *http.Request) (trusted bool, resp response.Response)
 	AllowUntrusted bool
 	ProxyTarget    bool // Allow forwarding of the request to a target if ?target=name is specified.
 }

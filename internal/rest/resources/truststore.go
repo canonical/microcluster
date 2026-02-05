@@ -18,7 +18,6 @@ import (
 	"github.com/canonical/microcluster/v3/microcluster/rest"
 	"github.com/canonical/microcluster/v3/microcluster/rest/response"
 	"github.com/canonical/microcluster/v3/microcluster/types"
-	"github.com/canonical/microcluster/v3/state"
 )
 
 var trustCmd = rest.Endpoint{
@@ -35,7 +34,7 @@ var trustEntryCmd = rest.Endpoint{
 	Delete: rest.EndpointAction{Handler: trustDelete, AccessHandler: access.AllowAuthenticated},
 }
 
-func trustPost(s state.State, r *http.Request) response.Response {
+func trustPost(s types.State, r *http.Request) response.Response {
 	req := types.ClusterMemberLocal{}
 
 	// Parse the request.
@@ -114,7 +113,7 @@ func trustPost(s state.State, r *http.Request) response.Response {
 	return response.EmptySyncResponse
 }
 
-func trustDelete(s state.State, r *http.Request) response.Response {
+func trustDelete(s types.State, r *http.Request) response.Response {
 	name, err := url.PathUnescape(mux.Vars(r)["name"])
 	if err != nil {
 		return response.SmartError(err)

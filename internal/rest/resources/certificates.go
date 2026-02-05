@@ -21,7 +21,6 @@ import (
 	"github.com/canonical/microcluster/v3/microcluster/rest"
 	"github.com/canonical/microcluster/v3/microcluster/rest/response"
 	"github.com/canonical/microcluster/v3/microcluster/types"
-	"github.com/canonical/microcluster/v3/state"
 )
 
 var clusterCertificatesCmd = rest.Endpoint{
@@ -31,7 +30,7 @@ var clusterCertificatesCmd = rest.Endpoint{
 	Put: rest.EndpointAction{Handler: clusterCertificatesPut, AccessHandler: access.AllowAuthenticated},
 }
 
-func clusterCertificatesPut(s state.State, r *http.Request) response.Response {
+func clusterCertificatesPut(s types.State, r *http.Request) response.Response {
 	certificateName, err := url.PathUnescape(mux.Vars(r)["name"])
 	if err != nil {
 		return response.SmartError(err)

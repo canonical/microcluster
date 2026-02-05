@@ -22,7 +22,6 @@ import (
 	"github.com/canonical/microcluster/v3/microcluster/rest"
 	"github.com/canonical/microcluster/v3/microcluster/rest/response"
 	"github.com/canonical/microcluster/v3/microcluster/types"
-	"github.com/canonical/microcluster/v3/state"
 )
 
 var controlCmd = rest.Endpoint{
@@ -31,7 +30,7 @@ var controlCmd = rest.Endpoint{
 	Post: rest.EndpointAction{Handler: controlPost, AccessHandler: access.AllowAuthenticated},
 }
 
-func controlPost(state state.State, r *http.Request) response.Response {
+func controlPost(state types.State, r *http.Request) response.Response {
 	status := state.Database().Status()
 	if status != types.DatabaseNotReady {
 		return response.SmartError(fmt.Errorf("Unable to initialize cluster: %s", status))
@@ -186,7 +185,7 @@ func controlPost(state state.State, r *http.Request) response.Response {
 	return response.EmptySyncResponse
 }
 
-func joinWithToken(state state.State, r *http.Request, req *types.Control) (*types.TokenResponse, *types.Remote, error) {
+func joinWithToken(state types.State, r *http.Request, req *types.Control) (*types.TokenResponse, *types.Remote, error) {
 	token, err := types.DecodeToken(req.JoinToken)
 	if err != nil {
 		return nil, nil, err
@@ -289,7 +288,7 @@ func writeCert(dir, prefix string, cert, key, ca []byte) error {
 	return nil
 }
 
-func setupLocalMember(state state.State, localClusterMember *types.Remote, joinInfo *types.TokenResponse) ([]string, error) {
+func setupLocalMember(state types.State, localClusterMember *types.Remote, joinInfo *types.TokenResponse) ([]string, error) {
 	// Set up cluster certificate.
 	err := writeCert(state.FileSystem().StateDir(), string(types.ClusterCertificateName), []byte(joinInfo.ClusterCert.String()), []byte(joinInfo.ClusterKey), nil)
 	if err != nil {

@@ -15,7 +15,6 @@ import (
 	"github.com/canonical/microcluster/v3/microcluster/rest"
 	"github.com/canonical/microcluster/v3/microcluster/rest/response"
 	"github.com/canonical/microcluster/v3/microcluster/types"
-	"github.com/canonical/microcluster/v3/state"
 )
 
 // This is an example extended endpoint reachable at /1.0/extended/simple.
@@ -40,7 +39,7 @@ var extendedWebsocketCmd = rest.Endpoint{
 
 // This is the POST handler for the /1.0/extended/simple endpoint.
 // This example shows how to forward a request to other cluster members.
-func cmdSimple(state state.State, r *http.Request) response.Response {
+func cmdSimple(state types.State, r *http.Request) response.Response {
 	// Check the user agent header to check if we are the notifying cluster member.
 	if !types.IsNotification(r) {
 		// Get a collection of clients every other cluster member, with the notification user-agent set.
@@ -101,7 +100,7 @@ func cmdSimple(state state.State, r *http.Request) response.Response {
 
 // This is the GET handler for the /1.0/extended/websocket endpoint.
 // This example shows how to use websockets.
-func cmdWebsocket(state state.State, r *http.Request) response.Response {
+func cmdWebsocket(state types.State, r *http.Request) response.Response {
 	if r.Header.Get("Upgrade") == "websocket" {
 		var upgrader = websocket.Upgrader{
 			ReadBufferSize:  1024,

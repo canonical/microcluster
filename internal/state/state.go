@@ -24,42 +24,6 @@ import (
 	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
-// State exposes the internal daemon state for use with extended API handlers.
-type State interface {
-	// FileSystem structure.
-	FileSystem() types.OS
-
-	// Listen Address.
-	Address() *url.URL
-
-	// Name of the cluster member.
-	Name() string
-
-	// Version is provided by the MicroCluster consumer.
-	Version() string
-
-	// Server certificate is used for server-to-server connection.
-	ServerCert() *shared.CertInfo
-
-	// Cluster certificate is used for downstream connections within a cluster.
-	ClusterCert() *shared.CertInfo
-
-	// Database.
-	Database() types.DB
-
-	// Local truststore access.
-	Truststore() types.Store
-
-	// Returns a connector for interconnection with the cluster.
-	Connect() types.Connector
-
-	// HasExtension returns whether the given API extension is supported.
-	HasExtension(ext string) bool
-
-	// ExtensionServers returns an immutable list of the daemon's additional listeners.
-	ExtensionServers() []string
-}
-
 // InternalState is a gateway to the stateful components of the microcluster daemon.
 type InternalState struct {
 	// Context.

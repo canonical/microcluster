@@ -21,10 +21,10 @@ import (
 	internalState "github.com/canonical/microcluster/v3/internal/state"
 	"github.com/canonical/microcluster/v3/microcluster/rest"
 	"github.com/canonical/microcluster/v3/microcluster/rest/response"
-	"github.com/canonical/microcluster/v3/state"
+	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
-func handleAPIRequest(action rest.EndpointAction, state state.State, w http.ResponseWriter, r *http.Request) response.Response {
+func handleAPIRequest(action rest.EndpointAction, state types.State, w http.ResponseWriter, r *http.Request) response.Response {
 	if action.Handler == nil {
 		return response.NotImplemented(nil)
 	}
@@ -67,7 +67,7 @@ func handleAPIRequest(action rest.EndpointAction, state state.State, w http.Resp
 	return action.Handler(state, r)
 }
 
-func proxyTarget(action rest.EndpointAction, s state.State, r *http.Request) response.Response {
+func proxyTarget(action rest.EndpointAction, s types.State, r *http.Request) response.Response {
 	if r.URL == nil {
 		return action.Handler(s, r)
 	}
@@ -162,7 +162,7 @@ func proxyTarget(action rest.EndpointAction, s state.State, r *http.Request) res
 	return response.SyncResponse(true, resp.Metadata)
 }
 
-func handleDatabaseRequest(action rest.EndpointAction, state state.State, w http.ResponseWriter, r *http.Request) response.Response {
+func handleDatabaseRequest(action rest.EndpointAction, state types.State, w http.ResponseWriter, r *http.Request) response.Response {
 	trusted := r.Context().Value(client.CtxAccess)
 	if trusted == nil {
 		return response.Forbidden(nil)
@@ -216,7 +216,7 @@ func handleDatabaseRequest(action rest.EndpointAction, state state.State, w http
 
 // HandleEndpoint adds the endpoint to the mux router. A function variable is used to implement common logic
 // before calling the endpoint action handler associated with the request method, if it exists.
-func HandleEndpoint(state state.State, mux *mux.Router, version string, e rest.Endpoint) {
+func HandleEndpoint(state types.State, mux *mux.Router, version string, e rest.Endpoint) {
 	url := "/" + version
 	if e.Path != "" {
 		url = filepath.Join(url, e.Path)

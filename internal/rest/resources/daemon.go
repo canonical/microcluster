@@ -13,7 +13,6 @@ import (
 	"github.com/canonical/microcluster/v3/microcluster/rest"
 	"github.com/canonical/microcluster/v3/microcluster/rest/response"
 	"github.com/canonical/microcluster/v3/microcluster/types"
-	"github.com/canonical/microcluster/v3/state"
 )
 
 var daemonCmd = rest.Endpoint{
@@ -23,7 +22,7 @@ var daemonCmd = rest.Endpoint{
 	Put: rest.EndpointAction{Handler: daemonServersPut, AccessHandler: access.AllowAuthenticated},
 }
 
-func daemonServersGet(s state.State, r *http.Request) response.Response {
+func daemonServersGet(s types.State, r *http.Request) response.Response {
 	intState, err := internalState.ToInternal(s)
 	if err != nil {
 		return response.SmartError(err)
@@ -32,7 +31,7 @@ func daemonServersGet(s state.State, r *http.Request) response.Response {
 	return response.SyncResponse(true, intState.LocalConfig().GetServers())
 }
 
-func daemonServersPut(s state.State, r *http.Request) response.Response {
+func daemonServersPut(s types.State, r *http.Request) response.Response {
 	req := make(map[string]types.ServerConfig)
 
 	// Parse the request.

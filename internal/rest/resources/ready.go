@@ -8,7 +8,7 @@ import (
 	internalState "github.com/canonical/microcluster/v3/internal/state"
 	"github.com/canonical/microcluster/v3/microcluster/rest"
 	"github.com/canonical/microcluster/v3/microcluster/rest/response"
-	"github.com/canonical/microcluster/v3/state"
+	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
 var readyCmd = rest.Endpoint{
@@ -18,7 +18,7 @@ var readyCmd = rest.Endpoint{
 	Get: rest.EndpointAction{Handler: getWaitReady, AccessHandler: access.AllowAuthenticated},
 }
 
-func getWaitReady(state state.State, r *http.Request) response.Response {
+func getWaitReady(state types.State, r *http.Request) response.Response {
 	intState, err := internalState.ToInternal(state)
 	if err != nil {
 		return response.SmartError(err)

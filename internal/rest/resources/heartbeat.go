@@ -16,7 +16,6 @@ import (
 	"github.com/canonical/microcluster/v3/microcluster/rest"
 	"github.com/canonical/microcluster/v3/microcluster/rest/response"
 	"github.com/canonical/microcluster/v3/microcluster/types"
-	"github.com/canonical/microcluster/v3/state"
 )
 
 var heartbeatCmd = rest.Endpoint{
@@ -25,7 +24,7 @@ var heartbeatCmd = rest.Endpoint{
 	Post: rest.EndpointAction{Handler: heartbeatPost, AllowUntrusted: true},
 }
 
-func heartbeatPost(s state.State, r *http.Request) response.Response {
+func heartbeatPost(s types.State, r *http.Request) response.Response {
 	var hbInfo types.HeartbeatInfo
 	err := json.NewDecoder(r.Body).Decode(&hbInfo)
 	if err != nil {
@@ -89,7 +88,7 @@ func heartbeatPost(s state.State, r *http.Request) response.Response {
 
 // beginHeartbeat initiates a heartbeat from the leader node to all other cluster members, if we haven't sent one out
 // recently.
-func beginHeartbeat(ctx context.Context, s state.State, hbReq types.HeartbeatInfo) response.Response {
+func beginHeartbeat(ctx context.Context, s types.State, hbReq types.HeartbeatInfo) response.Response {
 	if s.Address().Host != hbReq.LeaderAddress {
 		return response.SmartError(fmt.Errorf("Attempt to initiate heartbeat from non-leader"))
 	}

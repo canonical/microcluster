@@ -7,7 +7,6 @@ import (
 	"github.com/canonical/microcluster/v3/microcluster/rest"
 	"github.com/canonical/microcluster/v3/microcluster/rest/response"
 	"github.com/canonical/microcluster/v3/microcluster/types"
-	"github.com/canonical/microcluster/v3/state"
 )
 
 var api10Cmd = rest.Endpoint{
@@ -16,7 +15,7 @@ var api10Cmd = rest.Endpoint{
 	Get: rest.EndpointAction{Handler: api10Get, AllowUntrusted: true},
 }
 
-func api10Get(s state.State, r *http.Request) response.Response {
+func api10Get(s types.State, r *http.Request) response.Response {
 	addrPort, err := types.ParseAddrPort(s.Address().Host)
 	if err != nil {
 		return response.SmartError(err)

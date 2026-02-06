@@ -9,7 +9,6 @@ import (
 	"github.com/canonical/microcluster/v3/microcluster/rest"
 	"github.com/canonical/microcluster/v3/microcluster/rest/response"
 	"github.com/canonical/microcluster/v3/microcluster/types"
-	"github.com/canonical/microcluster/v3/state"
 )
 
 var shutdownCmd = rest.Endpoint{
@@ -19,7 +18,7 @@ var shutdownCmd = rest.Endpoint{
 	Post: rest.EndpointAction{Handler: shutdownPost, AccessHandler: access.AllowAuthenticated},
 }
 
-func shutdownPost(state state.State, r *http.Request) response.Response {
+func shutdownPost(state types.State, r *http.Request) response.Response {
 	intState, err := internalState.ToInternal(state)
 	if err != nil {
 		return response.SmartError(err)

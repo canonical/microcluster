@@ -32,7 +32,6 @@ import (
 	"github.com/canonical/microcluster/v3/microcluster/rest"
 	"github.com/canonical/microcluster/v3/microcluster/rest/response"
 	"github.com/canonical/microcluster/v3/microcluster/types"
-	"github.com/canonical/microcluster/v3/state"
 )
 
 var clusterCmd = rest.Endpoint{
@@ -61,7 +60,7 @@ var clusterMemberInternalCmd = rest.Endpoint{
 	Put: rest.EndpointAction{Handler: clusterMemberPut, AccessHandler: access.AllowAuthenticated},
 }
 
-func clusterPost(s state.State, r *http.Request) response.Response {
+func clusterPost(s types.State, r *http.Request) response.Response {
 	err := s.Database().IsOpen(r.Context())
 	if err != nil {
 		return response.SmartError(err)
@@ -243,7 +242,7 @@ func clusterPost(s state.State, r *http.Request) response.Response {
 	return response.SyncResponse(true, tokenResponse)
 }
 
-func clusterGet(s state.State, r *http.Request) response.Response {
+func clusterGet(s types.State, r *http.Request) response.Response {
 	status := s.Database().Status()
 
 	// If the database is not in a ready or waiting state, we can't be sure it's available for use.
@@ -328,7 +327,7 @@ func clusterGet(s state.State, r *http.Request) response.Response {
 // from the cluster when not the leader.
 var clusterDisableMu sync.Mutex
 
-func clusterMemberPut(s state.State, r *http.Request) response.Response {
+func clusterMemberPut(s types.State, r *http.Request) response.Response {
 	force := r.URL.Query().Get("force") == "1"
 	reExec, err := resetClusterMember(r.Context(), s, force)
 	if err != nil {
@@ -356,7 +355,7 @@ func clusterMemberPut(s state.State, r *http.Request) response.Response {
 
 // resetClusterMember clears the daemon state, closing the database and stopping all listeners.
 // Returns a function that can be used to re-exec the daemon, forcibly reloading its state.
-func resetClusterMember(ctx context.Context, s state.State, force bool) (reExec func(), err error) {
+func resetClusterMember(ctx context.Context, s types.State, force bool) (reExec func(), err error) {
 	intState, err := internalState.ToInternal(s)
 	if err != nil {
 		return nil, err
@@ -415,7 +414,7 @@ func resetClusterMember(ctx context.Context, s state.State, force bool) (reExec 
 }
 
 // clusterMemberDelete Removes a cluster member from dqlite and re-execs its daemon.
-func clusterMemberDelete(s state.State, r *http.Request) response.Response {
+func clusterMemberDelete(s types.State, r *http.Request) response.Response {
 	force := r.URL.Query().Get("force") == "1"
 	addr := r.URL.Query().Get("address")
 	name, err := url.PathUnescape(mux.Vars(r)["name"])

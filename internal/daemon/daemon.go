@@ -39,7 +39,6 @@ import (
 	"github.com/canonical/microcluster/v3/microcluster/rest"
 	"github.com/canonical/microcluster/v3/microcluster/rest/response"
 	"github.com/canonical/microcluster/v3/microcluster/types"
-	"github.com/canonical/microcluster/v3/state"
 )
 
 // Args are the data needed to start a MicroCluster daemon.
@@ -63,7 +62,7 @@ type Args struct {
 	APIExtensions []string
 
 	// Functions that trigger at various lifecycle events
-	Hooks *state.Hooks
+	Hooks *types.Hooks
 
 	// Each rest.Server will be initialized and managed by microcluster.
 	ExtensionServers map[string]rest.Server
@@ -96,7 +95,7 @@ type Daemon struct {
 	fsWatcher  *sys.Watcher
 	trustStore *trust.Store
 
-	hooks state.Hooks // Hooks to be called upon various daemon actions.
+	hooks types.Hooks // Hooks to be called upon various daemon actions.
 
 	ReadyChan      chan struct{}      // Closed when the daemon is fully ready.
 	shutdownCtx    context.Context    // Cancelled when shutdown starts.
@@ -249,7 +248,7 @@ func (d *Daemon) Run(ctx context.Context, stateDir string, args Args) error {
 	}
 }
 
-func (d *Daemon) init(listenAddress string, socketGroup string, heartbeatInterval time.Duration, schemaExtensions []clusterDB.Update, apiExtensions []string, hooks *state.Hooks) error {
+func (d *Daemon) init(listenAddress string, socketGroup string, heartbeatInterval time.Duration, schemaExtensions []clusterDB.Update, apiExtensions []string, hooks *types.Hooks) error {
 	d.applyHooks(hooks)
 
 	// Register smart error mappings.
@@ -373,21 +372,21 @@ func (d *Daemon) init(listenAddress string, socketGroup string, heartbeatInterva
 	return nil
 }
 
-func (d *Daemon) applyHooks(hooks *state.Hooks) {
+func (d *Daemon) applyHooks(hooks *types.Hooks) {
 	// Apply a no-op hooks for any missing hooks.
-	noOpHook := func(ctx context.Context, s state.State) error { return nil }
-	noOpRemoveHook := func(ctx context.Context, s state.State, force bool) error { return nil }
-	noOpInitHook := func(ctx context.Context, s state.State, initConfig map[string]string) error { return nil }
-	noOpGenericInitHook := func(ctx context.Context, s state.State, bootstrap bool, initConfig map[string]string) error {
+	noOpHook := func(ctx context.Context, s types.State) error { return nil }
+	noOpRemoveHook := func(ctx context.Context, s types.State, force bool) error { return nil }
+	noOpInitHook := func(ctx context.Context, s types.State, initConfig map[string]string) error { return nil }
+	noOpGenericInitHook := func(ctx context.Context, s types.State, bootstrap bool, initConfig map[string]string) error {
 		return nil
 	}
 
-	noOpConfigHook := func(ctx context.Context, s state.State, config types.DaemonConfig) error { return nil }
-	noOpNewMemberHook := func(ctx context.Context, s state.State, newMember types.ClusterMemberLocal) error { return nil }
-	noOpHeartbeatHook := func(ctx context.Context, s state.State, roleStatus map[string]types.RoleStatus) error { return nil }
+	noOpConfigHook := func(ctx context.Context, s types.State, config types.DaemonConfig) error { return nil }
+	noOpNewMemberHook := func(ctx context.Context, s types.State, newMember types.ClusterMemberLocal) error { return nil }
+	noOpHeartbeatHook := func(ctx context.Context, s types.State, roleStatus map[string]types.RoleStatus) error { return nil }
 
 	if hooks == nil {
-		d.hooks = state.Hooks{}
+		d.hooks = types.Hooks{}
 	} else {
 		d.hooks = *hooks
 	}
@@ -1108,7 +1107,7 @@ func (d *Daemon) FileSystem() types.OS {
 }
 
 // State creates a State instance with the daemon's stateful components.
-func (d *Daemon) State() state.State {
+func (d *Daemon) State() types.State {
 	state := &internalState.InternalState{
 		Hooks:                    &d.hooks,
 		Context:                  d.shutdownCtx,

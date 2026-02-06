@@ -258,7 +258,7 @@ func (s *InternalState) CheckMembershipConsistency(ctx context.Context) error {
 		if err != nil {
 			select {
 			case <-ctx.Done():
-				return fmt.Errorf("Membership consistency check failed after timeout: %w", err)
+				return fmt.Errorf("Membership consistency check failed: %w", err)
 			case <-time.After(200 * time.Millisecond):
 				continue
 			}

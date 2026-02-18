@@ -121,13 +121,13 @@ func (m *MicroCluster) Shutdown(ctx context.Context) error {
 }
 
 // Status returns basic status information about the cluster.
-func (m *MicroCluster) Status(ctx context.Context) (*types.Server, error) {
+func (m *MicroCluster) Status(ctx context.Context) (*types.Status, error) {
 	c, err := m.LocalClient()
 	if err != nil {
 		return nil, err
 	}
 
-	server := types.Server{}
+	server := types.Status{}
 	err = c.Query(ctx, "GET", types.PublicEndpoint, nil, nil, &server)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get cluster status: %w", err)

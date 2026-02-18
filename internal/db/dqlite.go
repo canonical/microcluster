@@ -34,10 +34,11 @@ import (
 
 // DqliteDB holds all information internal to the dqlite database.
 type DqliteDB struct {
-	memberName  func() string           // Local cluster member name
-	clusterCert func() *shared.CertInfo // Cluster certificate for dqlite authentication.
-	serverCert  func() *shared.CertInfo // Server certificate for dqlite authentication.
-	listenAddr  *url.URL                // Listen address for this dqlite node.
+	memberName    func() string           // Local cluster member name
+	clusterCert   func() *shared.CertInfo // Cluster certificate for dqlite authentication.
+	serverCert    func() *shared.CertInfo // Server certificate for dqlite authentication.
+	failureDomain func() uint64           // Local daemon failure-domain value applied when starting dqlite.
+	listenAddr    *url.URL                // Listen address for this dqlite node.
 
 	dbName string // This is db.bin.
 	os     types.OS
@@ -71,7 +72,7 @@ func (db *DqliteDB) Accept(conn net.Conn) {
 }
 
 // NewDB creates an empty db struct with no dqlite connection.
-func NewDB(ctx context.Context, serverCert func() *shared.CertInfo, clusterCert func() *shared.CertInfo, memberName func() string, os types.OS, heartbeatInterval time.Duration) (*DqliteDB, error) {
+func NewDB(ctx context.Context, serverCert func() *shared.CertInfo, clusterCert func() *shared.CertInfo, memberName func() string, failureDomain func() uint64, os types.OS, heartbeatInterval time.Duration) (*DqliteDB, error) {
 	shutdownCtx, shutdownCancel := context.WithCancel(ctx)
 
 	if heartbeatInterval == 0 {
@@ -82,6 +83,7 @@ func NewDB(ctx context.Context, serverCert func() *shared.CertInfo, clusterCert 
 		memberName:        memberName,
 		serverCert:        serverCert,
 		clusterCert:       clusterCert,
+		failureDomain:     failureDomain,
 		dbName:            filepath.Base(os.DatabasePath()),
 		os:                os,
 		acceptCh:          make(chan net.Conn),
@@ -149,6 +151,7 @@ func (db *DqliteDB) Bootstrap(extensions types.Extensions, addr *url.URL, cluste
 	db.listenAddr = addr
 	db.dqlite, err = dqlite.New(db.os.DatabaseDir(),
 		dqlite.WithAddress(db.listenAddr.Host),
+		dqlite.WithFailureDomain(db.failureDomain()),
 		dqlite.WithRolesAdjustmentFrequency(db.heartbeatInterval),
 		dqlite.WithRolesAdjustmentHook(db.heartbeat),
 		dqlite.WithConcurrentLeaderConns(&db.maxConns),
@@ -202,6 +205,7 @@ func (db *DqliteDB) Join(extensions types.Extensions, addr *url.URL, joinAddress
 		dqlite.WithRolesAdjustmentFrequency(db.heartbeatInterval),
 		dqlite.WithRolesAdjustmentHook(db.heartbeat),
 		dqlite.WithAddress(db.listenAddr.Host),
+		dqlite.WithFailureDomain(db.failureDomain()),
 		dqlite.WithConcurrentLeaderConns(&db.maxConns),
 		dqlite.WithExternalConn(db.dialFunc(), db.acceptCh),
 		dqlite.WithUnixSocket(os.Getenv(sys.DqliteSocket)))

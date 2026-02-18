@@ -36,8 +36,6 @@ import (
 	"github.com/canonical/microcluster/v3/internal/trust"
 	"github.com/canonical/microcluster/v3/internal/utils"
 	clusterDB "github.com/canonical/microcluster/v3/microcluster/db"
-	"github.com/canonical/microcluster/v3/microcluster/rest"
-	"github.com/canonical/microcluster/v3/microcluster/rest/response"
 	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
@@ -65,7 +63,7 @@ type Args struct {
 	Hooks *types.Hooks
 
 	// Each rest.Server will be initialized and managed by microcluster.
-	ExtensionServers map[string]rest.Server
+	ExtensionServers map[string]types.Server
 
 	// DrainConnectionsTimeout is the amount of time to allow for all core server connections to drain when shutting down.
 	// If it's 0, the connections are not drained when shutting down.
@@ -108,7 +106,7 @@ type Daemon struct {
 	stop func() error
 
 	extensionServersMu sync.RWMutex
-	extensionServers   map[string]rest.Server
+	extensionServers   map[string]types.Server
 
 	drainConnectionsTimeout time.Duration
 }
@@ -118,7 +116,7 @@ func NewDaemon() *Daemon {
 	d := &Daemon{
 		shutdownDoneCh:   make(chan error),
 		ReadyChan:        make(chan struct{}),
-		extensionServers: make(map[string]rest.Server),
+		extensionServers: make(map[string]types.Server),
 	}
 
 	d.stop = sync.OnceValue(func() error {
@@ -255,7 +253,7 @@ func (d *Daemon) init(listenAddress string, socketGroup string, heartbeatInterva
 	// Those need to be set proactively as they aren't anymore set by default.
 	// See https://github.com/canonical/lxd/pull/14408.
 	// Always set debug to false as this is the same behavior as if the mappings got registered in the upstream package.
-	response.Init(map[int][]error{
+	types.ResponseInit(map[int][]error{
 		http.StatusConflict:           {sqlite3.ErrConstraintUnique},
 		http.StatusServiceUnavailable: {driver.ErrNoAvailableLeader},
 	})
@@ -315,7 +313,7 @@ func (d *Daemon) init(listenAddress string, socketGroup string, heartbeatInterva
 
 	d.extensionServersMu.RUnlock()
 
-	serverEndpoints := []rest.Resources{
+	serverEndpoints := []types.Resources{
 		resources.UnixEndpoints,
 		resources.InternalEndpoints,
 		resources.PublicEndpoints,
@@ -336,7 +334,7 @@ func (d *Daemon) init(listenAddress string, socketGroup string, heartbeatInterva
 	}
 
 	if listenAddress != "" {
-		serverEndpoints = []rest.Resources{resources.PublicEndpoints}
+		serverEndpoints = []types.Resources{resources.PublicEndpoints}
 		err = d.addCoreServers(true, &listenAddr.URL, d.ServerCert(), serverEndpoints)
 		if err != nil {
 			return err
@@ -461,7 +459,7 @@ func (d *Daemon) initStore() error {
 	return nil
 }
 
-func (d *Daemon) initServer(resources ...rest.Resources) *http.Server {
+func (d *Daemon) initServer(resources ...types.Resources) *http.Server {
 	/* Setup the web server */
 	mux := mux.NewRouter()
 	mux.StrictSlash(false)
@@ -485,7 +483,7 @@ func (d *Daemon) initServer(resources ...rest.Resources) *http.Server {
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		err := response.SyncResponse(true, []string{"/1.0"}).Render(w, r)
+		err := types.SyncResponse(true, []string{"/1.0"}).Render(w, r)
 		if err != nil {
 			d.log().Error("Failed to write HTTP response", slog.String("url", r.URL.String()), slog.String("error", err.Error()))
 		}
@@ -494,7 +492,7 @@ func (d *Daemon) initServer(resources ...rest.Resources) *http.Server {
 	mux.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		d.log().Info("Sending top level 404", slog.String("url", r.URL.String()))
 		w.Header().Set("Content-Type", "application/json")
-		err := response.NotFound(nil).Render(w, r)
+		err := types.NotFound(nil).Render(w, r)
 		if err != nil {
 			d.log().Error("Failed to write HTTP response", slog.String("url", r.URL.String()), slog.String("error", err.Error()))
 		}
@@ -570,7 +568,7 @@ func (d *Daemon) StartAPI(ctx context.Context, bootstrap bool, initConfig map[st
 		return err
 	}
 
-	serverEndpoints := []rest.Resources{resources.InternalEndpoints, resources.PublicEndpoints}
+	serverEndpoints := []types.Resources{resources.InternalEndpoints, resources.PublicEndpoints}
 	err = d.addCoreServers(false, d.Address(), d.ClusterCert(), serverEndpoints)
 	if err != nil {
 		return err
@@ -838,7 +836,7 @@ func (d *Daemon) UpdateServers() error {
 }
 
 // startUnixServer starts up the core unix listener with the given resources.
-func (d *Daemon) startUnixServer(serverEndpoints []rest.Resources, socketGroup string) error {
+func (d *Daemon) startUnixServer(serverEndpoints []types.Resources, socketGroup string) error {
 	ctlServer := d.initServer(serverEndpoints...)
 
 	ctl := endpoints.NewSocket(d.shutdownCtx, ctlServer, d.os.ControlSocket(), socketGroup, d.drainConnectionsTimeout)
@@ -851,8 +849,8 @@ func (d *Daemon) startUnixServer(serverEndpoints []rest.Resources, socketGroup s
 
 // addCoreServers initializes the default resources with the default address and certificate.
 // If the default address and certificate may be applied to any extension servers, those will be started as well.
-func (d *Daemon) addCoreServers(preInit bool, defaultURL *url.URL, defaultCert *shared.CertInfo, defaultResources []rest.Resources) error {
-	serverEndpoints := []rest.Resources{}
+func (d *Daemon) addCoreServers(preInit bool, defaultURL *url.URL, defaultCert *shared.CertInfo, defaultResources []types.Resources) error {
+	serverEndpoints := []types.Resources{}
 	serverEndpoints = append(serverEndpoints, defaultResources...)
 
 	// Append all extension servers whose address is empty or matches the default URL.

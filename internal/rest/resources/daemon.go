@@ -20,6 +20,21 @@ var daemonServersCmd = types.Endpoint{
 	Put: types.EndpointAction{Handler: daemonServersPut, AccessHandler: access.AllowAuthenticated},
 }
 
+var daemonConfigCmd = types.Endpoint{
+	Path: "daemon/config",
+
+	Get: types.EndpointAction{Handler: daemonConfigGet, AccessHandler: access.AllowAuthenticated},
+}
+
+func daemonConfigGet(s types.State, r *http.Request) types.Response {
+	intState, err := internalState.ToInternal(s)
+	if err != nil {
+		return types.SmartError(err)
+	}
+
+	return types.SyncResponse(true, intState.LocalConfig().Dump())
+}
+
 func daemonServersGet(s types.State, r *http.Request) types.Response {
 	intState, err := internalState.ToInternal(s)
 	if err != nil {

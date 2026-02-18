@@ -12,15 +12,13 @@ import (
 
 	extendedTypes "github.com/canonical/microcluster/v3/example/api/types"
 	extendedClient "github.com/canonical/microcluster/v3/example/client"
-	"github.com/canonical/microcluster/v3/microcluster/rest"
-	"github.com/canonical/microcluster/v3/microcluster/rest/response"
 	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
 // This is an example extended endpoint reachable at /1.0/extended/simple.
-var extendedSimpleCmd = rest.Endpoint{
+var extendedSimpleCmd = types.Endpoint{
 	Path: "extended/simple",
-	Post: rest.EndpointAction{
+	Post: types.EndpointAction{
 		Handler:        cmdSimple,
 		AllowUntrusted: true,
 		ProxyTarget:    true,
@@ -28,9 +26,9 @@ var extendedSimpleCmd = rest.Endpoint{
 }
 
 // This is an example extended endpoint reachable at /1.0/extended/websocket.
-var extendedWebsocketCmd = rest.Endpoint{
+var extendedWebsocketCmd = types.Endpoint{
 	Path: "extended/websocket",
-	Get: rest.EndpointAction{
+	Get: types.EndpointAction{
 		Handler:        cmdWebsocket,
 		AllowUntrusted: true,
 		ProxyTarget:    true,
@@ -39,13 +37,13 @@ var extendedWebsocketCmd = rest.Endpoint{
 
 // This is the POST handler for the /1.0/extended/simple endpoint.
 // This example shows how to forward a request to other cluster members.
-func cmdSimple(state types.State, r *http.Request) response.Response {
+func cmdSimple(state types.State, r *http.Request) types.Response {
 	// Check the user agent header to check if we are the notifying cluster member.
 	if !types.IsNotification(r) {
 		// Get a collection of clients every other cluster member, with the notification user-agent set.
 		clients, err := state.Connect().Cluster(true)
 		if err != nil {
-			return response.SmartError(fmt.Errorf("Failed to get a client for every cluster member: %w", err))
+			return types.SmartError(fmt.Errorf("Failed to get a client for every cluster member: %w", err))
 		}
 
 		messages := make([]string, 0, len(clients))
@@ -73,7 +71,7 @@ func cmdSimple(state types.State, r *http.Request) response.Response {
 			return nil
 		})
 		if err != nil {
-			return response.SmartError(err)
+			return types.SmartError(err)
 		}
 
 		// Having received the result from all forwarded requests, compile them as a string and return.
@@ -82,32 +80,32 @@ func cmdSimple(state types.State, r *http.Request) response.Response {
 			outMsg = outMsg + message + "\n"
 		}
 
-		return response.SyncResponse(true, outMsg)
+		return types.SyncResponse(true, outMsg)
 	}
 
 	// Decode the POST body using our defined ExtendedType.
 	var info extendedTypes.ExtendedType
 	err := json.NewDecoder(r.Body).Decode(&info)
 	if err != nil {
-		return response.SmartError(err)
+		return types.SmartError(err)
 	}
 
 	// Return some identifying information.
 	message := fmt.Sprintf("cluster member at address %q received message %q from cluster member at address %q", state.Address().Host, info.Message, info.Sender.String())
 
-	return response.SyncResponse(true, message)
+	return types.SyncResponse(true, message)
 }
 
 // This is the GET handler for the /1.0/extended/websocket endpoint.
 // This example shows how to use websockets.
-func cmdWebsocket(state types.State, r *http.Request) response.Response {
+func cmdWebsocket(state types.State, r *http.Request) types.Response {
 	if r.Header.Get("Upgrade") == "websocket" {
 		var upgrader = websocket.Upgrader{
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
 		}
 
-		return response.ManualResponse(func(w http.ResponseWriter) error {
+		return types.ManualResponse(func(w http.ResponseWriter) error {
 			conn, err := upgrader.Upgrade(w, r, nil)
 			if err != nil {
 				return err
@@ -129,5 +127,5 @@ func cmdWebsocket(state types.State, r *http.Request) response.Response {
 		})
 	}
 
-	return response.BadRequest(errors.New("Missing websocket upgrade header"))
+	return types.BadRequest(errors.New("Missing websocket upgrade header"))
 }

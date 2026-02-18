@@ -131,3 +131,19 @@ func (d *DaemonConfig) SetServers(servers map[string]types.ServerConfig) {
 
 	d.config.Servers = servers
 }
+
+// GetFailureDomain returns the daemon's failure domain.
+func (d *DaemonConfig) GetFailureDomain() uint64 {
+	d.lock.RLock()
+	defer d.lock.RUnlock()
+
+	return d.config.FailureDomain
+}
+
+// SetFailureDomain sets the daemon's failure domain.
+func (d *DaemonConfig) SetFailureDomain(failureDomain uint64) {
+	d.lock.Lock()
+	defer d.lock.Unlock()
+
+	d.config.FailureDomain = failureDomain
+}

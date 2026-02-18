@@ -288,7 +288,7 @@ func (d *Daemon) init(listenAddress string, socketGroup string, heartbeatInterva
 		return fmt.Errorf("Failed to initialize trust store: %w", err)
 	}
 
-	d.db, err = db.NewDB(d.shutdownCtx, d.ServerCert, d.ClusterCert, d.Name, d.os, heartbeatInterval)
+	d.db, err = db.NewDB(d.shutdownCtx, d.ServerCert, d.ClusterCert, d.Name, d.config.GetFailureDomain, d.os, heartbeatInterval)
 	if err != nil {
 		return fmt.Errorf("Failed to initialize database: %w", err)
 	}

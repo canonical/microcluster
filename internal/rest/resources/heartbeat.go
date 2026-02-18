@@ -13,22 +13,20 @@ import (
 	"github.com/canonical/microcluster/v3/internal/cluster"
 	"github.com/canonical/microcluster/v3/internal/log"
 	internalState "github.com/canonical/microcluster/v3/internal/state"
-	"github.com/canonical/microcluster/v3/microcluster/rest"
-	"github.com/canonical/microcluster/v3/microcluster/rest/response"
 	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
-var heartbeatCmd = rest.Endpoint{
+var heartbeatCmd = types.Endpoint{
 	Path: "heartbeat",
 
-	Post: rest.EndpointAction{Handler: heartbeatPost, AllowUntrusted: true},
+	Post: types.EndpointAction{Handler: heartbeatPost, AllowUntrusted: true},
 }
 
-func heartbeatPost(s types.State, r *http.Request) response.Response {
+func heartbeatPost(s types.State, r *http.Request) types.Response {
 	var hbInfo types.HeartbeatInfo
 	err := json.NewDecoder(r.Body).Decode(&hbInfo)
 	if err != nil {
-		return response.SmartError(err)
+		return types.SmartError(err)
 	}
 
 	if hbInfo.BeginRound {
@@ -40,7 +38,7 @@ func heartbeatPost(s types.State, r *http.Request) response.Response {
 
 	err = s.Database().IsOpen(r.Context())
 	if err != nil {
-		return response.SmartError(fmt.Errorf("Failed to respond to heartbeat, database is not yet open: %w", err))
+		return types.SmartError(fmt.Errorf("Failed to respond to heartbeat, database is not yet open: %w", err))
 	}
 
 	clusterMemberList := []types.ClusterMember{}
@@ -48,9 +46,14 @@ func heartbeatPost(s types.State, r *http.Request) response.Response {
 		clusterMemberList = append(clusterMemberList, clusterMember)
 	}
 
-	err = s.Truststore().Replace(s.FileSystem().TrustDir(), clusterMemberList...)
+	intState, err := internalState.ToInternal(s)
 	if err != nil {
-		return response.SmartError(err)
+		return types.SmartError(err)
+	}
+
+	err = intState.InternalRemotes().Replace(s.FileSystem().TrustDir(), clusterMemberList...)
+	if err != nil {
+		return types.SmartError(err)
 	}
 
 	var internalSchemaVersion, externalSchemaVersion uint64
@@ -66,31 +69,26 @@ func heartbeatPost(s types.State, r *http.Request) response.Response {
 		return nil
 	})
 	if err != nil {
-		return response.SmartError(err)
-	}
-
-	intState, err := internalState.ToInternal(s)
-	if err != nil {
-		return response.SmartError(err)
+		return types.SmartError(err)
 	}
 
 	if internalSchemaVersion != hbInfo.MaxSchemaInternal || externalSchemaVersion != hbInfo.MaxSchemaExternal {
 		err := intState.InternalDatabase.Update()
 		if err != nil {
-			return response.SmartError(err)
+			return types.SmartError(err)
 		}
 	}
 
 	// TODO: If our schema version is behind, we should try to update here.
 
-	return response.EmptySyncResponse
+	return types.EmptySyncResponse
 }
 
 // beginHeartbeat initiates a heartbeat from the leader node to all other cluster members, if we haven't sent one out
 // recently.
-func beginHeartbeat(ctx context.Context, s types.State, hbReq types.HeartbeatInfo) response.Response {
+func beginHeartbeat(ctx context.Context, s types.State, hbReq types.HeartbeatInfo) types.Response {
 	if s.Address().Host != hbReq.LeaderAddress {
-		return response.SmartError(fmt.Errorf("Attempt to initiate heartbeat from non-leader"))
+		return types.SmartError(fmt.Errorf("Attempt to initiate heartbeat from non-leader"))
 	}
 
 	// Get the database record of cluster members.
@@ -114,18 +112,18 @@ func beginHeartbeat(ctx context.Context, s types.State, hbReq types.HeartbeatInf
 		return err
 	})
 	if err != nil {
-		return response.SmartError(err)
+		return types.SmartError(err)
 	}
 
 	logger, err := log.LoggerFromContext(ctx)
 	if err != nil {
-		return response.InternalError(err)
+		return types.InternalError(err)
 	}
 
 	// Get dqlite record of cluster members.
 	if len(clusterMembers) == 0 || len(hbReq.DqliteRoles) == 0 {
 		logger.Info("Skipping heartbeat as the cluster is still initializing")
-		return response.EmptySyncResponse
+		return types.EmptySyncResponse
 	}
 
 	dqliteMap := map[string]string{}
@@ -150,7 +148,7 @@ func beginHeartbeat(ctx context.Context, s types.State, hbReq types.HeartbeatInf
 
 	intState, err := internalState.ToInternal(s)
 	if err != nil {
-		return response.SmartError(err)
+		return types.SmartError(err)
 	}
 
 	leaderEntry := clusterMap[s.Address().Host]
@@ -159,7 +157,7 @@ func beginHeartbeat(ctx context.Context, s types.State, hbReq types.HeartbeatInf
 	if timeSinceLast < heartbeatInterval {
 		logger.Debug(fmt.Sprintf("Heartbeat was already sent %q ago, skipping heartbeat round", timeSinceLast.String()))
 
-		return response.EmptySyncResponse
+		return types.EmptySyncResponse
 	}
 
 	logger.Debug("Beginning new heartbeat round", slog.String("address", s.Address().Host))
@@ -167,7 +165,7 @@ func beginHeartbeat(ctx context.Context, s types.State, hbReq types.HeartbeatInf
 	// Update local record of cluster members from the database, including any pending nodes for authentication.
 	err = s.Truststore().Replace(s.FileSystem().TrustDir(), clusterMembers...)
 	if err != nil {
-		return response.SmartError(err)
+		return types.SmartError(err)
 	}
 
 	// Set the time of the last heartbeat to now.
@@ -188,7 +186,7 @@ func beginHeartbeat(ctx context.Context, s types.State, hbReq types.HeartbeatInf
 
 	clusterClients, err := s.Connect().Cluster(false)
 	if err != nil {
-		return response.SmartError(err)
+		return types.SmartError(err)
 	}
 
 	// Use a lock to handle concurrent access to hbInfo.
@@ -227,7 +225,7 @@ func beginHeartbeat(ctx context.Context, s types.State, hbReq types.HeartbeatInf
 		return nil
 	})
 	if err != nil {
-		return response.SmartError(err)
+		return types.SmartError(err)
 	}
 
 	// Having sent a heartbeat to each valid cluster member, update the database record of members.
@@ -261,15 +259,15 @@ func beginHeartbeat(ctx context.Context, s types.State, hbReq types.HeartbeatInf
 		return cluster.DeleteExpiredCoreTokenRecords(ctx, tx)
 	})
 	if err != nil {
-		return response.SmartError(err)
+		return types.SmartError(err)
 	}
 
 	hookCtx, hookCancel := context.WithCancel(ctx)
 	err = intState.Hooks.OnHeartbeat(hookCtx, s, roleStatusMap)
 	hookCancel()
 	if err != nil {
-		return response.SmartError(err)
+		return types.SmartError(err)
 	}
 
-	return response.EmptySyncResponse
+	return types.EmptySyncResponse
 }

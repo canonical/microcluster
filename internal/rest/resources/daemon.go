@@ -10,34 +10,32 @@ import (
 	"github.com/canonical/microcluster/v3/internal/rest/access"
 	internalClient "github.com/canonical/microcluster/v3/internal/rest/client"
 	internalState "github.com/canonical/microcluster/v3/internal/state"
-	"github.com/canonical/microcluster/v3/microcluster/rest"
-	"github.com/canonical/microcluster/v3/microcluster/rest/response"
 	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
-var daemonCmd = rest.Endpoint{
+var daemonCmd = types.Endpoint{
 	Path: "daemon/servers",
 
-	Get: rest.EndpointAction{Handler: daemonServersGet, AccessHandler: access.AllowAuthenticated},
-	Put: rest.EndpointAction{Handler: daemonServersPut, AccessHandler: access.AllowAuthenticated},
+	Get: types.EndpointAction{Handler: daemonServersGet, AccessHandler: access.AllowAuthenticated},
+	Put: types.EndpointAction{Handler: daemonServersPut, AccessHandler: access.AllowAuthenticated},
 }
 
-func daemonServersGet(s types.State, r *http.Request) response.Response {
+func daemonServersGet(s types.State, r *http.Request) types.Response {
 	intState, err := internalState.ToInternal(s)
 	if err != nil {
-		return response.SmartError(err)
+		return types.SmartError(err)
 	}
 
-	return response.SyncResponse(true, intState.LocalConfig().GetServers())
+	return types.SyncResponse(true, intState.LocalConfig().GetServers())
 }
 
-func daemonServersPut(s types.State, r *http.Request) response.Response {
+func daemonServersPut(s types.State, r *http.Request) types.Response {
 	req := make(map[string]types.ServerConfig)
 
 	// Parse the request.
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
-		return response.BadRequest(err)
+		return types.BadRequest(err)
 	}
 
 	// Check if an additional listener exists for that name.
@@ -50,7 +48,7 @@ func daemonServersPut(s types.State, r *http.Request) response.Response {
 		}
 
 		if !found {
-			return response.BadRequest(fmt.Errorf("No matching additional listener found for %q", serverName))
+			return types.BadRequest(fmt.Errorf("No matching additional listener found for %q", serverName))
 		}
 	}
 
@@ -61,7 +59,7 @@ func daemonServersPut(s types.State, r *http.Request) response.Response {
 		serverAddress := server.Address.String()
 
 		if slices.Contains(serverAddresses, serverAddress) {
-			return response.BadRequest(fmt.Errorf("Address %q is already in use", serverAddress))
+			return types.BadRequest(fmt.Errorf("Address %q is already in use", serverAddress))
 		}
 
 		serverAddresses = append(serverAddresses, serverAddress)
@@ -69,7 +67,7 @@ func daemonServersPut(s types.State, r *http.Request) response.Response {
 
 	intState, err := internalState.ToInternal(s)
 	if err != nil {
-		return response.SmartError(err)
+		return types.SmartError(err)
 	}
 
 	daemonConfig := intState.LocalConfig()
@@ -78,18 +76,18 @@ func daemonServersPut(s types.State, r *http.Request) response.Response {
 	// Persist the configuration changes to file.
 	err = daemonConfig.Write()
 	if err != nil {
-		return response.SmartError(err)
+		return types.SmartError(err)
 	}
 
 	// Update the additional listeners.
 	err = intState.UpdateServers()
 	if err != nil {
-		return response.SmartError(err)
+		return types.SmartError(err)
 	}
 
 	clients, err := s.Connect().Cluster(false)
 	if err != nil {
-		return response.SmartError(err)
+		return types.SmartError(err)
 	}
 
 	// Run the OnDaemonConfigUpdate hook on all other members.
@@ -109,8 +107,8 @@ func daemonServersPut(s types.State, r *http.Request) response.Response {
 		return internalClient.RunOnDaemonConfigUpdateHook(ctx, c.UseTarget(remote.Name), daemonConfig.Dump())
 	})
 	if err != nil {
-		return response.SmartError(err)
+		return types.SmartError(err)
 	}
 
-	return response.EmptySyncResponse
+	return types.EmptySyncResponse
 }

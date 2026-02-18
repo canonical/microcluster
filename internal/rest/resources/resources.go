@@ -6,14 +6,13 @@ import (
 	"strings"
 
 	"github.com/canonical/microcluster/v3/internal/endpoints"
-	"github.com/canonical/microcluster/v3/microcluster/rest"
 	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
 // UnixEndpoints are the endpoints available over the unix socket.
-var UnixEndpoints = rest.Resources{
+var UnixEndpoints = types.Resources{
 	PathPrefix: types.ControlEndpoint,
-	Endpoints: []rest.Endpoint{
+	Endpoints: []types.Endpoint{
 		controlCmd,
 		shutdownCmd,
 		tokensCmd,
@@ -21,9 +20,9 @@ var UnixEndpoints = rest.Resources{
 }
 
 // PublicEndpoints are the /core/1.0 API endpoints available at the listen address.
-var PublicEndpoints = rest.Resources{
+var PublicEndpoints = types.Resources{
 	PathPrefix: types.PublicEndpoint,
-	Endpoints: []rest.Endpoint{
+	Endpoints: []types.Endpoint{
 		api10Cmd,
 		clusterCertificatesCmd,
 		clusterCmd,
@@ -35,9 +34,9 @@ var PublicEndpoints = rest.Resources{
 }
 
 // InternalEndpoints are the /core/internal API endpoints available at the listen address.
-var InternalEndpoints = rest.Resources{
+var InternalEndpoints = types.Resources{
 	PathPrefix: types.InternalEndpoint,
-	Endpoints: []rest.Endpoint{
+	Endpoints: []types.Endpoint{
 		clusterInternalCmd,
 		clusterMemberInternalCmd,
 		databaseCmd,
@@ -58,9 +57,9 @@ var InternalEndpoints = rest.Resources{
 //   - The PathPrefix+Path of an endpoint must not begin with `core`.
 //   - Its resources must not conflict with any other core API server.
 //   - It must not have a defined address or certificate.
-func ValidateEndpoints(extensionServers map[string]rest.Server, coreAddress string) error {
+func ValidateEndpoints(extensionServers map[string]types.Server, coreAddress string) error {
 	serverAddresses := map[string]bool{coreAddress: true}
-	baseCoreEndpoints := []rest.Resources{UnixEndpoints, PublicEndpoints, InternalEndpoints}
+	baseCoreEndpoints := []types.Resources{UnixEndpoints, PublicEndpoints, InternalEndpoints}
 	existingEndpointPaths := map[string]map[string]bool{endpoints.EndpointsCore: {}}
 
 	// Record the paths for all internal endpoints on the core listener.

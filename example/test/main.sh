@@ -641,6 +641,247 @@ test_parallel_joins() {
   shutdown_systems
 }
 
+test_daemon_config_api() {
+  echo "Testing daemon/config API"
+
+  new_systems 2 --heartbeat 2s
+  bootstrap_systems
+
+  socket_path="${test_dir}/c1/control.socket"
+
+  daemon_config_get() {
+    curl -sS --unix-socket "${socket_path}" \
+      http://unix/core/1.0/daemon/config
+  }
+
+  daemon_config_put() {
+    local payload="${1}"
+
+    curl -sS --unix-socket "${socket_path}" \
+      -X PUT \
+      -H "Content-Type: application/json" \
+      -d "${payload}" \
+      http://unix/core/1.0/daemon/config
+  }
+
+  daemon_config_patch() {
+    local payload="${1}"
+
+    curl -sS --unix-socket "${socket_path}" \
+      -X PATCH \
+      -H "Content-Type: application/json" \
+      -d "${payload}" \
+      http://unix/core/1.0/daemon/config
+  }
+
+  json_get() {
+    local payload="${1}"
+    local expr="${2}"
+
+    echo "${payload}" | yq -r "${expr}"
+  }
+
+  response_code() {
+    local payload="${1}"
+
+    local status_code
+    status_code="$(json_get "${payload}" '.status_code')"
+    if [ "${status_code}" != "0" ]; then
+      echo "${status_code}"
+      return
+    fi
+
+    json_get "${payload}" '.error_code'
+  }
+
+  # Ensure initial daemon config can be retrieved.
+  config_resp="$(daemon_config_get)"
+  [[ "$(response_code "${config_resp}")" == "200" ]] || {
+    echo "ERROR: Failed to GET daemon config"
+    echo "${config_resp}"
+    return 1
+  }
+  [[ "$(json_get "${config_resp}" '.metadata.name')" == "c1" ]] || {
+    echo "ERROR: Expected daemon name c1"
+    echo "${config_resp}"
+    return 1
+  }
+  [[ "$(json_get "${config_resp}" '.metadata.address')" == "127.0.0.1:9001" ]] || {
+    echo "ERROR: Expected daemon address 127.0.0.1:9001"
+    echo "${config_resp}"
+    return 1
+  }
+  [[ "$(json_get "${config_resp}" '.metadata."failure-domain"')" == "0" ]] || {
+    echo "ERROR: Expected initial failure-domain to be 0"
+    echo "${config_resp}"
+    return 1
+  }
+
+  # PUT sets failure-domain and clears servers (full replacement).
+  update_payload='{"name":"c1","address":"127.0.0.1:9001","failure-domain":9}'
+  update_resp="$(daemon_config_put "${update_payload}")"
+  [[ "$(response_code "${update_resp}")" == "200" ]] || {
+    echo "ERROR: Failed to update daemon config"
+    echo "${update_resp}"
+    return 1
+  }
+
+  config_resp="$(daemon_config_get)"
+  [[ "$(json_get "${config_resp}" '.metadata."failure-domain"')" == "9" ]] || {
+    echo "ERROR: Expected failure-domain to be updated to 9"
+    echo "${config_resp}"
+    return 1
+  }
+  [[ "$(json_get "${config_resp}" '.metadata.servers | length')" == "0" ]] || {
+    echo "ERROR: Expected servers map to be empty after PUT"
+    echo "${config_resp}"
+    return 1
+  }
+  grep -q "^failure-domain: 9$" "${test_dir}/c1/daemon.yaml" || {
+    echo "ERROR: daemon.yaml missing failure-domain persistence"
+    cat "${test_dir}/c1/daemon.yaml"
+    return 1
+  }
+
+  # PUT without failure-domain clears it (full replacement semantics).
+  update_payload='{"name":"c1","address":"127.0.0.1:9001"}'
+  update_resp="$(daemon_config_put "${update_payload}")"
+  [[ "$(response_code "${update_resp}")" == "200" ]] || {
+    echo "ERROR: Failed to PUT daemon config without failure-domain"
+    echo "${update_resp}"
+    return 1
+  }
+
+  config_resp="$(daemon_config_get)"
+  [[ "$(json_get "${config_resp}" '.metadata."failure-domain"')" == "0" ]] || {
+    echo "ERROR: Expected failure-domain to be cleared by PUT (full replacement)"
+    echo "${config_resp}"
+    return 1
+  }
+
+  # PATCH tests.
+
+  # Set failure-domain to a known value first via PUT.
+  update_payload='{"name":"c1","address":"127.0.0.1:9001","failure-domain":5}'
+  update_resp="$(daemon_config_put "${update_payload}")"
+  [[ "$(response_code "${update_resp}")" == "200" ]] || {
+    echo "ERROR: Failed to PUT failure-domain=5"
+    echo "${update_resp}"
+    return 1
+  }
+
+  # PATCH omitting failure-domain preserves the existing value.
+  patch_payload='{"name":"c1","address":"127.0.0.1:9001"}'
+  patch_resp="$(daemon_config_patch "${patch_payload}")"
+  [[ "$(response_code "${patch_resp}")" == "200" ]] || {
+    echo "ERROR: PATCH daemon config failed"
+    echo "${patch_resp}"
+    return 1
+  }
+
+  config_resp="$(daemon_config_get)"
+  [[ "$(json_get "${config_resp}" '.metadata."failure-domain"')" == "5" ]] || {
+    echo "ERROR: PATCH should preserve failure-domain when omitted (expected 5)"
+    echo "${config_resp}"
+    return 1
+  }
+
+  # PATCH updates failure-domain without clearing it.
+  patch_payload='{"name":"c1","address":"127.0.0.1:9001","failure-domain":7}'
+  patch_resp="$(daemon_config_patch "${patch_payload}")"
+  [[ "$(response_code "${patch_resp}")" == "200" ]] || {
+    echo "ERROR: PATCH with failure-domain failed"
+    echo "${patch_resp}"
+    return 1
+  }
+
+  config_resp="$(daemon_config_get)"
+  [[ "$(json_get "${config_resp}" '.metadata."failure-domain"')" == "7" ]] || {
+    echo "ERROR: Expected failure-domain to be updated to 7 via PATCH"
+    echo "${config_resp}"
+    return 1
+  }
+  grep -q "^failure-domain: 7$" "${test_dir}/c1/daemon.yaml" || {
+    echo "ERROR: daemon.yaml missing PATCH failure-domain persistence"
+    cat "${test_dir}/c1/daemon.yaml"
+    return 1
+  }
+
+  # PATCH ignores name and address fields — they are not part of DaemonConfigPatch.
+  # A payload containing a different name or address succeeds; the values are not applied.
+  ignore_payload='{"name":"renamed","address":"127.0.0.1:9999","failure-domain":7}'
+  ignore_resp="$(daemon_config_patch "${ignore_payload}")"
+  [[ "$(response_code "${ignore_resp}")" == "200" ]] || {
+    echo "ERROR: PATCH with unknown fields should succeed (name/address are ignored)"
+    echo "${ignore_resp}"
+    return 1
+  }
+
+  config_resp="$(daemon_config_get)"
+  [[ "$(json_get "${config_resp}" '.metadata.name')" == "c1" ]] || {
+    echo "ERROR: PATCH should not have changed the name"
+    echo "${config_resp}"
+    return 1
+  }
+  [[ "$(json_get "${config_resp}" '.metadata.address')" == "127.0.0.1:9001" ]] || {
+    echo "ERROR: PATCH should not have changed the address"
+    echo "${config_resp}"
+    return 1
+  }
+
+  # PUT Name is immutable.
+  bad_payload='{"name":"renamed","address":"127.0.0.1:9001","servers":{},"failure-domain":9}'
+  bad_resp="$(daemon_config_put "${bad_payload}")"
+  [[ "$(response_code "${bad_resp}")" == "400" ]] || {
+    echo "ERROR: PUT name change should be rejected"
+    echo "${bad_resp}"
+    return 1
+  }
+  echo "${bad_resp}" | grep -q "Name is immutable" || {
+    echo "ERROR: Expected immutable name error from PUT"
+    echo "${bad_resp}"
+    return 1
+  }
+
+  # PUT Address is immutable.
+  bad_payload='{"name":"c1","address":"127.0.0.1:9999","servers":{},"failure-domain":9}'
+  bad_resp="$(daemon_config_put "${bad_payload}")"
+  [[ "$(response_code "${bad_resp}")" == "400" ]] || {
+    echo "ERROR: PUT address change should be rejected"
+    echo "${bad_resp}"
+    return 1
+  }
+  echo "${bad_resp}" | grep -q "Address is immutable" || {
+    echo "ERROR: Expected immutable address error from PUT"
+    echo "${bad_resp}"
+    return 1
+  }
+
+  # PUT Unknown extension server should be rejected.
+  bad_payload='{"name":"c1","address":"127.0.0.1:9001","servers":{"unknown.example.com":{"address":"127.0.0.1:9443"}},"failure-domain":9}'
+  bad_resp="$(daemon_config_put "${bad_payload}")"
+  [[ "$(response_code "${bad_resp}")" == "400" ]] || {
+    echo "ERROR: Unknown server should be rejected"
+    echo "${bad_resp}"
+    return 1
+  }
+  echo "${bad_resp}" | grep -q "No matching additional listener found" || {
+    echo "ERROR: Expected unknown server validation error"
+    echo "${bad_resp}"
+    return 1
+  }
+
+  # Legacy endpoint should still be accessible.
+  legacy_resp="$(curl -sS --unix-socket "${socket_path}" http://unix/core/1.0/daemon/servers)"
+  [[ "$(response_code "${legacy_resp}")" == "200" ]] || {
+    echo "ERROR: Legacy daemon/servers endpoint should remain available"
+    echo "${legacy_resp}"
+    return 1
+  }
+
+  shutdown_systems
+}
+
 test_extended_endpoints() {
   new_systems 4 --heartbeat 2s
 
@@ -717,6 +958,7 @@ if [ "${1:-"all"}" = "all" ] || [ "${1}" = "" ]; then
   test_recover
   test_join_token_after_cluster_formed
   test_join_token_before_cluster_formed
+  test_daemon_config_api
   test_extended_endpoints
   test_membership_consistency
   test_truststore_force_removal
@@ -742,6 +984,8 @@ elif [ "${1}" = "parallel-join" ]; then
   test_parallel_joins
 elif [ "${1}" = "self-deletion" ]; then
   test_self_deletion
+elif [ "${1}" = "daemon-config" ]; then
+  test_daemon_config_api
 else
   echo "Unknown test ${1}"
 fi

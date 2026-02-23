@@ -34,17 +34,18 @@ var PublicEndpoints = types.Resources{
 }
 
 // InternalEndpoints are the /core/internal API endpoints available at the listen address.
+// Those can be changed anytime and should not be called directly.
 var InternalEndpoints = types.Resources{
 	PathPrefix: types.InternalEndpoint,
 	Endpoints: []types.Endpoint{
 		clusterInternalCmd,
 		clusterMemberInternalCmd,
 		databaseCmd,
-		sqlCmd,
 		heartbeatCmd,
+		hooksCmd,
+		sqlCmd,
 		trustCmd,
 		trustEntryCmd,
-		hooksCmd,
 	},
 }
 

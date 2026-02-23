@@ -10,41 +10,44 @@ import (
 )
 
 // UnixEndpoints are the endpoints available over the unix socket.
+// These endpoints are only ever required locally.
 var UnixEndpoints = types.Resources{
 	PathPrefix: types.ControlEndpoint,
 	Endpoints: []types.Endpoint{
 		controlCmd,
 		shutdownCmd,
+		sqlCmd,
+		tokenCmd,
 		tokensCmd,
 	},
 }
 
 // PublicEndpoints are the /core/1.0 API endpoints available at the listen address.
+// Client functions can be used to call these endpoints or they can be called directly.
 var PublicEndpoints = types.Resources{
 	PathPrefix: types.PublicEndpoint,
 	Endpoints: []types.Endpoint{
-		api10Cmd,
-		clusterCertificatesCmd,
 		clusterCmd,
 		clusterMemberCmd,
-		daemonCmd,
-		tokenCmd,
+		clusterCertificatesCmd,
+		daemonServersCmd,
+		memberCmd,
 		readyCmd,
 	},
 }
 
 // InternalEndpoints are the /core/internal API endpoints available at the listen address.
+// Those can be changed anytime and should not be called directly.
 var InternalEndpoints = types.Resources{
 	PathPrefix: types.InternalEndpoint,
 	Endpoints: []types.Endpoint{
 		clusterInternalCmd,
 		clusterMemberInternalCmd,
 		databaseCmd,
-		sqlCmd,
 		heartbeatCmd,
+		hooksCmd,
 		trustCmd,
 		trustEntryCmd,
-		hooksCmd,
 	},
 }
 

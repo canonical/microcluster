@@ -21,7 +21,7 @@ func GetSQL(ctx context.Context, c types.Client, schema bool) (*types.SQLDump, e
 		endpoint.WithQuery("schema", "1")
 	}
 
-	err := c.Query(reqCtx, "GET", types.InternalEndpoint, &endpoint.URL, nil, dump)
+	err := c.Query(reqCtx, "GET", types.ControlEndpoint, &endpoint.URL, nil, dump)
 	if err != nil {
 		return nil, err
 	}
@@ -35,7 +35,7 @@ func PostSQL(ctx context.Context, c types.Client, query types.SQLQuery) (*types.
 	defer cancel()
 
 	batch := &types.SQLBatch{}
-	err := c.Query(reqCtx, "POST", types.InternalEndpoint, &api.NewURL().Path("sql").URL, query, batch)
+	err := c.Query(reqCtx, "POST", types.ControlEndpoint, &api.NewURL().Path("sql").URL, query, batch)
 	if err != nil {
 		return nil, err
 	}

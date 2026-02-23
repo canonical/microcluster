@@ -10,6 +10,7 @@ import (
 )
 
 var shutdownCmd = types.Endpoint{
+	// Allow shutting down the node even if not yet initialized.
 	AllowedBeforeInit: true,
 	Path:              "shutdown",
 

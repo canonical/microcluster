@@ -5,10 +5,10 @@ import (
 )
 
 const (
-	// PublicEndpoint - Internally managed APIs.
+	// PublicEndpoint - All external endpoints.
 	PublicEndpoint EndpointPrefix = "core/1.0"
 
-	// InternalEndpoint - All internal endpoints restricted to trusted servers.
+	// InternalEndpoint - All internal endpoints.
 	InternalEndpoint EndpointPrefix = "core/internal"
 
 	// ControlEndpoint - All internal endpoints available on the local unix socket.

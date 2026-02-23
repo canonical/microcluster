@@ -10,6 +10,7 @@ import (
 )
 
 var readyCmd = types.Endpoint{
+	// Allow waiting for the daemon to become ready even if not yet initialized.
 	AllowedBeforeInit: true,
 	Path:              "ready",
 

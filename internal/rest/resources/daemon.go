@@ -13,7 +13,7 @@ import (
 	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
-var daemonCmd = types.Endpoint{
+var daemonServersCmd = types.Endpoint{
 	Path: "daemon/servers",
 
 	Get: types.EndpointAction{Handler: daemonServersGet, AccessHandler: access.AllowAuthenticated},

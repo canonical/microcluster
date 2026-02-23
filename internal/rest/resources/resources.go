@@ -10,11 +10,13 @@ import (
 )
 
 // UnixEndpoints are the endpoints available over the unix socket.
+// These endpoints are only ever required locally.
 var UnixEndpoints = types.Resources{
 	PathPrefix: types.ControlEndpoint,
 	Endpoints: []types.Endpoint{
 		controlCmd,
 		shutdownCmd,
+		tokenCmd,
 		tokensCmd,
 	},
 }
@@ -27,7 +29,6 @@ var PublicEndpoints = types.Resources{
 		clusterCertificatesCmd,
 		clusterCmd,
 		clusterMemberCmd,
-		tokenCmd,
 		daemonServersCmd,
 		readyCmd,
 	},

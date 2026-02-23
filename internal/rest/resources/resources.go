@@ -22,14 +22,15 @@ var UnixEndpoints = types.Resources{
 }
 
 // PublicEndpoints are the /core/1.0 API endpoints available at the listen address.
+// Client functions can be used to call these endpoints or they can be called directly.
 var PublicEndpoints = types.Resources{
 	PathPrefix: types.PublicEndpoint,
 	Endpoints: []types.Endpoint{
-		api10Cmd,
-		clusterCertificatesCmd,
 		clusterCmd,
 		clusterMemberCmd,
+		clusterCertificatesCmd,
 		daemonServersCmd,
+		memberCmd,
 		readyCmd,
 	},
 }

@@ -26,7 +26,7 @@ func DeleteTokenRecord(ctx context.Context, c types.Client, name string) error {
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	err := c.Query(queryCtx, "DELETE", types.PublicEndpoint, &api.NewURL().Path("tokens", name).URL, nil, nil)
+	err := c.Query(queryCtx, "DELETE", types.ControlEndpoint, &api.NewURL().Path("tokens", name).URL, nil, nil)
 
 	return err
 }

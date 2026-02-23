@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"os"
 
@@ -235,10 +234,6 @@ func ParseResponse(resp *http.Response) (*api.Response, error) {
 
 	err := decoder.Decode(&response)
 	if err != nil {
-		if resp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("Failed to fetch %q: %q", resp.Request.URL.String(), resp.Status)
-		}
-
 		return nil, err
 	}
 

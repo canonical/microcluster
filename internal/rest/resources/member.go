@@ -7,13 +7,14 @@ import (
 	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
-var api10Cmd = types.Endpoint{
+var memberCmd = types.Endpoint{
+	// Allow getting some basic member status information even if not yet initialized.
 	AllowedBeforeInit: true,
 
-	Get: types.EndpointAction{Handler: api10Get, AllowUntrusted: true},
+	Get: types.EndpointAction{Handler: memberGet, AllowUntrusted: true},
 }
 
-func api10Get(s types.State, r *http.Request) types.Response {
+func memberGet(s types.State, r *http.Request) types.Response {
 	addrPort, err := types.ParseAddrPort(s.Address().Host)
 	if err != nil {
 		return types.SmartError(err)

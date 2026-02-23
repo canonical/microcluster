@@ -27,8 +27,8 @@ var PublicEndpoints = types.Resources{
 		clusterCertificatesCmd,
 		clusterCmd,
 		clusterMemberCmd,
-		daemonCmd,
 		tokenCmd,
+		daemonServersCmd,
 		readyCmd,
 	},
 }

@@ -1,31 +1,17 @@
-package response
+package types
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
+	"os"
 
 	"github.com/canonical/lxd/shared/api"
-
-	"github.com/canonical/microcluster/v3/internal/log"
 )
-
-// Init registers smart error mappings.
-func Init(smartErrors map[int][]error) {
-	for code, additionalErrors := range smartErrors {
-		existingErrs, ok := httpResponseErrors[code]
-		if ok {
-			httpResponseErrors[code] = append(existingErrs, additionalErrors...)
-			continue
-		}
-
-		httpResponseErrors[code] = additionalErrors
-	}
-}
 
 // Response represents an API response.
 type Response interface {
@@ -39,8 +25,32 @@ type syncResponse struct {
 	metadata any
 }
 
+// Error response.
+type errorResponse struct {
+	code int
+	err  error
+}
+
+var httpResponseErrors = map[int][]error{
+	http.StatusNotFound:  {os.ErrNotExist, sql.ErrNoRows},
+	http.StatusForbidden: {os.ErrPermission},
+}
+
 // EmptySyncResponse represents an empty success response.
 var EmptySyncResponse = &syncResponse{success: true, metadata: make(map[string]any)}
+
+// ResponseInit registers smart error mappings.
+func ResponseInit(smartErrors map[int][]error) {
+	for code, additionalErrors := range smartErrors {
+		existingErrs, ok := httpResponseErrors[code]
+		if ok {
+			httpResponseErrors[code] = append(existingErrs, additionalErrors...)
+			continue
+		}
+
+		httpResponseErrors[code] = additionalErrors
+	}
+}
 
 // SyncResponse returns a new syncResponse with the success and metadata fields set.
 func SyncResponse(success bool, metadata any) Response {
@@ -81,12 +91,6 @@ func (r *syncResponse) String() string {
 	}
 
 	return "failure"
-}
-
-// Error response.
-type errorResponse struct {
-	code int
-	err  error
 }
 
 // BadRequest returns a bad request response (400) with the given error.
@@ -179,6 +183,50 @@ func (r *manualResponse) String() string {
 	return "manual response"
 }
 
+// SmartError returns the right error message based on err.
+// It uses the stdlib errors package to unwrap the error and find the cause.
+func SmartError(err error) Response {
+	if err == nil {
+		return EmptySyncResponse
+	}
+
+	statusCode, found := api.StatusErrorMatch(err)
+	if found {
+		return &errorResponse{statusCode, err}
+	}
+
+	for httpStatusCode, checkErrs := range httpResponseErrors {
+		for _, checkErr := range checkErrs {
+			if errors.Is(err, checkErr) {
+				if err != checkErr {
+					// If the error has been wrapped return the top-level error message.
+					return &errorResponse{httpStatusCode, err}
+				}
+
+				// If the error hasn't been wrapped, use a generic error.
+				return &errorResponse{httpStatusCode, nil}
+			}
+		}
+	}
+
+	return &errorResponse{http.StatusInternalServerError, err}
+}
+
+// IsNotFoundError returns true if the error is considered a Not Found error.
+func IsNotFoundError(err error) bool {
+	if api.StatusErrorCheck(err, http.StatusNotFound) {
+		return true
+	}
+
+	for _, checkErr := range httpResponseErrors[http.StatusNotFound] {
+		if errors.Is(err, checkErr) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // ParseResponse takes an HTTP response, parses it and returns the extracted result.
 func ParseResponse(resp *http.Response) (*api.Response, error) {
 	decoder := json.NewDecoder(resp.Body)
@@ -200,12 +248,7 @@ func ParseResponse(resp *http.Response) (*api.Response, error) {
 	defer resp.Body.Close()
 	_, err = io.Copy(io.Discard, resp.Body)
 	if err != nil {
-		logger, logErr := log.LoggerFromContext(resp.Request.Context())
-		if logErr != nil {
-			return nil, err
-		}
-
-		logger.Error("Failed to read response body", slog.String("error", err.Error()))
+		return nil, fmt.Errorf("Failed to read response body: %w", err)
 	}
 
 	return &response, nil

@@ -17,60 +17,58 @@ import (
 	"github.com/canonical/microcluster/v3/internal/rest/access"
 	internalState "github.com/canonical/microcluster/v3/internal/state"
 	"github.com/canonical/microcluster/v3/internal/utils"
-	"github.com/canonical/microcluster/v3/microcluster/rest"
-	"github.com/canonical/microcluster/v3/microcluster/rest/response"
 	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
-var tokensCmd = rest.Endpoint{
+var tokensCmd = types.Endpoint{
 	Path: "tokens",
 
-	Post: rest.EndpointAction{Handler: tokensPost, AccessHandler: access.AllowAuthenticated},
-	Get:  rest.EndpointAction{Handler: tokensGet, AccessHandler: access.AllowAuthenticated},
+	Post: types.EndpointAction{Handler: tokensPost, AccessHandler: access.AllowAuthenticated},
+	Get:  types.EndpointAction{Handler: tokensGet, AccessHandler: access.AllowAuthenticated},
 }
 
-var tokenCmd = rest.Endpoint{
+var tokenCmd = types.Endpoint{
 	Path: "tokens/{name}",
 
-	Delete: rest.EndpointAction{Handler: tokenDelete, AccessHandler: access.AllowAuthenticated},
+	Delete: types.EndpointAction{Handler: tokenDelete, AccessHandler: access.AllowAuthenticated},
 }
 
-func tokensPost(state types.State, r *http.Request) response.Response {
+func tokensPost(state types.State, r *http.Request) types.Response {
 	req := types.TokenRequest{}
 
 	// Parse the request.
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
-		return response.BadRequest(err)
+		return types.BadRequest(err)
 	}
 
 	err = utils.ValidateFQDN(req.Name)
 	if err != nil {
-		return response.SmartError(fmt.Errorf("Token name %q is not a valid FQDN: %w", req.Name, err))
+		return types.SmartError(fmt.Errorf("Token name %q is not a valid FQDN: %w", req.Name, err))
 	}
 
 	// Check cluster membership consistency before allowing token creation
 	// This ensures core_cluster_members, truststore, and dqlite are all in sync
 	intState, err := internalState.ToInternal(state)
 	if err != nil {
-		return response.SmartError(err)
+		return types.SmartError(err)
 	}
 
 	err = intState.CheckMembershipConsistency(r.Context())
 	if err != nil {
-		return response.SmartError(err)
+		return types.SmartError(err)
 	}
 
 	// Generate join token for new member. This will be stored alongside the join
 	// address and cluster certificate to simplify setup.
 	tokenKey, err := shared.RandomCryptoString()
 	if err != nil {
-		return response.InternalError(err)
+		return types.InternalError(err)
 	}
 
 	clusterCert, err := state.ClusterCert().PublicKeyX509()
 	if err != nil {
-		return response.InternalError(err)
+		return types.InternalError(err)
 	}
 
 	joinAddresses := []types.AddrPort{}
@@ -80,14 +78,14 @@ func tokensPost(state types.State, r *http.Request) response.Response {
 
 	logger, err := log.LoggerFromContext(r.Context())
 	if err != nil {
-		return response.InternalError(err)
+		return types.InternalError(err)
 	}
 
 	if len(joinAddresses) == 0 {
 		logger.Warn(fmt.Sprintf("Failed to check trust store for eligible join addresses. Issuing token with join address %q", state.Address().Host))
 		joinAddresses, err = types.ParseAddrPorts([]string{state.Address().Host})
 		if err != nil {
-			return response.SmartError(err)
+			return types.SmartError(err)
 		}
 	}
 
@@ -107,7 +105,7 @@ func tokensPost(state types.State, r *http.Request) response.Response {
 
 	tokenString, err := token.String()
 	if err != nil {
-		return response.InternalError(err)
+		return types.InternalError(err)
 	}
 
 	err = state.Database().Transaction(r.Context(), func(ctx context.Context, tx *sql.Tx) error {
@@ -124,16 +122,16 @@ func tokensPost(state types.State, r *http.Request) response.Response {
 		return err
 	})
 	if err != nil {
-		return response.SmartError(err)
+		return types.SmartError(err)
 	}
 
-	return response.SyncResponse(true, tokenString)
+	return types.SyncResponse(true, tokenString)
 }
 
-func tokensGet(state types.State, r *http.Request) response.Response {
+func tokensGet(state types.State, r *http.Request) types.Response {
 	clusterCert, err := state.ClusterCert().PublicKeyX509()
 	if err != nil {
-		return response.InternalError(err)
+		return types.InternalError(err)
 	}
 
 	joinAddresses := []types.AddrPort{}
@@ -166,24 +164,24 @@ func tokensGet(state types.State, r *http.Request) response.Response {
 		return nil
 	})
 	if err != nil {
-		return response.SmartError(err)
+		return types.SmartError(err)
 	}
 
-	return response.SyncResponse(true, records)
+	return types.SyncResponse(true, records)
 }
 
-func tokenDelete(state types.State, r *http.Request) response.Response {
+func tokenDelete(state types.State, r *http.Request) types.Response {
 	name, err := url.PathUnescape(mux.Vars(r)["name"])
 	if err != nil {
-		return response.SmartError(err)
+		return types.SmartError(err)
 	}
 
 	err = state.Database().Transaction(r.Context(), func(ctx context.Context, tx *sql.Tx) error {
 		return cluster.DeleteCoreTokenRecord(ctx, tx, name)
 	})
 	if err != nil {
-		return response.SmartError(err)
+		return types.SmartError(err)
 	}
 
-	return response.EmptySyncResponse
+	return types.EmptySyncResponse
 }

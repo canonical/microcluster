@@ -18,22 +18,20 @@ import (
 	"github.com/canonical/microcluster/v3/internal/rest/access"
 	internalClient "github.com/canonical/microcluster/v3/internal/rest/client"
 	internalState "github.com/canonical/microcluster/v3/internal/state"
-	"github.com/canonical/microcluster/v3/microcluster/rest"
-	"github.com/canonical/microcluster/v3/microcluster/rest/response"
 	"github.com/canonical/microcluster/v3/microcluster/types"
 )
 
-var clusterCertificatesCmd = rest.Endpoint{
+var clusterCertificatesCmd = types.Endpoint{
 	AllowedBeforeInit: true,
 	Path:              "cluster/certificates/{name}",
 
-	Put: rest.EndpointAction{Handler: clusterCertificatesPut, AccessHandler: access.AllowAuthenticated},
+	Put: types.EndpointAction{Handler: clusterCertificatesPut, AccessHandler: access.AllowAuthenticated},
 }
 
-func clusterCertificatesPut(s types.State, r *http.Request) response.Response {
+func clusterCertificatesPut(s types.State, r *http.Request) types.Response {
 	certificateName, err := url.PathUnescape(mux.Vars(r)["name"])
 	if err != nil {
-		return response.SmartError(err)
+		return types.SmartError(err)
 	}
 
 	req := types.KeyPair{}
@@ -41,14 +39,14 @@ func clusterCertificatesPut(s types.State, r *http.Request) response.Response {
 	// Parse the request.
 	err = json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
-		return response.BadRequest(err)
+		return types.BadRequest(err)
 	}
 
 	err = s.Database().IsOpen(r.Context())
 	if err != nil {
 		logger, logErr := log.LoggerFromContext(r.Context())
 		if logErr != nil {
-			return response.InternalError(err)
+			return types.InternalError(err)
 		}
 
 		logger.Warn(fmt.Sprintf("Database is offline, only updating local %q certificate", certificateName), slog.String("error", err.Error()))
@@ -58,30 +56,30 @@ func clusterCertificatesPut(s types.State, r *http.Request) response.Response {
 	if !types.IsNotification(r) && err == nil {
 		clients, err := s.Connect().Cluster(true)
 		if err != nil {
-			return response.SmartError(err)
+			return types.SmartError(err)
 		}
 
 		err = clients.Query(r.Context(), true, func(ctx context.Context, c types.Client) error {
 			return internalClient.UpdateCertificate(ctx, c, types.CertificateName(certificateName), req)
 		})
 		if err != nil {
-			return response.SmartError(fmt.Errorf("Failed to update %q certificate on peers: %w", certificateName, err))
+			return types.SmartError(fmt.Errorf("Failed to update %q certificate on peers: %w", certificateName, err))
 		}
 	}
 
 	certBlock, _ := pem.Decode([]byte(req.Cert))
 	if certBlock == nil {
-		return response.BadRequest(fmt.Errorf("Certificate must be base64 encoded PEM certificate"))
+		return types.BadRequest(fmt.Errorf("Certificate must be base64 encoded PEM certificate"))
 	}
 
 	keyBlock, _ := pem.Decode([]byte(req.Key))
 	if keyBlock == nil {
-		return response.BadRequest(fmt.Errorf("Private key must be base64 encoded PEM key"))
+		return types.BadRequest(fmt.Errorf("Private key must be base64 encoded PEM key"))
 	}
 
 	// Validate the certificate's name.
 	if strings.Contains(certificateName, "/") || strings.Contains(certificateName, "\\") || strings.Contains(certificateName, "..") {
-		return response.BadRequest(fmt.Errorf("Certificate name cannot be a path"))
+		return types.BadRequest(fmt.Errorf("Certificate name cannot be a path"))
 	}
 
 	var certificateDir string
@@ -90,7 +88,7 @@ func clusterCertificatesPut(s types.State, r *http.Request) response.Response {
 	} else if certificateName == string(types.ServerCertificateName) {
 		certificateDir = s.FileSystem().StateDir()
 		if s.Database().Status() != types.DatabaseNotReady {
-			return response.SmartError(fmt.Errorf("Cannot replace server certificate after initialization"))
+			return types.SmartError(fmt.Errorf("Cannot replace server certificate after initialization"))
 		}
 	} else {
 		certificateDir = s.FileSystem().CertificatesDir()
@@ -106,7 +104,7 @@ func clusterCertificatesPut(s types.State, r *http.Request) response.Response {
 		}
 
 		if !found {
-			return response.BadRequest(fmt.Errorf("No matching additional server found for %q", certificateName))
+			return types.BadRequest(fmt.Errorf("No matching additional server found for %q", certificateName))
 		}
 	}
 
@@ -114,36 +112,36 @@ func clusterCertificatesPut(s types.State, r *http.Request) response.Response {
 	if req.CA != "" {
 		caBlock, _ := pem.Decode([]byte(req.CA))
 		if caBlock == nil {
-			return response.BadRequest(fmt.Errorf("CA must be base64 encoded PEM key"))
+			return types.BadRequest(fmt.Errorf("CA must be base64 encoded PEM key"))
 		}
 
 		err = os.WriteFile(filepath.Join(certificateDir, fmt.Sprintf("%s.ca", certificateName)), []byte(req.CA), 0664)
 		if err != nil {
-			return response.SmartError(err)
+			return types.SmartError(err)
 		}
 	}
 
 	// Write the keypair to the state directory.
 	err = os.WriteFile(filepath.Join(certificateDir, fmt.Sprintf("%s.crt", certificateName)), []byte(req.Cert), 0664)
 	if err != nil {
-		return response.SmartError(err)
+		return types.SmartError(err)
 	}
 
 	err = os.WriteFile(filepath.Join(certificateDir, fmt.Sprintf("%s.key", certificateName)), []byte(req.Key), 0600)
 	if err != nil {
-		return response.SmartError(err)
+		return types.SmartError(err)
 	}
 
 	intState, err := internalState.ToInternal(s)
 	if err != nil {
-		return response.SmartError(err)
+		return types.SmartError(err)
 	}
 
 	// Load the new cert from the state directory on this node.
 	err = intState.ReloadCert(types.CertificateName(certificateName))
 	if err != nil {
-		return response.SmartError(err)
+		return types.SmartError(err)
 	}
 
-	return response.EmptySyncResponse
+	return types.EmptySyncResponse
 }

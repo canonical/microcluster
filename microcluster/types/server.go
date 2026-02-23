@@ -1,15 +1,6 @@
 package types
 
-const (
-	// PublicEndpoint - Internally managed APIs.
-	PublicEndpoint EndpointPrefix = "core/1.0"
-
-	// InternalEndpoint - All internal endpoints restricted to trusted servers.
-	InternalEndpoint EndpointPrefix = "core/internal"
-
-	// ControlEndpoint - All internal endpoints available on the local unix socket.
-	ControlEndpoint EndpointPrefix = "core/control"
-)
+import "time"
 
 // ServerConfig represents the mutable fields of an additional network listener.
 type ServerConfig struct {
@@ -18,11 +9,29 @@ type ServerConfig struct {
 	Address AddrPort `json:"address" yaml:"address"`
 }
 
-// Server represents server status information.
+// Server contains configuration and handlers for additional listeners to be instantiated after app startup.
 type Server struct {
-	Name       string     `json:"name"    yaml:"name"`
-	Address    AddrPort   `json:"address" yaml:"address"`
-	Version    string     `json:"version" yaml:"version"`
-	Ready      bool       `json:"ready"   yaml:"ready"`
-	Extensions Extensions `json:"extensions" yaml:"extensions"`
+	ServerConfig
+
+	// CoreAPI determines whether the the resources of the server should be served over the default cluster API.
+	CoreAPI bool
+
+	// PreInit determines whether the Server should be available prior to initializing the daemon.
+	PreInit bool
+
+	// ServeUnix sets whether the resources of this endpoint should also be served over the unix socket.
+	ServeUnix bool
+
+	// DedicatedCertificate sets whether the additional listener should use its own self signed certificate.
+	// If false it tries to use a custom certificate from the daemon's state `/certificates` directory
+	// based on the name provided when creating the server.
+	// In case there isn't any custom certificate it falls back to the cluster certificate of the core API.
+	DedicatedCertificate bool
+
+	// Resources is the list of resources offered by this server.
+	Resources []Resources
+
+	// DrainConnectionsTimeout is the amount of time to allow for all connections to drain when shutting down.
+	// If it's 0, the connections are not drained when shutting down.
+	DrainConnectionsTimeout time.Duration
 }

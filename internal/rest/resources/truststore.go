@@ -27,8 +27,7 @@ var trustCmd = types.Endpoint{
 }
 
 var trustEntryCmd = types.Endpoint{
-	Path:              "truststore/{name}",
-	AllowedBeforeInit: true,
+	Path: "truststore/{name}",
 
 	Delete: types.EndpointAction{Handler: trustDelete, AccessHandler: access.AllowAuthenticated},
 }

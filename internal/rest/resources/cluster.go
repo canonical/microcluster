@@ -33,15 +33,13 @@ import (
 )
 
 var clusterCmd = types.Endpoint{
-	Path:              "cluster",
-	AllowedBeforeInit: true,
+	Path: "cluster",
 
 	Get: types.EndpointAction{Handler: clusterGet, AccessHandler: access.AllowAuthenticated},
 }
 
 var clusterInternalCmd = types.Endpoint{
-	Path:              "cluster",
-	AllowedBeforeInit: true,
+	Path: "cluster",
 
 	Post: types.EndpointAction{Handler: clusterPost, AllowUntrusted: true},
 }

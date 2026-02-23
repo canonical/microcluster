@@ -10,6 +10,7 @@ import (
 )
 
 var databaseCmd = types.Endpoint{
+	// Allow dialing into the database during initialization phase.
 	AllowedBeforeInit: true,
 	Path:              "database",
 

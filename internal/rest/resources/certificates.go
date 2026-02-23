@@ -22,6 +22,7 @@ import (
 )
 
 var clusterCertificatesCmd = types.Endpoint{
+	// Allow modification of the certificate before joining the cluster.
 	AllowedBeforeInit: true,
 	Path:              "cluster/certificates/{name}",
 

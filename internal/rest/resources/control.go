@@ -23,6 +23,7 @@ import (
 )
 
 var controlCmd = types.Endpoint{
+	// Required to allow bootstrapping or joining a not yet initialized node.
 	AllowedBeforeInit: true,
 
 	Post: types.EndpointAction{Handler: controlPost, AccessHandler: access.AllowAuthenticated},

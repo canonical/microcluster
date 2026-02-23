@@ -19,8 +19,9 @@ import (
 )
 
 var trustCmd = types.Endpoint{
-	Path:              "truststore",
+	// Required to enable trust store updates when adding members.
 	AllowedBeforeInit: true,
+	Path:              "truststore",
 
 	Post: types.EndpointAction{Handler: trustPost, AccessHandler: access.AllowAuthenticated},
 }

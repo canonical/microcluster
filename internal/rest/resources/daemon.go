@@ -38,61 +38,53 @@ func daemonServersPut(s types.State, r *http.Request) types.Response {
 		return types.BadRequest(err)
 	}
 
-	// Check if an additional listener exists for that name.
-	for serverName := range req {
-		found := false
-		for _, name := range s.ExtensionServers() {
-			if name == serverName {
-				found = true
-			}
-		}
-
-		if !found {
-			return types.BadRequest(fmt.Errorf("No matching additional listener found for %q", serverName))
-		}
-	}
-
-	// Validate if there is an address conflict.
-	// Initialize the list of active server addresses with the server's address.
-	var serverAddresses = []string{s.Address().Host}
-	for _, server := range req {
-		serverAddress := server.Address.String()
-
-		if slices.Contains(serverAddresses, serverAddress) {
-			return types.BadRequest(fmt.Errorf("Address %q is already in use", serverAddress))
-		}
-
-		serverAddresses = append(serverAddresses, serverAddress)
-	}
-
 	intState, err := internalState.ToInternal(s)
 	if err != nil {
 		return types.SmartError(err)
 	}
 
+	err = validateServerConfigs(intState, req)
+	if err != nil {
+		return types.BadRequest(err)
+	}
+
 	daemonConfig := intState.LocalConfig()
 	daemonConfig.SetServers(req)
 
-	// Persist the configuration changes to file.
-	err = daemonConfig.Write()
+	err = applyAndNotifyDaemonConfig(r.Context(), intState)
 	if err != nil {
 		return types.SmartError(err)
+	}
+
+	return types.EmptySyncResponse
+}
+
+// applyAndNotifyDaemonConfig persists the current daemon configuration to file,
+// updates additional listeners, and notifies all cluster members by running
+// the OnDaemonConfigUpdate hook.
+func applyAndNotifyDaemonConfig(ctx context.Context, intState *internalState.InternalState) error {
+	daemonConfig := intState.LocalConfig()
+
+	// Persist the configuration changes to file.
+	err := daemonConfig.Write()
+	if err != nil {
+		return err
 	}
 
 	// Update the additional listeners.
 	err = intState.UpdateServers()
 	if err != nil {
-		return types.SmartError(err)
+		return err
 	}
 
-	clients, err := s.Connect().Cluster(false)
+	clients, err := intState.Connect().Cluster(false)
 	if err != nil {
-		return types.SmartError(err)
+		return err
 	}
 
 	// Run the OnDaemonConfigUpdate hook on all other members.
-	remotes := s.Truststore()
-	err = clients.Query(r.Context(), true, func(ctx context.Context, c types.Client) error {
+	remotes := intState.Truststore()
+	return clients.Query(ctx, true, func(ctx context.Context, c types.Client) error {
 		c.SetClusterNotification()
 		addrPort, err := types.ParseAddrPort(c.URL().Host)
 		if err != nil {
@@ -106,9 +98,28 @@ func daemonServersPut(s types.State, r *http.Request) types.Response {
 
 		return internalClient.RunOnDaemonConfigUpdateHook(ctx, c.UseTarget(remote.Name), daemonConfig.Dump())
 	})
-	if err != nil {
-		return types.SmartError(err)
+}
+
+// validateServerConfigs checks that each server name has a matching additional
+// listener and that no two servers share the same address.
+func validateServerConfigs(s *internalState.InternalState, servers map[string]types.ServerConfig) error {
+	extensionServers := s.ExtensionServers()
+	for serverName := range servers {
+		if !slices.Contains(extensionServers, serverName) {
+			return fmt.Errorf("No matching additional listener found for %q", serverName)
+		}
 	}
 
-	return types.EmptySyncResponse
+	serverAddresses := []string{s.Address().Host}
+	for _, server := range servers {
+		serverAddress := server.Address.String()
+
+		if slices.Contains(serverAddresses, serverAddress) {
+			return fmt.Errorf("Address %q is already in use", serverAddress)
+		}
+
+		serverAddresses = append(serverAddresses, serverAddress)
+	}
+
+	return nil
 }

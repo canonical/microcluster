@@ -1,6 +1,6 @@
 # Cluster member states
 
-Cluster member states are determinations about the status of a cluster member when making a request to `GET /core/1.0/cluster` or [client.GetClusterMembers](https://github.com/canonical/microcluster/blob/4d80df396e335bf26f9895956e846e082bb8f624/internal/rest/client/cluster.go#L40-L49). These states are not persisted.
+Cluster member states are determinations about the status of a cluster member when making a request to `GET /core/1.0/cluster` or [app.GetClusterMembers](https://github.com/canonical/microcluster/blob/v3/microcluster/app.go#L233). These states are not persisted.
 
 State         | Description
 :---          | :----

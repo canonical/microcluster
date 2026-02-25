@@ -9,8 +9,8 @@
 - [Lifecycle actions (hooks)](#lifecycle-actions-hooks)
 - [Query the Dqlite database directly](#query-the-dqlite-database-directly)
 - [Create your own API endpoints](#create-your-own-api-endpoints)
-- [Create your own schema extensions](#create-your-own-schema-extensions) 
-- [Additional developer documentation](#additional-developer-documentation) 
+- [Create your own schema extensions](#create-your-own-schema-extensions)
+- [Additional developer documentation](#additional-developer-documentation)
 
 ## Introduction
 
@@ -27,7 +27,7 @@ The [example package](example) in this repository, which includes a [tutorial](e
 To get the latest LTS release of Microcluster, run:
 
 ```
-go get github.com/canonical/microcluster/v2@latest
+go get github.com/canonical/microcluster/v3@latest
 ```
 
 ## Configure and start the Microcluster service
@@ -87,13 +87,13 @@ if err != nil {
 
 ### Lifecycle actions (hooks)
 
-The complete set of Microcluster hooks and their behaviors are defined [in this Go file](https://github.com/canonical/microcluster/blob/v3/internal/state/hooks.go).
+The complete set of Microcluster hooks and their behaviors are defined [in this Go file](https://github.com/canonical/microcluster/blob/v3/microcluster/types/hooks.go).
 
 Example using the `OnStart` hook:
 
 ```go
-dargs.Hooks = &state.Hooks{
-    OnStart: func(ctx context.Context, s state.State) error {
+dargs.Hooks = &types.Hooks{
+    OnStart: func(ctx context.Context, s types.State) error {
         // Code to execute on each startup.
     }
 }
@@ -158,28 +158,28 @@ When `ShutdownSignals` is not set (nil), MicroCluster uses default signals for g
 ### Create your own API endpoints
 
 ```go
-endpoint := rest.Endpoint{
+endpoint := types.Endpoint{
     Path: "mypath" // API is served over /mypath
 
-    Post: rest.EndpointAction{Handler: myHandler} // POST action for the endpoint.
+    Post: types.EndpointAction{Handler: myHandler} // POST action for the endpoint.
 }
 
-func myHandler(s state.State, r *http.Request) response.Response {
+func myHandler(s types.State, r *http.Request) types.Response {
     msg := fmt.Sprintf("This is a response from %q at %q", s.Name(), s.Address())
 
-    return response.SyncResponse(true, msg)
+    return types.SyncResponse(true, msg)
 }
 
 // Include your endpoints in DaemonArgs like so to serve over /1.0 over the default listener.
 dargs := microcluster.DaemonArgs{
-    Servers: map[string]rest.Server{
+    ExtensionServers: map[string]types.Server{
         "my-server": {
             CoreAPI: true,
             ServeUnix: true,
-            Resources: []rest.Resources{
+            Resources: []types.Resources{
                 {
                     PathPrefix: "1.0",
-                    Endpoints: []rest.Endpoint{endpoint},
+                    Endpoints: []types.Endpoint{endpoint},
                 },
             }
         }
@@ -212,4 +212,4 @@ Learn more about schema updates in [doc/upgrades.md](doc/upgrades.md).
 
 View the [doc](doc) directory for more information.
 
-You can also view the [Godoc-generated reference documentation](https://pkg.go.dev/github.com/canonical/microcluster/v2), which is generated from docstrings within the Microcluster code.
+You can also view the [Godoc-generated reference documentation](https://pkg.go.dev/github.com/canonical/microcluster/v3), which is generated from docstrings within the Microcluster code.

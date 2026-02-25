@@ -408,12 +408,12 @@ test_join_token_before_cluster_formed() {
 
 test_membership_consistency() {
   echo "Testing membership consistency checks"
-  
+
   new_systems 4 --heartbeat 2s
-  
+
   # Bootstrap first member (daemon already running from new_systems)
   microctl --state-dir "${test_dir}/c1" init "c1" 127.0.0.1:9001 --bootstrap
-  
+
   # Join second member (daemon already running)
   token_c2=$(microctl --state-dir "${test_dir}/c1" tokens add "c2")
   microctl --state-dir "${test_dir}/c2" init "c2" 127.0.0.1:9002 --token "${token_c2}"
@@ -421,13 +421,13 @@ test_membership_consistency() {
   # Start third member and join cluster
   token_c3=$(microctl --state-dir "${test_dir}/c1" tokens add "c3")
   microctl --state-dir "${test_dir}/c3" init "c3" 127.0.0.1:9003 --token "${token_c3}"
-  
+
   # Fetch join token for c4
   token_c4=$(microctl --state-dir "${test_dir}/c1" tokens add "c4")
 
   # Wait for cluster to stabilize
   echo "  -> Waiting for cluster members to exit PENDING state"
-  
+
   # Wait for all members to be promoted from PENDING
   retry_count=0
   max_retries=10
@@ -436,23 +436,23 @@ test_membership_consistency() {
     sleep 2
     retry_count=$((retry_count + 1))
   done
-  
+
   echo "  -> Cluster established successfully"
-  
+
   # Verify cluster is healthy
   cluster_size=$(microctl --state-dir "${test_dir}/c1" cluster list -f yaml | yq '. | length')
   if [ "${cluster_size}" != "3" ]; then
     echo "ERROR: Expected cluster size 3, got ${cluster_size}"
     exit 1
   fi
-  
+
   # Simulate inconsistent state by directly manipulating the database
   # while keeping dqlite/truststore intact
   echo "  -> Simulating inconsistent membership state"
 
   # Remove c2's membership from core_cluster_members (simulating partial remove failure)
   microctl --state-dir "${test_dir}/c1" sql "DELETE FROM core_cluster_members WHERE name = 'c2'"
-  
+
   echo "  -> Created inconsistent state (c2 removed from database but still in truststore until heartbeat timeout)"
 
   # Test member removal with inconsistent state
@@ -465,7 +465,7 @@ test_membership_consistency() {
     echo "  -> Member removal correctly blocked due to membership inconsistency"
     cat /tmp/remove_error
   fi
-  
+
   # Try to join a new member - this should fail due to inconsistency
   echo "  -> Testing join of new member c4 with inconsistent state"
   if microctl --state-dir "${test_dir}/c4" init "c4" 127.0.0.1:9004 --token "${token_c4}" 2>/tmp/join_error; then
@@ -476,7 +476,7 @@ test_membership_consistency() {
     echo "  -> Membership inconsistency correctly detected, c4 join blocked"
     cat /tmp/join_error
   fi
-  
+
   # Attempt to generate token should fail
   echo "  -> Testing token generation with inconsistent state"
   if microctl --state-dir "${test_dir}/c1" tokens add c5 2>/tmp/token_error; then
@@ -508,25 +508,25 @@ test_membership_consistency() {
     exit 1
   fi
   echo "  -> Membership consistency checks working as expected"
-  
+
   shutdown_systems
 }
 
 test_truststore_force_removal() {
   echo "Testing force removal"
-  
+
   new_systems 3 --heartbeat 2s
-  
+
   # Bootstrap first member
   microctl --state-dir "${test_dir}/c1" init "c1" 127.0.0.1:9001 --bootstrap
-  
+
   # Join second and third members
   token_c2=$(microctl --state-dir "${test_dir}/c1" tokens add "c2")
   microctl --state-dir "${test_dir}/c2" init "c2" 127.0.0.1:9002 --token "${token_c2}"
-  
+
   token_c3=$(microctl --state-dir "${test_dir}/c1" tokens add "c3")
   microctl --state-dir "${test_dir}/c3" init "c3" 127.0.0.1:9003 --token "${token_c3}"
-  
+
   # Wait for cluster to stabilize
   echo "  -> Waiting for cluster to stabilize"
   retry_count=0
@@ -535,7 +535,7 @@ test_truststore_force_removal() {
     sleep 2
     retry_count=$((retry_count + 1))
   done
-  
+
   echo "  -> Cluster established with 3 members"
   microctl --state-dir "${test_dir}/c1" cluster list
 
@@ -549,7 +549,7 @@ test_truststore_force_removal() {
     echo "  -> Force removal of non-existing member failed as expected"
     cat /tmp/remove_error
   fi
-  
+
   # Simulate truststore corruption: remove c3 from truststore while keeping DB and dqlite entries
   # Need to remove from all nodes' truststores to prevent repopulation
   echo "  -> Simulating truststore deletion of c3 from all nodes (keeping DB and dqlite entries)"
@@ -566,7 +566,7 @@ test_truststore_force_removal() {
     echo "  -> Normal removal blocked as expected"
     cat /tmp/remove_error
   fi
-  
+
   # Force remove with explicit address should succeed
   echo "  -> Testing force removal of c3 with address override"
   if microctl --state-dir "${test_dir}/c1" cluster remove c3 --force --address 127.0.0.1:9003; then
@@ -586,11 +586,11 @@ test_truststore_force_removal() {
     cat /tmp/token_resp
     exit 1
   fi
-  
+
   echo "SUCCESS: Force removal of non-existing member and random address blocked as expected"
   echo "SUCCESS: Force removal of truststore-orphaned node successful"
   echo "SUCCESS: Verified membership consistency restored after force removal"
-  
+
   shutdown_systems
 }
 
@@ -672,6 +672,44 @@ test_extended_endpoints() {
   shutdown_systems
 }
 
+test_self_deletion() {
+  echo "Testing self deletion"
+
+  new_systems 4 --heartbeat 2s
+
+  # Bootstrap initial cluster.
+  microctl --state-dir "${test_dir}/c1" init "c1" 127.0.0.1:9001 --bootstrap
+
+  # Get join tokens for the other cluster members.
+  token_c2=$(microctl --state-dir "${test_dir}/c1" tokens add "c2")
+  token_c3=$(microctl --state-dir "${test_dir}/c1" tokens add "c3")
+  token_c4=$(microctl --state-dir "${test_dir}/c1" tokens add "c4")
+
+  # Join the cluster members.
+  microctl --state-dir "${test_dir}/c2" init "c2" 127.0.0.1:9002 --token "${token_c2}"
+  microctl --state-dir "${test_dir}/c3" init "c3" 127.0.0.1:9003 --token "${token_c3}"
+  microctl --state-dir "${test_dir}/c4" init "c4" 127.0.0.1:9004 --token "${token_c4}"
+
+  # Wait for cluster to stabilize
+  while [[ -n "$(microctl --state-dir "${test_dir}/c1" cluster list -f yaml | yq '.[] | select(.role == "PENDING")')" ]]; do
+    sleep 2
+  done
+
+  echo "  -> Testing self deletion of member c1"
+  microctl --state-dir "${test_dir}/c1" cluster remove c1
+
+  echo "  -> Testing c1 got reset"
+  while [[ "$(microctl --state-dir "${test_dir}/c1" cluster list 2>&1)" != "Error: Database is not yet initialized" ]]; do
+    sleep 2
+  done
+
+  echo "  -> Testing c1 is no longer present on the remaining cluster"
+  [ "$(microctl --state-dir "${test_dir}/c2" cluster list -f csv | wc -l)" = "3" ]
+  [ "$(microctl --state-dir "${test_dir}/c2" cluster list -f json | yq '.[] | select(.name == "c1")')" = "" ]
+
+  shutdown_systems
+}
+
 # allow for running a specific set of tests
 if [ "${1:-"all"}" = "all" ] || [ "${1}" = "" ]; then
   test_misc
@@ -683,6 +721,7 @@ if [ "${1:-"all"}" = "all" ] || [ "${1}" = "" ]; then
   test_membership_consistency
   test_truststore_force_removal
   test_parallel_joins
+  test_self_deletion
 elif [ "${1}" = "recover" ]; then
   test_recover
 elif [ "${1}" = "tokens" ]; then
@@ -701,6 +740,8 @@ elif [ "${1}" = "force-removal" ]; then
   test_truststore_force_removal
 elif [ "${1}" = "parallel-join" ]; then
   test_parallel_joins
+elif [ "${1}" = "self-deletion" ]; then
+  test_self_deletion
 else
   echo "Unknown test ${1}"
 fi

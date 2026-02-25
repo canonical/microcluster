@@ -365,6 +365,13 @@ func resetClusterMember(ctx context.Context, s types.State, force bool) (reExec 
 	reExec = func() {
 		<-ctx.Done() // Wait until request has finished.
 
+		// Wait until we can acquire the lock. This way if another request is holding the lock we won't
+		// replace/stop the Microcluster daemon until that request has finished.
+		// Try to acquire the lock before initiating a daemon stop.
+		// This ensures the shutdownCtx isn't cancelled before we were able to acquire the lock.
+		clusterDisableMu.Lock()
+		defer clusterDisableMu.Unlock()
+
 		// NOTE(claudiub): In the case we fail to bootstrap / join the cluster, or if we remove the node
 		// from the cluster, we'll be resetting the node's cluster membership. This includes closing the
 		// HTTPS and unix socket servers we have open.
@@ -387,10 +394,6 @@ func resetClusterMember(ctx context.Context, s types.State, force bool) (reExec 
 			logger.Error("Failed to remove the state directory", slog.String("error", err.Error()))
 		}
 
-		// Wait until we can acquire the lock. This way if another request is holding the lock we won't
-		// replace/stop the LXD daemon until that request has finished.
-		clusterDisableMu.Lock()
-		defer clusterDisableMu.Unlock()
 		execPath, err := os.Readlink("/proc/self/exe")
 		if err != nil {
 			execPath = "bad-exec-path"

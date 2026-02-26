@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"strconv"
 
 	"github.com/canonical/microcluster/v4/internal/rest/access"
 	internalClient "github.com/canonical/microcluster/v4/internal/rest/client"
@@ -89,6 +90,11 @@ func daemonConfigPut(s types.State, r *http.Request) types.Response {
 		return types.SmartError(err)
 	}
 
+	restart, err := daemonConfigRestartRequested(r)
+	if err != nil {
+		return types.BadRequest(err)
+	}
+
 	err = validateDaemonConfigUpdate(intState, req)
 	if err != nil {
 		return types.BadRequest(err)
@@ -101,6 +107,10 @@ func daemonConfigPut(s types.State, r *http.Request) types.Response {
 	err = applyAndNotifyDaemonConfig(r.Context(), intState)
 	if err != nil {
 		return types.SmartError(err)
+	}
+
+	if restart {
+		return daemonRestart(intState)
 	}
 
 	return types.EmptySyncResponse
@@ -116,6 +126,11 @@ func daemonConfigPatch(s types.State, r *http.Request) types.Response {
 	intState, err := internalState.ToInternal(s)
 	if err != nil {
 		return types.SmartError(err)
+	}
+
+	restart, err := daemonConfigRestartRequested(r)
+	if err != nil {
+		return types.BadRequest(err)
 	}
 
 	if req.Servers != nil {
@@ -135,6 +150,36 @@ func daemonConfigPatch(s types.State, r *http.Request) types.Response {
 	}
 
 	err = applyAndNotifyDaemonConfig(r.Context(), intState)
+	if err != nil {
+		return types.SmartError(err)
+	}
+
+	if restart {
+		return daemonRestart(intState)
+	}
+
+	return types.EmptySyncResponse
+}
+
+func daemonConfigRestartRequested(r *http.Request) (bool, error) {
+	value := r.URL.Query().Get("restart")
+	if value == "" {
+		return false, nil
+	}
+
+	restart, err := strconv.ParseBool(value)
+	if err != nil {
+		return false, fmt.Errorf("Invalid restart query parameter %q", value)
+	}
+
+	return restart, nil
+}
+
+// daemonRestart restarts the dqlite database on the local member so that pending
+// configuration changes such as failure-domain take effect immediately. The call
+// is synchronous and only returns once the local database has come back online.
+func daemonRestart(intState *internalState.InternalState) types.Response {
+	err := intState.RestartDB()
 	if err != nil {
 		return types.SmartError(err)
 	}

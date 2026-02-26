@@ -80,6 +80,9 @@ func main() {
 	var cmdExtended = cmdExtended{common: &commonCmd}
 	app.AddCommand(cmdExtended.command())
 
+	var cmdDescribe = cmdDescribe{common: &commonCmd}
+	app.AddCommand(cmdDescribe.command())
+
 	app.InitDefaultHelpCmd()
 
 	err := app.Execute()

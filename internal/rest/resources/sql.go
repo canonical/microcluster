@@ -115,7 +115,7 @@ func sqlSelect(ctx context.Context, tx *sql.Tx, query string, result *types.SQLR
 
 	result.Columns, err = rows.Columns()
 	if err != nil {
-		return fmt.Errorf("Failed to fetch colume names: %w", err)
+		return fmt.Errorf("Failed to fetch column names: %w", err)
 	}
 
 	for rows.Next() {

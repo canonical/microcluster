@@ -4,7 +4,7 @@ When a new build of a project that uses Microcluster introduces logical changes 
 
 ## Schema updates
 
-The [app.Start function](https://github.com/canonical/microcluster/blob/v3/microcluster/app.go#L69-L92) accepts as an argument a list of functions that are run in sequence. These functions supply a database transaction that can be used to extend or modify the schema of the Dqlite database used by Microcluster. The order of the functions in this list must not change. New updates must be added to the end of the list, in the order to be executed.
+The [app.Start function](https://github.com/canonical/microcluster/blob/v3/microcluster/app.go#L82) accepts as an argument a list of functions that are run in sequence. These functions supply a database transaction that can be used to extend or modify the schema of the Dqlite database used by Microcluster. The order of the functions in this list must not change. New updates must be added to the end of the list, in the order to be executed.
 
 A schema version is maintained per cluster member, representing the sum-total of updates that the member is locally aware of.
 
@@ -23,7 +23,7 @@ You can see this code in use within [the example package](https://github.com/can
 
 ## API extensions
 
-The [app.Start function](https://github.com/canonical/microcluster/blob/v3/microcluster/app.go#L69-L92) accepts as argument a `[]string` that is interpreted as an ordered list of labels corresponding to changes to the API. Do not change the order of this list.
+The [app.Start function](https://github.com/canonical/microcluster/blob/v3/microcluster/app.go#L82) accepts as argument a `[]string` that is interpreted as an ordered list of labels corresponding to changes to the API. Do not change the order of this list.
 
 ### Example
 
@@ -52,9 +52,9 @@ Running cluster members that have not been upgraded will not be affected by a pe
 
 Cluster members that have not been upgraded cannot be restarted while an upgrade is in progress. The cluster member must either be upgraded, or all members waiting for the upgrade to be committed must revert to the previous version.
 
-* On members that have not been upgraded, [client.GetClusterMembers](https://github.com/canonical/microcluster/blob/4d80df396e335bf26f9895956e846e082bb8f624/internal/rest/client/cluster.go#L40-L49) will report [UNREACHABLE](https://github.com/canonical/microcluster/blob/4d80df396e335bf26f9895956e846e082bb8f624/rest/types/cluster.go#L47) for any members that have encountered an upgrade and are waiting.
+* On members that have not been upgraded, [app.GetClusterMembers](https://github.com/canonical/microcluster/blob/v3/microcluster/app.go#L233) will report [UNREACHABLE](https://github.com/canonical/microcluster/blob/v3/microcluster/types/cluster.go#L45) for any members that have encountered an upgrade and are waiting.
 
-* On upgraded members, before the upgrade is committed, [client.GetClusterMembers](https://github.com/canonical/microcluster/blob/4d80df396e335bf26f9895956e846e082bb8f624/internal/rest/client/cluster.go#L40-L49) will report [UPGRADING](https://github.com/canonical/microcluster/blob/4d80df396e335bf26f9895956e846e082bb8f624/rest/types/cluster.go#L56) for all waiting members, and [NEEDS UPGRADE](https://github.com/canonical/microcluster/blob/4d80df396e335bf26f9895956e846e082bb8f624/rest/types/cluster.go#L59) for all members that have not been upgraded.
+* On upgraded members, before the upgrade is committed, [app.GetClusterMembers](https://github.com/canonical/microcluster/blob/v3/microcluster/app.go#L233) will report [UPGRADING](https://github.com/canonical/microcluster/blob/v3/microcluster/types/cluster.go#L54) for all waiting members, and [NEEDS UPGRADE](https://github.com/canonical/microcluster/blob/v3/microcluster/types/cluster.go#L57) for all members that have not been upgraded.
 
 ## Example schema upgrade
 

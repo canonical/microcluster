@@ -56,7 +56,7 @@ if err != nil {
 
 Use an existing join token to add a new member to the cluster. This request can only be initiated over the local unix socket of the joiner.
 
-Before triggering the [PostJoin](https://github.com/canonical/microcluster/blob/4d80df396e335bf26f9895956e846e082bb8f624/internal/state/hooks.go#L23) lifecycle hook, all previously existing cluster members will concurrently run their [OnNewMember](https://github.com/canonical/microcluster/blob/4d80df396e335bf26f9895956e846e082bb8f624/internal/state/hooks.go#L39) lifecycle hooks.
+Before triggering the [PostJoin](https://github.com/canonical/microcluster/blob/v3/microcluster/types/hooks.go#L68) lifecycle hook, all previously existing cluster members will concurrently run their [OnNewMember](https://github.com/canonical/microcluster/blob/v3/microcluster/types/hooks.go#L84) lifecycle hooks.
 
 ```go
 m, err := microcluster.App(microcluster.Args{StateDir: "/path/to/state"})
@@ -88,8 +88,8 @@ In order to ensure database quorum is maintained, cluster members with a `PENDIN
 
 If `force=true`, errors encountered when attempting to reset the removed member back to an un-initialized state will be ignored. This should be used if the cluster member is no longer reachable by other members.
 
-* The [PreRemove](https://github.com/canonical/microcluster/blob/4d80df396e335bf26f9895956e846e082bb8f624/internal/state/hooks.go#L30) hook is executed on the to-be-removed member before it is removed from the database.
-* The [PostRemove](https://github.com/canonical/microcluster/blob/4d80df396e335bf26f9895956e846e082bb8f624/internal/state/hooks.go#L33) hook is executed on all remaining members after the to-be-removed member is removed from the database.
+* The [PreRemove](https://github.com/canonical/microcluster/blob/v3/microcluster/types/hooks.go#L75) hook is executed on the to-be-removed member before it is removed from the database.
+* The [PostRemove](https://github.com/canonical/microcluster/blob/v3/microcluster/types/hooks.go#L78) hook is executed on all remaining members after the to-be-removed member is removed from the database.
 
 ```go
 m, err := microcluster.App(microcluster.Args{StateDir: "/path/to/state"})
@@ -97,14 +97,22 @@ if err != nil {
     // ...
 }
 
-client, err := m.LocalClient()
+memberName := "member2"
+force := false
+err := m.RemoveClusterMember(ctx, memberName, "", force)
 if err != nil {
     // ...
 }
+```
 
+In the case of an inconsistency between the internal truststore, dqlite and the database, you can attempt a member removal by supplying the member's address, which allows Microcluster to determine the member if it can no longer be looked up by its name alone:
+
+```go
+force := true
 memberName := "member2"
-force := false
-err := client.DeleteClusterMember(ctx, name, force)
+memberAddress := "10.0.0.102:8000"
+
+err := m.RemoveClusterMember(ctx, memberName, memberAddress, force)
 if err != nil {
     // ...
 }

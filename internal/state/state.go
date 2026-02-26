@@ -59,6 +59,10 @@ type InternalState struct {
 	// Stop fully stops the daemon, its database, all listeners, and all servers.
 	Stop func() (exit func(), stopErr error)
 
+	// RestartDB closes and restarts the dqlite database, applying any pending configuration
+	// changes such as an updated failure-domain without a full daemon restart.
+	RestartDB func() error
+
 	// Runtime extensions.
 	Extensions types.Extensions
 

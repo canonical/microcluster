@@ -1148,6 +1148,9 @@ func (d *Daemon) State() types.State {
 
 			return exit, stopErr
 		},
+		RestartDB: func() error {
+			return d.db.Restart(d.Extensions, d.trustStore.Remotes().RemoteAddresses())
+		},
 		StopListeners: func() error {
 			err := d.fsWatcher.Close()
 			if err != nil {

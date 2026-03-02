@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/canonical/microcluster/v3/internal/rest/access"
-	internalState "github.com/canonical/microcluster/v3/internal/state"
-	"github.com/canonical/microcluster/v3/microcluster/types"
+	"github.com/canonical/microcluster/v4/internal/rest/access"
+	internalState "github.com/canonical/microcluster/v4/internal/state"
+	"github.com/canonical/microcluster/v4/microcluster/types"
 )
 
 var shutdownCmd = types.Endpoint{

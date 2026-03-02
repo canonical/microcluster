@@ -7,10 +7,10 @@ import (
 	"net/http"
 	"slices"
 
-	"github.com/canonical/microcluster/v3/internal/rest/access"
-	internalClient "github.com/canonical/microcluster/v3/internal/rest/client"
-	internalState "github.com/canonical/microcluster/v3/internal/state"
-	"github.com/canonical/microcluster/v3/microcluster/types"
+	"github.com/canonical/microcluster/v4/internal/rest/access"
+	internalClient "github.com/canonical/microcluster/v4/internal/rest/client"
+	internalState "github.com/canonical/microcluster/v4/internal/state"
+	"github.com/canonical/microcluster/v4/microcluster/types"
 )
 
 var daemonServersCmd = types.Endpoint{

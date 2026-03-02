@@ -10,10 +10,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/canonical/microcluster/v3/internal/cluster"
-	"github.com/canonical/microcluster/v3/internal/log"
-	internalState "github.com/canonical/microcluster/v3/internal/state"
-	"github.com/canonical/microcluster/v3/microcluster/types"
+	"github.com/canonical/microcluster/v4/internal/cluster"
+	"github.com/canonical/microcluster/v4/internal/log"
+	internalState "github.com/canonical/microcluster/v4/internal/state"
+	"github.com/canonical/microcluster/v4/microcluster/types"
 )
 
 var heartbeatCmd = types.Endpoint{

@@ -11,11 +11,11 @@ import (
 
 	"github.com/canonical/lxd/shared/api"
 
-	"github.com/canonical/microcluster/v3/internal/endpoints"
-	"github.com/canonical/microcluster/v3/internal/log"
-	"github.com/canonical/microcluster/v3/internal/rest/client"
-	"github.com/canonical/microcluster/v3/internal/state"
-	"github.com/canonical/microcluster/v3/microcluster/types"
+	"github.com/canonical/microcluster/v4/internal/endpoints"
+	"github.com/canonical/microcluster/v4/internal/log"
+	"github.com/canonical/microcluster/v4/internal/rest/client"
+	"github.com/canonical/microcluster/v4/internal/state"
+	"github.com/canonical/microcluster/v4/microcluster/types"
 )
 
 // TrustedRequest holds data pertaining to what level of trust we have for the request.

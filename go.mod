@@ -1,4 +1,4 @@
-module github.com/canonical/microcluster/v3
+module github.com/canonical/microcluster/v4
 
 go 1.25.7
 

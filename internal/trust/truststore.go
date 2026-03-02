@@ -6,8 +6,8 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 
-	"github.com/canonical/microcluster/v3/internal/sys"
-	"github.com/canonical/microcluster/v3/microcluster/types"
+	"github.com/canonical/microcluster/v4/internal/sys"
+	"github.com/canonical/microcluster/v4/microcluster/types"
 )
 
 // Store represents a directory of remotes watched by the fsnotify Watcher.

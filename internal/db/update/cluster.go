@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/canonical/microcluster/v3/internal/log"
-	clusterDB "github.com/canonical/microcluster/v3/microcluster/db"
-	"github.com/canonical/microcluster/v3/microcluster/types"
+	"github.com/canonical/microcluster/v4/internal/log"
+	clusterDB "github.com/canonical/microcluster/v4/microcluster/db"
+	"github.com/canonical/microcluster/v4/microcluster/types"
 )
 
 // PrepareUpdateV1 creates the temporary table `internal_cluster_members_new` if we have not yet run `updateFromV1`.

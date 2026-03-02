@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/canonical/microcluster/v3/internal/log"
+	"github.com/canonical/microcluster/v4/internal/log"
 )
 
 // shutdownServer will shutdown the given server.

@@ -9,7 +9,7 @@ import (
 
 	"github.com/canonical/lxd/shared"
 
-	"github.com/canonical/microcluster/v3/microcluster/types"
+	"github.com/canonical/microcluster/v4/microcluster/types"
 )
 
 // Endpoints represents all listeners and servers for the microcluster daemon REST API.

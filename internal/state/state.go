@@ -15,13 +15,13 @@ import (
 	"github.com/canonical/lxd/shared"
 	"github.com/canonical/lxd/shared/api"
 
-	"github.com/canonical/microcluster/v3/internal/cluster"
-	internalConfig "github.com/canonical/microcluster/v3/internal/config"
-	"github.com/canonical/microcluster/v3/internal/db"
-	"github.com/canonical/microcluster/v3/internal/endpoints"
-	internalClient "github.com/canonical/microcluster/v3/internal/rest/client"
-	"github.com/canonical/microcluster/v3/internal/trust"
-	"github.com/canonical/microcluster/v3/microcluster/types"
+	"github.com/canonical/microcluster/v4/internal/cluster"
+	internalConfig "github.com/canonical/microcluster/v4/internal/config"
+	"github.com/canonical/microcluster/v4/internal/db"
+	"github.com/canonical/microcluster/v4/internal/endpoints"
+	internalClient "github.com/canonical/microcluster/v4/internal/rest/client"
+	"github.com/canonical/microcluster/v4/internal/trust"
+	"github.com/canonical/microcluster/v4/microcluster/types"
 )
 
 // InternalState is a gateway to the stateful components of the microcluster daemon.

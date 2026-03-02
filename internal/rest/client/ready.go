@@ -6,7 +6,7 @@ import (
 
 	"github.com/canonical/lxd/shared/api"
 
-	"github.com/canonical/microcluster/v3/microcluster/types"
+	"github.com/canonical/microcluster/v4/microcluster/types"
 )
 
 // CheckReady returns once the daemon has signalled to the ready channel that it is done setting up.

@@ -9,8 +9,8 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"github.com/canonical/microcluster/v3/example/api/types"
-	microTypes "github.com/canonical/microcluster/v3/microcluster/types"
+	"github.com/canonical/microcluster/v4/example/api/types"
+	microTypes "github.com/canonical/microcluster/v4/microcluster/types"
 )
 
 // ExtendedSimpleCmd is a client function that sets a context timeout and sends a POST to /1.0/extended/simple using the given

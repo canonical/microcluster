@@ -12,10 +12,10 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/canonical/microcluster/v3/internal/log"
-	"github.com/canonical/microcluster/v3/internal/rest/access"
-	internalClient "github.com/canonical/microcluster/v3/internal/rest/client"
-	"github.com/canonical/microcluster/v3/microcluster/types"
+	"github.com/canonical/microcluster/v4/internal/log"
+	"github.com/canonical/microcluster/v4/internal/rest/access"
+	internalClient "github.com/canonical/microcluster/v4/internal/rest/client"
+	"github.com/canonical/microcluster/v4/microcluster/types"
 )
 
 var trustCmd = types.Endpoint{

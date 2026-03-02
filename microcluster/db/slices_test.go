@@ -8,7 +8,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/canonical/microcluster/v3/microcluster/db"
+	"github.com/canonical/microcluster/v4/microcluster/db"
 )
 
 // Exercise possible failure modes.

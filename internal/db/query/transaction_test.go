@@ -10,9 +10,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/canonical/microcluster/v3/internal/db/query"
-	clusterDB "github.com/canonical/microcluster/v3/microcluster/db"
-	"github.com/canonical/microcluster/v3/microcluster/types"
+	"github.com/canonical/microcluster/v4/internal/db/query"
+	clusterDB "github.com/canonical/microcluster/v4/microcluster/db"
+	"github.com/canonical/microcluster/v4/microcluster/types"
 )
 
 // Any error happening when beginning the transaction will be propagated.

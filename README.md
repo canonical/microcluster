@@ -27,7 +27,7 @@ The [example package](example) in this repository, which includes a [tutorial](e
 To get the latest LTS release of Microcluster, run:
 
 ```
-go get github.com/canonical/microcluster/v3@latest
+go get github.com/canonical/microcluster/v4@latest
 ```
 
 ## Configure and start the Microcluster service
@@ -212,4 +212,4 @@ Learn more about schema updates in [doc/upgrades.md](doc/upgrades.md).
 
 View the [doc](doc) directory for more information.
 
-You can also view the [Godoc-generated reference documentation](https://pkg.go.dev/github.com/canonical/microcluster/v3), which is generated from docstrings within the Microcluster code.
+You can also view the [Godoc-generated reference documentation](https://pkg.go.dev/github.com/canonical/microcluster/v4), which is generated from docstrings within the Microcluster code.

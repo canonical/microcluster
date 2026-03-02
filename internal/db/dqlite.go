@@ -24,12 +24,12 @@ import (
 	"github.com/canonical/lxd/shared/revert"
 	"github.com/canonical/lxd/shared/tcp"
 
-	"github.com/canonical/microcluster/v3/internal/cluster"
-	"github.com/canonical/microcluster/v3/internal/db/update"
-	internalClient "github.com/canonical/microcluster/v3/internal/rest/client"
-	"github.com/canonical/microcluster/v3/internal/sys"
-	clusterDB "github.com/canonical/microcluster/v3/microcluster/db"
-	"github.com/canonical/microcluster/v3/microcluster/types"
+	"github.com/canonical/microcluster/v4/internal/cluster"
+	"github.com/canonical/microcluster/v4/internal/db/update"
+	internalClient "github.com/canonical/microcluster/v4/internal/rest/client"
+	"github.com/canonical/microcluster/v4/internal/sys"
+	clusterDB "github.com/canonical/microcluster/v4/microcluster/db"
+	"github.com/canonical/microcluster/v4/microcluster/types"
 )
 
 // DqliteDB holds all information internal to the dqlite database.

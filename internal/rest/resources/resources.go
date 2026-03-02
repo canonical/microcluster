@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/canonical/microcluster/v3/internal/endpoints"
-	"github.com/canonical/microcluster/v3/microcluster/types"
+	"github.com/canonical/microcluster/v4/internal/endpoints"
+	"github.com/canonical/microcluster/v4/microcluster/types"
 )
 
 // UnixEndpoints are the endpoints available over the unix socket.

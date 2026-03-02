@@ -3,8 +3,8 @@ package resources
 import (
 	"net/http"
 
-	internalState "github.com/canonical/microcluster/v3/internal/state"
-	"github.com/canonical/microcluster/v3/microcluster/types"
+	internalState "github.com/canonical/microcluster/v4/internal/state"
+	"github.com/canonical/microcluster/v4/microcluster/types"
 )
 
 var memberCmd = types.Endpoint{

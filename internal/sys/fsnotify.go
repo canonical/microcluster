@@ -12,7 +12,7 @@ import (
 	"github.com/canonical/lxd/shared"
 	"github.com/fsnotify/fsnotify"
 
-	"github.com/canonical/microcluster/v3/internal/log"
+	"github.com/canonical/microcluster/v4/internal/log"
 )
 
 // Watcher represents an fsnotify watcher.

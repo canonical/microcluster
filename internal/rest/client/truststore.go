@@ -6,7 +6,7 @@ import (
 
 	"github.com/canonical/lxd/shared/api"
 
-	"github.com/canonical/microcluster/v3/microcluster/types"
+	"github.com/canonical/microcluster/v4/microcluster/types"
 )
 
 // AddTrustStoreEntry adds a new record to the truststore on all cluster members.

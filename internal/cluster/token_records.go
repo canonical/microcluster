@@ -9,8 +9,8 @@ import (
 
 	"github.com/canonical/lxd/shared"
 
-	"github.com/canonical/microcluster/v3/internal/log"
-	"github.com/canonical/microcluster/v3/microcluster/types"
+	"github.com/canonical/microcluster/v4/internal/log"
+	"github.com/canonical/microcluster/v4/microcluster/types"
 )
 
 // CoreTokenRecord is the database representation of a join token record.

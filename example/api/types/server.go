@@ -1,6 +1,6 @@
 package types
 
-import "github.com/canonical/microcluster/v3/microcluster/types"
+import "github.com/canonical/microcluster/v4/microcluster/types"
 
 const (
 	// ExtendedPathPrefix is the path prefix that will be used for the extended endpoints.

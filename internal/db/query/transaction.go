@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/canonical/microcluster/v3/internal/log"
+	"github.com/canonical/microcluster/v4/internal/log"
 )
 
 // Transaction executes the given function within a database transaction with a 10s context timeout.

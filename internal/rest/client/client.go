@@ -21,7 +21,7 @@ import (
 	"github.com/canonical/lxd/shared/tcp"
 	"github.com/gorilla/websocket"
 
-	"github.com/canonical/microcluster/v3/microcluster/types"
+	"github.com/canonical/microcluster/v4/microcluster/types"
 )
 
 // Client is a rest client for the daemon.

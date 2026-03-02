@@ -1,5 +1,5 @@
 VERSION=$(shell git describe --always --dirty --abbrev=10)
-LDFLAGS="-X github.com/canonical/microcluster/v3/example/version.version=$(VERSION)"
+LDFLAGS="-X github.com/canonical/microcluster/v4/example/version.version=$(VERSION)"
 GOCOVERDIR ?= $(shell go env GOCOVERDIR)
 
 .PHONY: default

@@ -16,7 +16,7 @@ import (
 	"github.com/canonical/lxd/shared/api"
 	"github.com/mattn/go-sqlite3"
 
-	"github.com/canonical/microcluster/v3/internal/log"
+	"github.com/canonical/microcluster/v4/internal/log"
 )
 
 const maxRetries = 250

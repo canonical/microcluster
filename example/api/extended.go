@@ -10,9 +10,9 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	extendedTypes "github.com/canonical/microcluster/v3/example/api/types"
-	extendedClient "github.com/canonical/microcluster/v3/example/client"
-	"github.com/canonical/microcluster/v3/microcluster/types"
+	extendedTypes "github.com/canonical/microcluster/v4/example/api/types"
+	extendedClient "github.com/canonical/microcluster/v4/example/client"
+	"github.com/canonical/microcluster/v4/microcluster/types"
 )
 
 // This is an example extended endpoint reachable at /1.0/extended/simple.

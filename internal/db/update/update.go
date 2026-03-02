@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 
-	clusterDB "github.com/canonical/microcluster/v3/microcluster/db"
-	"github.com/canonical/microcluster/v3/microcluster/types"
+	clusterDB "github.com/canonical/microcluster/v4/microcluster/db"
+	"github.com/canonical/microcluster/v4/microcluster/types"
 )
 
 // CreateSchema is the default schema applied when bootstrapping the database.

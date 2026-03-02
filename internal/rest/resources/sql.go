@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/canonical/microcluster/v3/internal/db/query"
-	"github.com/canonical/microcluster/v3/internal/log"
-	"github.com/canonical/microcluster/v3/internal/rest/access"
-	"github.com/canonical/microcluster/v3/microcluster/types"
+	"github.com/canonical/microcluster/v4/internal/db/query"
+	"github.com/canonical/microcluster/v4/internal/log"
+	"github.com/canonical/microcluster/v4/internal/rest/access"
+	"github.com/canonical/microcluster/v4/microcluster/types"
 )
 
 var sqlCmd = types.Endpoint{

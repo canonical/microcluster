@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/canonical/microcluster/v3/internal/db/update"
-	"github.com/canonical/microcluster/v3/microcluster/types"
+	"github.com/canonical/microcluster/v4/internal/db/update"
+	"github.com/canonical/microcluster/v4/microcluster/types"
 )
 
 // Role is the role of the dqlite cluster member.

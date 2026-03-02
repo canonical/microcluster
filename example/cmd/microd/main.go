@@ -11,11 +11,11 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/sys/unix"
 
-	"github.com/canonical/microcluster/v3/example/api"
-	"github.com/canonical/microcluster/v3/example/database"
-	"github.com/canonical/microcluster/v3/example/version"
-	"github.com/canonical/microcluster/v3/microcluster"
-	"github.com/canonical/microcluster/v3/microcluster/types"
+	"github.com/canonical/microcluster/v4/example/api"
+	"github.com/canonical/microcluster/v4/example/database"
+	"github.com/canonical/microcluster/v4/example/version"
+	"github.com/canonical/microcluster/v4/microcluster"
+	"github.com/canonical/microcluster/v4/microcluster/types"
 )
 
 type cmdGlobal struct {

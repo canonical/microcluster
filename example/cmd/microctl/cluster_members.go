@@ -17,8 +17,8 @@ import (
 	"golang.org/x/sys/unix"
 	"gopkg.in/yaml.v3"
 
-	"github.com/canonical/microcluster/v3/microcluster"
-	"github.com/canonical/microcluster/v3/microcluster/types"
+	"github.com/canonical/microcluster/v4/microcluster"
+	"github.com/canonical/microcluster/v4/microcluster/types"
 )
 
 const recoveryConfirmation = `You should only run this command if:

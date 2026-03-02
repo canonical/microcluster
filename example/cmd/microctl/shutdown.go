@@ -3,7 +3,7 @@ package main
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/canonical/microcluster/v3/microcluster"
+	"github.com/canonical/microcluster/v4/microcluster"
 )
 
 type cmdShutdown struct {

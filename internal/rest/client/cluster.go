@@ -6,7 +6,7 @@ import (
 
 	"github.com/canonical/lxd/shared/api"
 
-	"github.com/canonical/microcluster/v3/microcluster/types"
+	"github.com/canonical/microcluster/v4/microcluster/types"
 )
 
 // withTimeoutIfUnset returns a context with a 30s timeout only if the parent context has no deadline set.

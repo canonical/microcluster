@@ -112,9 +112,7 @@ func (d *DaemonConfig) GetServers() map[string]types.ServerConfig {
 
 	// Create a deep copy to not return the reference to the original map.
 	serverConfigCopy := make(map[string]types.ServerConfig, len(d.config.Servers))
-	for k, v := range d.config.Servers {
-		serverConfigCopy[k] = v
-	}
+	maps.Copy(serverConfigCopy, d.config.Servers)
 
 	return serverConfigCopy
 }

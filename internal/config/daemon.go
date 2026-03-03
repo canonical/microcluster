@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"sync"
 
@@ -57,7 +58,17 @@ func (d *DaemonConfig) Load() error {
 
 // Dump dumps the entire daemon's config.
 func (d *DaemonConfig) Dump() *types.DaemonConfig {
-	return d.config
+	d.lock.RLock()
+	defer d.lock.RUnlock()
+
+	dump := *d.config
+
+	serversCopy := make(map[string]types.ServerConfig, len(d.config.Servers))
+	maps.Copy(serversCopy, d.config.Servers)
+
+	dump.Servers = serversCopy
+
+	return &dump
 }
 
 // Write writes the daemon's config to its path.

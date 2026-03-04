@@ -7,3 +7,10 @@ type DaemonConfig struct {
 	Servers       map[string]ServerConfig `json:"servers" yaml:"servers"`
 	FailureDomain uint64                  `json:"failure-domain" yaml:"failure-domain"`
 }
+
+// DaemonConfigPatch is the request body for PATCH /core/1.0/daemon/config.
+// Optional fields preserve existing values when omitted.
+type DaemonConfigPatch struct {
+	Servers       *map[string]ServerConfig `json:"servers,omitempty" yaml:"servers,omitempty"`
+	FailureDomain *uint64                  `json:"failure-domain,omitempty" yaml:"failure-domain,omitempty"`
+}

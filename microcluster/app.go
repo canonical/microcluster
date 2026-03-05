@@ -491,6 +491,8 @@ func (m *MicroCluster) UpdateDaemonConfig(ctx context.Context, config types.Daem
 }
 
 // UpdateServers updates the extension servers defined when starting the daemon.
+//
+// Deprecated: Use UpdateDaemonConfig with a DaemonConfigPatch.Servers field instead.
 func (m *MicroCluster) UpdateServers(ctx context.Context, config map[string]types.ServerConfig) error {
 	c, err := m.LocalClient()
 	if err != nil {

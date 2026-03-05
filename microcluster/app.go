@@ -16,6 +16,7 @@ import (
 	"github.com/canonical/lxd/shared/api"
 	"golang.org/x/sys/unix"
 
+	"github.com/canonical/microcluster/v3/internal/cluster"
 	"github.com/canonical/microcluster/v3/internal/daemon"
 	"github.com/canonical/microcluster/v3/internal/log"
 	"github.com/canonical/microcluster/v3/internal/recover"
@@ -237,6 +238,11 @@ func (m *MicroCluster) GetClusterMembers(ctx context.Context) ([]types.ClusterMe
 	}
 
 	return internalClient.GetClusterMembers(ctx, c)
+}
+
+// IsClusterMemberPending returns true if the ClusterMember's role is PENDING.
+func IsClusterMemberPending(cm types.ClusterMember) bool {
+	return cm.Role == string(cluster.Pending)
 }
 
 // GetDqliteClusterMembers retrieves the current local cluster configuration

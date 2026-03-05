@@ -103,14 +103,14 @@ The local daemon configuration is exposed via:
 `PUT` performs a full replacement of all mutable fields:
 
 * `servers` — replaces the servers map entirely. Omitting or setting `null` clears all servers.
-* `failure-domain` — sets a new value. Omitting or setting `null` clears the failure domain.
+* `failure-domain` — sets a new value. Omitting or setting `null` clears the failure domain (default: `0`).
 
 `name` and `address` are immutable. If provided they must match the current values; if omitted they are ignored.
 
 `PATCH` supports **partial updates** using the `DaemonConfigPatch` request body:
 
 * `servers` — omit the field to leave existing server configuration unchanged; include it to replace the servers map entirely (send `{}` to clear all servers).
-* `failure-domain` — omit the field to leave the existing value unchanged; include it to set a new value (send `0` to clear the failure domain).
+* `failure-domain` — omit the field to leave the existing value unchanged; include it to set a new value (send `0` to reset to the default).
 
 `name` and `address` are not part of the `PATCH` request body and are ignored if present in the payload.
 
@@ -142,7 +142,7 @@ To clear all servers explicitly, send an empty object for the field:
 }
 ```
 
-To clear `failure-domain`, send `0`:
+To clear `failure-domain`, send `0` (the default):
 
 ```json
 {

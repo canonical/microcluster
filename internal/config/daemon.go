@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"sync"
 
@@ -57,7 +58,17 @@ func (d *DaemonConfig) Load() error {
 
 // Dump dumps the entire daemon's config.
 func (d *DaemonConfig) Dump() *types.DaemonConfig {
-	return d.config
+	d.lock.RLock()
+	defer d.lock.RUnlock()
+
+	dump := *d.config
+
+	serversCopy := make(map[string]types.ServerConfig, len(d.config.Servers))
+	maps.Copy(serversCopy, d.config.Servers)
+
+	dump.Servers = serversCopy
+
+	return &dump
 }
 
 // Write writes the daemon's config to its path.
@@ -101,9 +112,7 @@ func (d *DaemonConfig) GetServers() map[string]types.ServerConfig {
 
 	// Create a deep copy to not return the reference to the original map.
 	serverConfigCopy := make(map[string]types.ServerConfig, len(d.config.Servers))
-	for k, v := range d.config.Servers {
-		serverConfigCopy[k] = v
-	}
+	maps.Copy(serverConfigCopy, d.config.Servers)
 
 	return serverConfigCopy
 }
@@ -130,4 +139,20 @@ func (d *DaemonConfig) SetServers(servers map[string]types.ServerConfig) {
 	defer d.lock.Unlock()
 
 	d.config.Servers = servers
+}
+
+// GetFailureDomain returns the daemon's failure domain.
+func (d *DaemonConfig) GetFailureDomain() uint64 {
+	d.lock.RLock()
+	defer d.lock.RUnlock()
+
+	return d.config.FailureDomain
+}
+
+// SetFailureDomain sets the daemon's failure domain.
+func (d *DaemonConfig) SetFailureDomain(failureDomain uint64) {
+	d.lock.Lock()
+	defer d.lock.Unlock()
+
+	d.config.FailureDomain = failureDomain
 }

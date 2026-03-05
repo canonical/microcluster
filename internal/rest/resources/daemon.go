@@ -20,6 +20,23 @@ var daemonServersCmd = types.Endpoint{
 	Put: types.EndpointAction{Handler: daemonServersPut, AccessHandler: access.AllowAuthenticated},
 }
 
+var daemonConfigCmd = types.Endpoint{
+	Path: "daemon/config",
+
+	Get:   types.EndpointAction{Handler: daemonConfigGet, AccessHandler: access.AllowAuthenticated},
+	Put:   types.EndpointAction{Handler: daemonConfigPut, AccessHandler: access.AllowAuthenticated},
+	Patch: types.EndpointAction{Handler: daemonConfigPatch, AccessHandler: access.AllowAuthenticated},
+}
+
+func daemonConfigGet(s types.State, r *http.Request) types.Response {
+	intState, err := internalState.ToInternal(s)
+	if err != nil {
+		return types.SmartError(err)
+	}
+
+	return types.SyncResponse(true, intState.LocalConfig().Dump())
+}
+
 func daemonServersGet(s types.State, r *http.Request) types.Response {
 	intState, err := internalState.ToInternal(s)
 	if err != nil {
@@ -50,6 +67,72 @@ func daemonServersPut(s types.State, r *http.Request) types.Response {
 
 	daemonConfig := intState.LocalConfig()
 	daemonConfig.SetServers(req)
+
+	err = applyAndNotifyDaemonConfig(r.Context(), intState)
+	if err != nil {
+		return types.SmartError(err)
+	}
+
+	return types.EmptySyncResponse
+}
+
+func daemonConfigPut(s types.State, r *http.Request) types.Response {
+	req := types.DaemonConfig{}
+
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		return types.BadRequest(err)
+	}
+
+	intState, err := internalState.ToInternal(s)
+	if err != nil {
+		return types.SmartError(err)
+	}
+
+	err = validateDaemonConfigUpdate(intState, req)
+	if err != nil {
+		return types.BadRequest(err)
+	}
+
+	daemonConfig := intState.LocalConfig()
+	daemonConfig.SetServers(req.Servers)
+	daemonConfig.SetFailureDomain(req.FailureDomain)
+
+	err = applyAndNotifyDaemonConfig(r.Context(), intState)
+	if err != nil {
+		return types.SmartError(err)
+	}
+
+	return types.EmptySyncResponse
+}
+
+func daemonConfigPatch(s types.State, r *http.Request) types.Response {
+	req := types.DaemonConfigPatch{}
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		return types.BadRequest(err)
+	}
+
+	intState, err := internalState.ToInternal(s)
+	if err != nil {
+		return types.SmartError(err)
+	}
+
+	if req.Servers != nil {
+		err = validateServerConfigs(intState, *req.Servers)
+		if err != nil {
+			return types.BadRequest(err)
+		}
+	}
+
+	daemonConfig := intState.LocalConfig()
+	if req.Servers != nil {
+		daemonConfig.SetServers(*req.Servers)
+	}
+
+	if req.FailureDomain != nil {
+		daemonConfig.SetFailureDomain(*req.FailureDomain)
+	}
 
 	err = applyAndNotifyDaemonConfig(r.Context(), intState)
 	if err != nil {
@@ -98,6 +181,26 @@ func applyAndNotifyDaemonConfig(ctx context.Context, intState *internalState.Int
 
 		return internalClient.RunOnDaemonConfigUpdateHook(ctx, c.UseTarget(remote.Name), daemonConfig.Dump())
 	})
+}
+
+// validateDaemonConfigUpdate checks that any provided immutable fields (Name, Address)
+// have not changed and delegates server config validation to validateServerConfigs.
+func validateDaemonConfigUpdate(s *internalState.InternalState, req types.DaemonConfig) error {
+	daemonConfig := s.LocalConfig().Dump()
+	if req.Name != "" && req.Name != daemonConfig.Name {
+		return fmt.Errorf("Name is immutable")
+	}
+
+	var zeroAddr types.AddrPort
+	if req.Address != zeroAddr && req.Address != daemonConfig.Address {
+		return fmt.Errorf("Address is immutable")
+	}
+
+	if req.Servers != nil {
+		return validateServerConfigs(s, req.Servers)
+	}
+
+	return nil
 }
 
 // validateServerConfigs checks that each server name has a matching additional

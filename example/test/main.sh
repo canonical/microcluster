@@ -11,7 +11,21 @@ fi
 
 test_dir="$(realpath -e "$(dirname -- "${BASH_SOURCE[0]}")")/system"
 
-trap shutdown_systems EXIT HUP INT TERM
+# Must be set before cleanup().
+TEST_CURRENT="setup"
+TEST_RESULT="failure"
+
+declare -A test_results
+
+cleanup() {
+  shutdown_systems
+
+  echo ""
+  echo ""
+  echo "==> Test result: ${TEST_RESULT}"
+}
+
+trap cleanup EXIT HUP INT TERM
 
 new_systems() {
   if [ -d "${test_dir}" ]; then
@@ -73,6 +87,25 @@ shutdown_systems() {
       kill -9 "${job_pid}" 2>/dev/null || true
     fi
   done
+}
+
+run_test() {
+  local test_name="${1}"
+
+  TEST_CURRENT="${test_name}"
+  echo "==> TEST BEGIN: ${TEST_CURRENT}"
+
+  if "test_${test_name}"; then
+    test_results["${test_name}"]="PASS"
+  else
+    test_results["${test_name}"]="FAIL"
+  fi
+  echo "==> TEST DONE: ${TEST_CURRENT}"
+
+  if [ "${test_results[${test_name}]}" != "PASS" ]; then
+    TEST_RESULT="failure"
+    return 1
+  fi
 }
 
 test_misc() {
@@ -952,40 +985,43 @@ test_self_deletion() {
 }
 
 # allow for running a specific set of tests
+TEST_RESULT="success"
 if [ "${1:-"all"}" = "all" ] || [ "${1}" = "" ]; then
-  test_misc
-  test_tokens
-  test_recover
-  test_join_token_after_cluster_formed
-  test_join_token_before_cluster_formed
-  test_daemon_config_api
-  test_extended_endpoints
-  test_membership_consistency
-  test_truststore_force_removal
-  test_parallel_joins
-  test_self_deletion
+  run_test misc
+  run_test tokens
+  run_test recover
+  run_test join_token_after_cluster_formed
+  run_test join_token_before_cluster_formed
+  run_test daemon_config_api
+  run_test extended_endpoints
+  run_test membership_consistency
+  run_test truststore_force_removal
+  run_test parallel_joins
+  run_test self_deletion
 elif [ "${1}" = "recover" ]; then
-  test_recover
+  run_test recover
 elif [ "${1}" = "tokens" ]; then
-  test_tokens
+  run_test tokens
 elif [ "${1}" = "misc" ]; then
-  test_misc
+  run_test misc
 elif [ "${1}" = "join-after" ]; then
-  test_join_token_after_cluster_formed
+  run_test join_token_after_cluster_formed
 elif [ "${1}" = "join-before" ]; then
-  test_join_token_before_cluster_formed
+  run_test join_token_before_cluster_formed
 elif [ "${1}" = "extended" ]; then
-  test_extended_endpoints
+  run_test extended_endpoints
 elif [ "${1}" = "membership" ]; then
-  test_membership_consistency
+  run_test membership_consistency
 elif [ "${1}" = "force-removal" ]; then
-  test_truststore_force_removal
+  run_test truststore_force_removal
 elif [ "${1}" = "parallel-join" ]; then
-  test_parallel_joins
+  run_test parallel_joins
 elif [ "${1}" = "self-deletion" ]; then
-  test_self_deletion
+  run_test self_deletion
 elif [ "${1}" = "daemon-config" ]; then
-  test_daemon_config_api
+  run_test daemon_config_api
 else
   echo "Unknown test ${1}"
+  TEST_RESULT="failure"
+  exit 1
 fi

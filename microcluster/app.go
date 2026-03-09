@@ -481,13 +481,14 @@ func (m *MicroCluster) GetDaemonConfig(ctx context.Context) (*types.DaemonConfig
 
 // UpdateDaemonConfig partially updates local daemon configuration.
 // Only fields explicitly set (non-nil) in the patch are applied; omitted fields preserve their current values.
-func (m *MicroCluster) UpdateDaemonConfig(ctx context.Context, config types.DaemonConfigPatch) error {
+// When restart is true, the local dqlite node is restarted after persisting the config changes.
+func (m *MicroCluster) UpdateDaemonConfig(ctx context.Context, config types.DaemonConfigPatch, restart bool) error {
 	c, err := m.LocalClient()
 	if err != nil {
 		return err
 	}
 
-	return internalClient.PatchDaemonConfig(ctx, c, config)
+	return internalClient.PatchDaemonConfig(ctx, c, config, restart)
 }
 
 // UpdateServers updates the extension servers defined when starting the daemon.

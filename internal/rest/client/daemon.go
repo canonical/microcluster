@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"net/url"
 	"time"
 
 	"github.com/canonical/lxd/shared/api"
@@ -25,21 +26,21 @@ func GetDaemonConfig(ctx context.Context, c types.Client) (*types.DaemonConfig, 
 }
 
 // UpdateDaemonConfig updates local daemon configuration.
-func UpdateDaemonConfig(ctx context.Context, c types.Client, config types.DaemonConfig) error {
+func UpdateDaemonConfig(ctx context.Context, c types.Client, config types.DaemonConfig, restart bool) error {
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	endpoint := api.NewURL().Path("daemon", "config")
-	return c.Query(queryCtx, "PUT", types.PublicEndpoint, &endpoint.URL, config, nil)
+	endpoint := daemonConfigURL(restart)
+	return c.Query(queryCtx, "PUT", types.PublicEndpoint, endpoint, config, nil)
 }
 
 // PatchDaemonConfig partially updates local daemon configuration.
-func PatchDaemonConfig(ctx context.Context, c types.Client, config types.DaemonConfigPatch) error {
+func PatchDaemonConfig(ctx context.Context, c types.Client, config types.DaemonConfigPatch, restart bool) error {
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	endpoint := api.NewURL().Path("daemon", "config")
-	return c.Query(queryCtx, "PATCH", types.PublicEndpoint, &endpoint.URL, config, nil)
+	endpoint := daemonConfigURL(restart)
+	return c.Query(queryCtx, "PATCH", types.PublicEndpoint, endpoint, config, nil)
 }
 
 // UpdateServers updates the additional servers config.
@@ -49,4 +50,13 @@ func UpdateServers(ctx context.Context, c types.Client, config map[string]types.
 
 	endpoint := api.NewURL().Path("daemon", "servers")
 	return c.Query(queryCtx, "PUT", types.PublicEndpoint, &endpoint.URL, config, nil)
+}
+
+func daemonConfigURL(restart bool) *url.URL {
+	endpoint := api.NewURL().Path("daemon", "config")
+	if restart {
+		endpoint = endpoint.WithQuery("restart", "true")
+	}
+
+	return &endpoint.URL
 }

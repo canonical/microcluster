@@ -1,13 +1,10 @@
 package db
 
 import (
-	"bufio"
 	"context"
-	"crypto/tls"
 	"database/sql"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"math/rand"
 	"net"
@@ -435,11 +432,6 @@ func (db *DqliteDB) heartbeat(leaderInfo dqliteClient.NodeInfo, servers []dqlite
 
 // dqliteNetworkDial creates a connection to the internal database endpoint.
 func dqliteNetworkDial(ctx context.Context, addr string, db *DqliteDB) (net.Conn, error) {
-	addrPort, err := types.ParseAddrPort(addr)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to parse the address: %w", err)
-	}
-
 	peerCert, err := db.clusterCert().PublicKeyX509()
 	if err != nil {
 		return nil, err
@@ -450,41 +442,11 @@ func dqliteNetworkDial(ctx context.Context, addr string, db *DqliteDB) (net.Conn
 		return nil, fmt.Errorf("Failed to parse TLS config: %w", err)
 	}
 
-	// Establish the connection
-	request := &http.Request{
-		Method:     "POST",
-		Proto:      "HTTP/1.1",
-		ProtoMajor: 1,
-		ProtoMinor: 1,
-		Header:     make(http.Header),
-		Host:       addrPort.String(),
-	}
-
-	request.URL = &url.URL{
-		Scheme: "https",
-		Host:   addrPort.String(),
-		Path:   fmt.Sprintf("/%s/%s", types.InternalEndpoint, "database"),
-	}
-
-	request.Header.Set("Upgrade", "dqlite")
-	request.Header.Set("X-Dqlite-Version", fmt.Sprintf("%d", 1))
-	request = request.WithContext(ctx)
-
-	revert := revert.New()
-	defer revert.Fail()
-
-	tlsDialer := tls.Dialer{Config: config}
-	conn, err := tlsDialer.DialContext(ctx, "tcp", addr)
+	conn, err := internalClient.DialDqlite(ctx, addr, config)
 	if err != nil {
-		return nil, fmt.Errorf("Failed connecting to HTTP endpoint %q: %w", addr, err)
+		return nil, err
 	}
 
-	revert.Add(func() {
-		err := conn.Close()
-		if err != nil {
-			db.log().Error("Failed to close connection to dqlite", slog.String("error", err.Error()))
-		}
-	})
 	slogGroup := slog.Group("peers", slog.String("local", conn.LocalAddr().String()), slog.String("remote", conn.RemoteAddr().String()))
 	db.log().Debug("Successfully established outbound dqlite connection", slogGroup)
 
@@ -499,50 +461,6 @@ func dqliteNetworkDial(ctx context.Context, addr string, db *DqliteDB) (net.Conn
 		}
 	}
 
-	err = request.Write(conn)
-	if err != nil {
-		return nil, fmt.Errorf("Failed sending HTTP requrest to %q: %w", request.URL, err)
-	}
-
-	response, err := http.ReadResponse(bufio.NewReader(conn), request)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to read response: %w", err)
-	}
-
-	revert.Add(func() {
-		err := response.Body.Close()
-		if err != nil {
-			db.log().Error("Failed to close dqlite response body", slog.String("error", err.Error()))
-		}
-	})
-
-	_, err = io.Copy(io.Discard, response.Body)
-	if err != nil {
-		db.log().Error("Failed to read dqlite response body", slog.String("error", err.Error()))
-	}
-
-	// We are done reading the response body. Close it.
-	err = response.Body.Close()
-	if err != nil {
-		return nil, fmt.Errorf("Failed to close dqlite response body: %w", err)
-	}
-
-	// If the remote server has detected that we are out of date, let's
-	// trigger an upgrade.
-	if response.StatusCode == http.StatusUpgradeRequired {
-		// TODO: trigger update.
-		return nil, fmt.Errorf("Upgrade needed")
-	}
-
-	if response.StatusCode != http.StatusSwitchingProtocols {
-		return nil, fmt.Errorf("Dialing failed: expected status code 101 got %d", response.StatusCode)
-	}
-
-	if response.Header.Get("Upgrade") != "dqlite" {
-		return nil, fmt.Errorf("Missing or unexpected Upgrade header in response")
-	}
-
-	revert.Success()
 	return conn, nil
 }
 

@@ -11,7 +11,21 @@ fi
 
 test_dir="$(realpath -e "$(dirname -- "${BASH_SOURCE[0]}")")/system"
 
-trap shutdown_systems EXIT HUP INT TERM
+# Must be set before cleanup().
+TEST_CURRENT="setup"
+TEST_RESULT="failure"
+
+declare -A test_results
+
+cleanup() {
+  shutdown_systems
+
+  echo ""
+  echo ""
+  echo "==> Test result: ${TEST_RESULT}"
+}
+
+trap cleanup EXIT HUP INT TERM
 
 new_systems() {
   if [ -d "${test_dir}" ]; then
@@ -73,6 +87,25 @@ shutdown_systems() {
       kill -9 "${job_pid}" 2>/dev/null || true
     fi
   done
+}
+
+run_test() {
+  local test_name="${1}"
+
+  TEST_CURRENT="${test_name}"
+  echo "==> TEST BEGIN: ${TEST_CURRENT}"
+
+  if "test_${test_name}"; then
+    test_results["${test_name}"]="PASS"
+  else
+    test_results["${test_name}"]="FAIL"
+  fi
+  echo "==> TEST DONE: ${TEST_CURRENT}"
+
+  if [ "${test_results[${test_name}]}" != "PASS" ]; then
+    TEST_RESULT="failure"
+    return 1
+  fi
 }
 
 test_misc() {
@@ -656,22 +689,30 @@ test_daemon_config_api() {
 
   daemon_config_put() {
     local payload="${1}"
+    local query_suffix=""
+    if [ -n "${2:-}" ]; then
+      query_suffix="?restart=${2}"
+    fi
 
     curl -sS --unix-socket "${socket_path}" \
       -X PUT \
       -H "Content-Type: application/json" \
       -d "${payload}" \
-      http://unix/core/1.0/daemon/config
+      "http://unix/core/1.0/daemon/config${query_suffix}"
   }
 
   daemon_config_patch() {
     local payload="${1}"
+    local query_suffix=""
+    if [ -n "${2:-}" ]; then
+      query_suffix="?restart=${2}"
+    fi
 
     curl -sS --unix-socket "${socket_path}" \
       -X PATCH \
       -H "Content-Type: application/json" \
       -d "${payload}" \
-      http://unix/core/1.0/daemon/config
+      "http://unix/core/1.0/daemon/config${query_suffix}"
   }
 
   json_get() {
@@ -694,7 +735,8 @@ test_daemon_config_api() {
     json_get "${payload}" '.error_code'
   }
 
-  # Ensure initial daemon config can be retrieved.
+  # Initial state: GET should return the bootstrap member identity and the default failure-domain.
+  echo "==> initial state and PUT semantics"
   config_resp="$(daemon_config_get)"
   [[ "$(response_code "${config_resp}")" == "200" ]] || {
     echo "ERROR: Failed to GET daemon config"
@@ -716,8 +758,7 @@ test_daemon_config_api() {
     echo "${config_resp}"
     return 1
   }
-
-  # PUT sets failure-domain and clears servers (full replacement).
+  # Full replacement: PUT sets failure-domain and clears servers when servers are omitted.
   update_payload='{"name":"c1","address":"127.0.0.1:9001","failure-domain":9}'
   update_resp="$(daemon_config_put "${update_payload}")"
   [[ "$(response_code "${update_resp}")" == "200" ]] || {
@@ -742,8 +783,7 @@ test_daemon_config_api() {
     cat "${test_dir}/c1/daemon.yaml"
     return 1
   }
-
-  # PUT without failure-domain clears it (full replacement semantics).
+  # Full replacement: PUT without failure-domain resets it to the default value.
   update_payload='{"name":"c1","address":"127.0.0.1:9001"}'
   update_resp="$(daemon_config_put "${update_payload}")"
   [[ "$(response_code "${update_resp}")" == "200" ]] || {
@@ -758,10 +798,9 @@ test_daemon_config_api() {
     echo "${config_resp}"
     return 1
   }
+  echo "==> PATCH semantics"
 
-  # PATCH tests.
-
-  # Set failure-domain to a known value first via PUT.
+  # Prime a known failure-domain value so PATCH preservation semantics are observable.
   update_payload='{"name":"c1","address":"127.0.0.1:9001","failure-domain":5}'
   update_resp="$(daemon_config_put "${update_payload}")"
   [[ "$(response_code "${update_resp}")" == "200" ]] || {
@@ -770,7 +809,7 @@ test_daemon_config_api() {
     return 1
   }
 
-  # PATCH omitting failure-domain preserves the existing value.
+  # Partial update: omitting failure-domain preserves the existing value.
   patch_payload='{"name":"c1","address":"127.0.0.1:9001"}'
   patch_resp="$(daemon_config_patch "${patch_payload}")"
   [[ "$(response_code "${patch_resp}")" == "200" ]] || {
@@ -785,8 +824,7 @@ test_daemon_config_api() {
     echo "${config_resp}"
     return 1
   }
-
-  # PATCH updates failure-domain without clearing it.
+  # Partial update: PATCH can update failure-domain directly and should persist it to daemon.yaml.
   patch_payload='{"name":"c1","address":"127.0.0.1:9001","failure-domain":7}'
   patch_resp="$(daemon_config_patch "${patch_payload}")"
   [[ "$(response_code "${patch_resp}")" == "200" ]] || {
@@ -806,9 +844,8 @@ test_daemon_config_api() {
     cat "${test_dir}/c1/daemon.yaml"
     return 1
   }
-
-  # PATCH ignores name and address fields — they are not part of DaemonConfigPatch.
-  # A payload containing a different name or address succeeds; the values are not applied.
+  # PATCH ignores name and address fields because they are not part of DaemonConfigPatch.
+  # A payload containing different values should succeed without applying them.
   ignore_payload='{"name":"renamed","address":"127.0.0.1:9999","failure-domain":7}'
   ignore_resp="$(daemon_config_patch "${ignore_payload}")"
   [[ "$(response_code "${ignore_resp}")" == "200" ]] || {
@@ -828,8 +865,9 @@ test_daemon_config_api() {
     echo "${config_resp}"
     return 1
   }
+  echo "==> validation failures"
 
-  # PUT Name is immutable.
+  # PUT rejects a changed name because name is immutable.
   bad_payload='{"name":"renamed","address":"127.0.0.1:9001","servers":{},"failure-domain":9}'
   bad_resp="$(daemon_config_put "${bad_payload}")"
   [[ "$(response_code "${bad_resp}")" == "400" ]] || {
@@ -842,8 +880,7 @@ test_daemon_config_api() {
     echo "${bad_resp}"
     return 1
   }
-
-  # PUT Address is immutable.
+  # PUT rejects a changed address because address is immutable.
   bad_payload='{"name":"c1","address":"127.0.0.1:9999","servers":{},"failure-domain":9}'
   bad_resp="$(daemon_config_put "${bad_payload}")"
   [[ "$(response_code "${bad_resp}")" == "400" ]] || {
@@ -856,8 +893,7 @@ test_daemon_config_api() {
     echo "${bad_resp}"
     return 1
   }
-
-  # PUT Unknown extension server should be rejected.
+  # PUT rejects unknown extension listeners instead of silently accepting them.
   bad_payload='{"name":"c1","address":"127.0.0.1:9001","servers":{"unknown.example.com":{"address":"127.0.0.1:9443"}},"failure-domain":9}'
   bad_resp="$(daemon_config_put "${bad_payload}")"
   [[ "$(response_code "${bad_resp}")" == "400" ]] || {
@@ -870,8 +906,7 @@ test_daemon_config_api() {
     echo "${bad_resp}"
     return 1
   }
-
-  # Legacy endpoint should still be accessible.
+  # Compatibility: the legacy daemon/servers endpoint should still be accessible.
   legacy_resp="$(curl -sS --unix-socket "${socket_path}" http://unix/core/1.0/daemon/servers)"
   [[ "$(response_code "${legacy_resp}")" == "200" ]] || {
     echo "ERROR: Legacy daemon/servers endpoint should remain available"
@@ -879,6 +914,67 @@ test_daemon_config_api() {
     return 1
   }
 
+  echo "==> restart semantics"
+
+  # Before requesting a restart, the live dqlite metadata should still report the default value.
+  fd_before="$(microctl --state-dir "${test_dir}/c1" describe 127.0.0.1:9001 | yq -r '."failure-domain"')"
+  [[ "${fd_before}" == "0" ]] || {
+    echo "ERROR: Expected initial dqlite failure-domain to be 0, got ${fd_before}"
+    return 1
+  }
+
+  # PATCH with restart=true should apply the failure-domain to the live dqlite node before returning.
+  patch_resp="$(daemon_config_patch '{"failure-domain":42}' true)"
+  [[ "$(response_code "${patch_resp}")" == "200" ]] || {
+    echo "ERROR: PATCH with restart failed"
+    echo "${patch_resp}"
+    return 1
+  }
+  # The request should return only after the local database is back online.
+  fd_after="$(microctl --state-dir "${test_dir}/c1" describe 127.0.0.1:9001 | yq -r '."failure-domain"')"
+  [[ "${fd_after}" == "42" ]] || {
+    echo "ERROR: Expected dqlite failure-domain to be 42 after PATCH restart, got ${fd_after}"
+    return 1
+  }
+
+  config_resp="$(daemon_config_get)"
+  [[ "$(json_get "${config_resp}" '.metadata."failure-domain"')" == "42" ]] || {
+    echo "ERROR: GET should reflect failure-domain=42 after PATCH restart"
+    echo "${config_resp}"
+    return 1
+  }
+  # PUT with restart=true should preserve full replacement semantics and still wait for the restart.
+  put_resp="$(daemon_config_put '{"name":"c1","address":"127.0.0.1:9001","failure-domain":99}' true)"
+  [[ "$(response_code "${put_resp}")" == "200" ]] || {
+    echo "ERROR: PUT with restart failed"
+    echo "${put_resp}"
+    return 1
+  }
+  fd_after="$(microctl --state-dir "${test_dir}/c1" describe 127.0.0.1:9001 | yq -r '."failure-domain"')"
+  [[ "${fd_after}" == "99" ]] || {
+    echo "ERROR: Expected dqlite failure-domain to be 99 after PUT restart, got ${fd_after}"
+    return 1
+  }
+  # Without restart=true, PATCH persists the new value but live dqlite metadata remains unchanged.
+  patch_resp="$(daemon_config_patch '{"failure-domain":7}')"
+  [[ "$(response_code "${patch_resp}")" == "200" ]] || {
+    echo "ERROR: PATCH without restart failed"
+    echo "${patch_resp}"
+    return 1
+  }
+
+  fd_live="$(microctl --state-dir "${test_dir}/c1" describe 127.0.0.1:9001 | yq -r '."failure-domain"')"
+  [[ "${fd_live}" == "99" ]] || {
+    echo "ERROR: Without restart, live dqlite failure-domain should still be 99, got ${fd_live}"
+    return 1
+  }
+
+  config_resp="$(daemon_config_get)"
+  [[ "$(json_get "${config_resp}" '.metadata."failure-domain"')" == "7" ]] || {
+    echo "ERROR: GET should reflect the persisted failure-domain=7 even without restart"
+    echo "${config_resp}"
+    return 1
+  }
   shutdown_systems
 }
 
@@ -952,40 +1048,43 @@ test_self_deletion() {
 }
 
 # allow for running a specific set of tests
+TEST_RESULT="success"
 if [ "${1:-"all"}" = "all" ] || [ "${1}" = "" ]; then
-  test_misc
-  test_tokens
-  test_recover
-  test_join_token_after_cluster_formed
-  test_join_token_before_cluster_formed
-  test_daemon_config_api
-  test_extended_endpoints
-  test_membership_consistency
-  test_truststore_force_removal
-  test_parallel_joins
-  test_self_deletion
+  run_test misc
+  run_test tokens
+  run_test recover
+  run_test join_token_after_cluster_formed
+  run_test join_token_before_cluster_formed
+  run_test daemon_config_api
+  run_test extended_endpoints
+  run_test membership_consistency
+  run_test truststore_force_removal
+  run_test parallel_joins
+  run_test self_deletion
 elif [ "${1}" = "recover" ]; then
-  test_recover
+  run_test recover
 elif [ "${1}" = "tokens" ]; then
-  test_tokens
+  run_test tokens
 elif [ "${1}" = "misc" ]; then
-  test_misc
+  run_test misc
 elif [ "${1}" = "join-after" ]; then
-  test_join_token_after_cluster_formed
+  run_test join_token_after_cluster_formed
 elif [ "${1}" = "join-before" ]; then
-  test_join_token_before_cluster_formed
+  run_test join_token_before_cluster_formed
 elif [ "${1}" = "extended" ]; then
-  test_extended_endpoints
+  run_test extended_endpoints
 elif [ "${1}" = "membership" ]; then
-  test_membership_consistency
+  run_test membership_consistency
 elif [ "${1}" = "force-removal" ]; then
-  test_truststore_force_removal
+  run_test truststore_force_removal
 elif [ "${1}" = "parallel-join" ]; then
-  test_parallel_joins
+  run_test parallel_joins
 elif [ "${1}" = "self-deletion" ]; then
-  test_self_deletion
+  run_test self_deletion
 elif [ "${1}" = "daemon-config" ]; then
-  test_daemon_config_api
+  run_test daemon_config_api
 else
   echo "Unknown test ${1}"
+  TEST_RESULT="failure"
+  exit 1
 fi

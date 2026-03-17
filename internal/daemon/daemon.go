@@ -73,6 +73,13 @@ type Args struct {
 	// If nil, default signals (SIGPWR, SIGTERM, SIGINT, SIGQUIT) will be used.
 	// If set to an empty slice, no signal handling will be performed.
 	ShutdownSignals []os.Signal
+
+	// InitFailureDomain is the initial dqlite failure-domain for this node. It is
+	// used by dqlite to place voting replicas across fault boundaries. If the node
+	// has already been bootstrapped and daemon.yaml contains a failure-domain value,
+	// that value takes precedence over this field. Set this to avoid a dqlite
+	// restart when the failure domain is known at daemon startup time.
+	InitFailureDomain uint64
 }
 
 // Daemon holds information for the microcluster daemon.
@@ -187,6 +194,13 @@ func (d *Daemon) Run(ctx context.Context, stateDir string, args Args) error {
 
 	// Setup the deamon's internal config.
 	d.config = internalConfig.NewDaemonConfig(filepath.Join(d.os.StateDir(), "daemon.yaml"))
+
+	// Apply the failure domain from args as an initial value. If daemon.yaml already
+	// exists (restart/rejoin), config.Load() called inside reload() will overwrite this
+	// with the persisted value, which takes precedence.
+	if args.InitFailureDomain != 0 {
+		d.config.SetFailureDomain(args.InitFailureDomain)
+	}
 
 	// Clean up the daemon state on an error during init.
 	reverter := revert.New()
@@ -1133,6 +1147,9 @@ func (d *Daemon) State() types.State {
 			}
 
 			return exit, stopErr
+		},
+		RestartDB: func() error {
+			return d.db.Restart(d.Extensions, d.trustStore.Remotes().RemoteAddresses())
 		},
 		StopListeners: func() error {
 			err := d.fsWatcher.Close()

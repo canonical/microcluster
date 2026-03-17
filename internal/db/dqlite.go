@@ -1,14 +1,12 @@
 package db
 
 import (
-	"bufio"
 	"context"
-	"crypto/tls"
 	"database/sql"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
+	"math/rand"
 	"net"
 	"net/http"
 	"net/url"
@@ -46,6 +44,7 @@ type DqliteDB struct {
 	db        *sql.DB
 	dqlite    *dqlite.App
 	acceptCh  chan net.Conn
+	acceptMu  sync.RWMutex
 	upgradeCh chan struct{}
 
 	ctx    context.Context
@@ -66,9 +65,22 @@ const (
 	DefaultHeartbeatInterval time.Duration = time.Second * 10
 )
 
-// Accept sends the outbound connection through the acceptCh channel to be received by dqlite.
+// Accept passes conn to dqlite. During normal operation the send completes
+// immediately. During a Restart the channel has no consumer yet, so the call
+// blocks for up to 10s, keeping clients "on hold" until the new dqlite
+// instance is ready, making the restart invisible to them.
+// acceptMu is held so that Restart can atomically rotate the channel.
 func (db *DqliteDB) Accept(conn net.Conn) {
-	db.acceptCh <- conn
+	db.acceptMu.RLock()
+	defer db.acceptMu.RUnlock()
+
+	select {
+	case db.acceptCh <- conn:
+	case <-time.After(10 * time.Second):
+		conn.Close()
+	case <-db.ctx.Done():
+		conn.Close()
+	}
 }
 
 // NewDB creates an empty db struct with no dqlite connection.
@@ -420,11 +432,6 @@ func (db *DqliteDB) heartbeat(leaderInfo dqliteClient.NodeInfo, servers []dqlite
 
 // dqliteNetworkDial creates a connection to the internal database endpoint.
 func dqliteNetworkDial(ctx context.Context, addr string, db *DqliteDB) (net.Conn, error) {
-	addrPort, err := types.ParseAddrPort(addr)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to parse the address: %w", err)
-	}
-
 	peerCert, err := db.clusterCert().PublicKeyX509()
 	if err != nil {
 		return nil, err
@@ -435,41 +442,11 @@ func dqliteNetworkDial(ctx context.Context, addr string, db *DqliteDB) (net.Conn
 		return nil, fmt.Errorf("Failed to parse TLS config: %w", err)
 	}
 
-	// Establish the connection
-	request := &http.Request{
-		Method:     "POST",
-		Proto:      "HTTP/1.1",
-		ProtoMajor: 1,
-		ProtoMinor: 1,
-		Header:     make(http.Header),
-		Host:       addrPort.String(),
-	}
-
-	request.URL = &url.URL{
-		Scheme: "https",
-		Host:   addrPort.String(),
-		Path:   fmt.Sprintf("/%s/%s", types.InternalEndpoint, "database"),
-	}
-
-	request.Header.Set("Upgrade", "dqlite")
-	request.Header.Set("X-Dqlite-Version", fmt.Sprintf("%d", 1))
-	request = request.WithContext(ctx)
-
-	revert := revert.New()
-	defer revert.Fail()
-
-	tlsDialer := tls.Dialer{Config: config}
-	conn, err := tlsDialer.DialContext(ctx, "tcp", addr)
+	conn, err := internalClient.DialDqlite(ctx, addr, config)
 	if err != nil {
-		return nil, fmt.Errorf("Failed connecting to HTTP endpoint %q: %w", addr, err)
+		return nil, err
 	}
 
-	revert.Add(func() {
-		err := conn.Close()
-		if err != nil {
-			db.log().Error("Failed to close connection to dqlite", slog.String("error", err.Error()))
-		}
-	})
 	slogGroup := slog.Group("peers", slog.String("local", conn.LocalAddr().String()), slog.String("remote", conn.RemoteAddr().String()))
 	db.log().Debug("Successfully established outbound dqlite connection", slogGroup)
 
@@ -484,50 +461,6 @@ func dqliteNetworkDial(ctx context.Context, addr string, db *DqliteDB) (net.Conn
 		}
 	}
 
-	err = request.Write(conn)
-	if err != nil {
-		return nil, fmt.Errorf("Failed sending HTTP requrest to %q: %w", request.URL, err)
-	}
-
-	response, err := http.ReadResponse(bufio.NewReader(conn), request)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to read response: %w", err)
-	}
-
-	revert.Add(func() {
-		err := response.Body.Close()
-		if err != nil {
-			db.log().Error("Failed to close dqlite response body", slog.String("error", err.Error()))
-		}
-	})
-
-	_, err = io.Copy(io.Discard, response.Body)
-	if err != nil {
-		db.log().Error("Failed to read dqlite response body", slog.String("error", err.Error()))
-	}
-
-	// We are done reading the response body. Close it.
-	err = response.Body.Close()
-	if err != nil {
-		return nil, fmt.Errorf("Failed to close dqlite response body: %w", err)
-	}
-
-	// If the remote server has detected that we are out of date, let's
-	// trigger an upgrade.
-	if response.StatusCode == http.StatusUpgradeRequired {
-		// TODO: trigger update.
-		return nil, fmt.Errorf("Upgrade needed")
-	}
-
-	if response.StatusCode != http.StatusSwitchingProtocols {
-		return nil, fmt.Errorf("Dialing failed: expected status code 101 got %d", response.StatusCode)
-	}
-
-	if response.Header.Get("Upgrade") != "dqlite" {
-		return nil, fmt.Errorf("Missing or unexpected Upgrade header in response")
-	}
-
-	revert.Success()
 	return conn, nil
 }
 
@@ -549,6 +482,118 @@ func (db *DqliteDB) Stop() error {
 		if err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+// Restart closes the dqlite app and SQL connection without cancelling the daemon context,
+// then reconnects to the cluster. This allows changes like failure-domain to take effect
+// without a full daemon restart.
+func (db *DqliteDB) Restart(extensions types.Extensions, clusterMembers map[string]types.AddrPort) error {
+	if db.listenAddr != nil && db.dqlite != nil {
+		ctx, cancel := context.WithTimeout(db.ctx, 30*time.Second)
+		defer cancel()
+
+		// Query the current cluster leader before stopping the local dqlite app.
+		leader, err := db.Leader(ctx)
+		if err != nil {
+			return fmt.Errorf("Failed to determine current dqlite leader before restart: %w", err)
+		}
+
+		defer leader.Close()
+
+		leaderInfo, err := leader.Leader(ctx)
+		if err != nil {
+			return fmt.Errorf("Failed to fetch dqlite leader information before restart: %w", err)
+		}
+
+		// Only transfer leadership when restarting the current leader. Followers can
+		// restart immediately without disrupting cluster leadership.
+		if leaderInfo.Address == db.listenAddr.Host {
+			err = db.transferLeadership(ctx, leader, leaderInfo)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	db.statusLock.Lock()
+	db.status = types.DatabaseOffline
+	db.statusLock.Unlock()
+
+	// Swap in a fresh accept channel for the next dqlite instance and close the
+	// old one so any stale go-dqlite reader ranging over it can exit.
+	// Accept() holds acceptMu for every send, so once the write lock is held there
+	// can be no remaining senders on the old channel.
+	db.acceptMu.Lock()
+	oldAcceptCh := db.acceptCh
+	db.acceptCh = make(chan net.Conn)
+	db.acceptMu.Unlock()
+
+	if oldAcceptCh != nil {
+		close(oldAcceptCh)
+	}
+
+	if db.db != nil {
+		_ = db.db.Close()
+		db.db = nil
+	}
+
+	if db.dqlite != nil {
+		_ = db.dqlite.Close()
+		db.dqlite = nil
+	}
+
+	return db.StartWithCluster(extensions, db.listenAddr, clusterMembers)
+}
+
+// transferLeadership hands leadership to another voter before the local leader
+// restarts. This avoids forcing the cluster to detect leader loss mid-restart.
+func (db *DqliteDB) transferLeadership(ctx context.Context, leader *dqliteClient.Client, leaderInfo *dqliteClient.NodeInfo) error {
+	info, err := leader.Cluster(ctx)
+	if err != nil {
+		return fmt.Errorf("Failed to fetch dqlite cluster information before restart: %w", err)
+	}
+
+	if len(info) < 2 {
+		return nil
+	}
+
+	// In a 2-node cluster, ensure the remaining node is promotable before transferring leadership.
+	if len(info) == 2 {
+		for _, node := range info {
+			if node.Address != leaderInfo.Address && node.Role != dqliteClient.Voter {
+				err = leader.Assign(ctx, node.ID, dqliteClient.Voter)
+				if err != nil {
+					return fmt.Errorf("Failed to promote peer to voter before leadership transfer: %w", err)
+				}
+			}
+		}
+
+		info, err = leader.Cluster(ctx)
+		if err != nil {
+			return fmt.Errorf("Failed to refresh dqlite cluster information before restart: %w", err)
+		}
+	}
+
+	// Prefer transferring directly to another voter, since only voters are eligible
+	// to become raft leader.
+	var otherVoters []uint64
+	for _, node := range info {
+		if node.Address != leaderInfo.Address && node.Role == dqliteClient.Voter {
+			otherVoters = append(otherVoters, node.ID)
+		}
+	}
+
+	if len(otherVoters) == 0 {
+		return fmt.Errorf("Found no voters to transfer dqlite leadership to before restart")
+	}
+
+	target := otherVoters[rand.Intn(len(otherVoters))]
+	err = leader.Transfer(ctx, target)
+	if err != nil {
+		return fmt.Errorf("Failed to transfer dqlite leadership before restart: %w", err)
 	}
 
 	return nil

@@ -469,7 +469,31 @@ func (m *MicroCluster) LoggerFromContext(ctx context.Context) *slog.Logger {
 	return logger
 }
 
+// GetDaemonConfig returns the local daemon configuration.
+func (m *MicroCluster) GetDaemonConfig(ctx context.Context) (*types.DaemonConfig, error) {
+	c, err := m.LocalClient()
+	if err != nil {
+		return nil, err
+	}
+
+	return internalClient.GetDaemonConfig(ctx, c)
+}
+
+// UpdateDaemonConfig partially updates local daemon configuration.
+// Only fields explicitly set (non-nil) in the patch are applied; omitted fields preserve their current values.
+// When restart is true, the local dqlite node is restarted after persisting the config changes.
+func (m *MicroCluster) UpdateDaemonConfig(ctx context.Context, config types.DaemonConfigPatch, restart bool) error {
+	c, err := m.LocalClient()
+	if err != nil {
+		return err
+	}
+
+	return internalClient.PatchDaemonConfig(ctx, c, config, restart)
+}
+
 // UpdateServers updates the extension servers defined when starting the daemon.
+//
+// Deprecated: Use UpdateDaemonConfig with a DaemonConfigPatch.Servers field instead.
 func (m *MicroCluster) UpdateServers(ctx context.Context, config map[string]types.ServerConfig) error {
 	c, err := m.LocalClient()
 	if err != nil {

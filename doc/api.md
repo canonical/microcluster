@@ -76,3 +76,96 @@ dargs := microcluster.DaemonArgs{
     },
 }
 ```
+
+### Daemon configuration API
+
+The local daemon configuration is exposed via:
+
+* `GET /core/1.0/daemon/config`
+* `PUT /core/1.0/daemon/config`
+* `PATCH /core/1.0/daemon/config`
+
+`GET` returns `types.DaemonConfig`:
+
+```json
+{
+  "name": "m1",
+  "address": "127.0.0.1:9001",
+  "servers": {
+    "metrics.example.com": {
+      "address": "127.0.0.1:9443"
+    }
+  },
+  "failure-domain": 1
+}
+```
+
+`PUT` uses `DaemonConfig` as the request body and performs a full replacement of all mutable fields:
+
+* `servers` — replaces the servers map entirely. Omitting or sending `null` clears all servers.
+* `failure-domain` — sets a new value. Omitting resets it to the default (`0`).
+
+`name` and `address` are immutable. If provided they must match the current values; if omitted they are ignored.
+
+`PATCH` uses `DaemonConfigPatch` as the request body and performs a partial update:
+
+* `servers` — omit to leave existing server configuration unchanged; include it to replace the servers map entirely (send `{}` to clear).
+* `failure-domain` — omit to leave the existing value unchanged; include it to set a new value (send `0` to reset to the default).
+
+`name` and `address` are not part of the `PATCH` request body and are ignored if present in the payload.
+
+Both `PUT` and `PATCH` accept an optional `restart` query parameter:
+
+* `?restart=true` — after persisting the config changes, the local dqlite node is restarted so that `failure-domain` and other dqlite-level settings take effect immediately without a full daemon restart. The request returns only after the local restart has completed. The restart is local only; each member must issue its own request if a cluster-wide restart is needed.
+* `?restart=false` (default) — config is persisted and listeners are updated, but dqlite is not restarted. `failure-domain` changes will take effect on the next daemon start.
+
+To update `failure-domain` and restart dqlite immediately, send the request to `PATCH /core/1.0/daemon/config?restart=true`:
+
+```json
+{
+  "failure-domain": 2
+}
+```
+
+To update only `failure-domain` without touching servers (PATCH only):
+
+```json
+{
+  "failure-domain": 2
+}
+```
+
+To update only `servers` without touching `failure-domain` (PATCH only):
+
+```json
+{
+  "servers": {
+    "metrics.example.com": {
+      "address": "127.0.0.1:9443"
+    }
+  }
+}
+```
+
+To clear all servers explicitly, send an empty object for the field:
+
+```json
+{
+  "servers": {}
+}
+```
+
+To clear `failure-domain`, send `0` (the default):
+
+```json
+{
+  "failure-domain": 0
+}
+```
+
+`servers` updates are applied immediately to listener configuration.
+`failure-domain` changes are persisted immediately but only applied to dqlite on the next daemon start unless `?restart=true` is set.
+
+To avoid the need for a restart entirely, set the `InitFailureDomain` field in `DaemonArgs` before starting the daemon. This initialises the failure domain from the start so no subsequent restart is required.
+
+The legacy `PUT /core/1.0/daemon/servers` endpoint remains available.

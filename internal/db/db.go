@@ -293,7 +293,7 @@ func (db *DqliteDB) Update() error {
 	time.Sleep(wait)
 
 	logger.Info("Triggering cluster auto-update now")
-	_, err = shared.RunCommandContext(context.TODO(), updateExec)
+	_, err = shared.RunCommand(context.TODO(), updateExec)
 	if err != nil {
 		logger.Error("Triggering cluster update failed", logger.Ctx{"err": err})
 		return err

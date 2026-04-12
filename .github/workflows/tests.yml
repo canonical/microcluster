@@ -2,6 +2,16 @@ name: Tests
 on:
   pull_request:
   push:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * *'  # Test TICS daily
+
+env:
+  CGO_CFLAGS: -I/home/runner/go/deps/dqlite/include/
+  CGO_LDFLAGS: -L/home/runner/go/deps/dqlite/.libs/
+  LD_LIBRARY_PATH: /home/runner/go/deps/dqlite/.libs/
+  CGO_LDFLAGS_ALLOW: (-Wl,-wrap,pthread_create)|(-Wl,-z,now)
+  GOCOVERDIR: ${{ ( github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' ) && '/home/runner/work/microcluster/microcluster/cover' || '' }}
 
 permissions:
   contents: read
@@ -12,16 +22,13 @@ concurrency:
 
 jobs:
   code-tests:
-    env:
-      CGO_CFLAGS: -I/home/runner/go/deps/dqlite/include/
-      CGO_LDFLAGS: -L/home/runner/go/deps/dqlite/.libs/
-      LD_LIBRARY_PATH: /home/runner/go/deps/dqlite/.libs/
-      CGO_LDFLAGS_ALLOW: (-Wl,-wrap,pthread_create)|(-Wl,-z,now)
     name: Code
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Require GHA pinning
         uses: canonical/lxd/.github/actions/require-gha-pinning@main
@@ -42,17 +49,17 @@ jobs:
           go mod tidy -go="${GOMIN}"
 
       - name: Install dependencies
-        run: |
-          set -eux
-          sudo apt-get update
-
-          sudo apt-get install --no-install-recommends -y \
-            pkg-config autoconf automake libtool make libuv1-dev libsqlite3-dev liblz4-dev
+        uses: ./.github/actions/install-builddeps
 
       - name: Build dependencies
         run: |
           set -eux
           make deps
+
+          # Include dqlite libs in dependencies for system tests.
+          mkdir /home/runner/go/bin/dqlite
+          cp -r ~/go/deps/dqlite/include /home/runner/go/bin/dqlite/include
+          cp -r ~/go/deps/dqlite/.libs /home/runner/go/bin/dqlite/libs
 
       - name: Run static analysis
         run: |
@@ -61,12 +68,23 @@ jobs:
 
           make -C example check-static
 
+      - name: Make GOCOVERDIR
+        run: mkdir -p "${GOCOVERDIR}"
+        if: env.GOCOVERDIR != ''
+
       - name: Unit tests (all)
         run: |
           set -eux
           make check-unit
 
           make -C example check-unit
+
+      - name: Upload coverage data
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage-unit
+          path: ${{env.GOCOVERDIR}}
+        if: env.GOCOVERDIR != ''
 
       - name: Example system tests
         run: |
@@ -75,3 +93,85 @@ jobs:
 
           cd example/test
           CLUSTER_VERBOSE=1 ./main.sh
+
+      - name: Upload coverage data
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage-example-system
+          path: ${{env.GOCOVERDIR}}
+        if: env.GOCOVERDIR != ''
+
+      - name: Upload TIOBE TICS dependencies
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: system-tiobe-tics-deps
+          path: |
+            /home/runner/go/bin/microd
+            /home/runner/go/bin/microctl
+            /home/runner/go/bin/dqlite
+          retention-days: 1
+
+  tics:
+    name: Tiobe TICS
+    runs-on: ubuntu-22.04
+    needs: code-tests
+    env:
+      CGO_CFLAGS: "-I/home/runner/go/bin/dqlite/include/"
+      CGO_LDFLAGS: "-L/home/runner/go/bin/dqlite/libs/"
+      LD_LIBRARY_PATH: "/home/runner/go/bin/dqlite/libs/"
+      CGO_LDFLAGS_ALLOW: "(-Wl,-wrap,pthread_create)|(-Wl,-z,now)"
+    if: ${{ ( github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' ) && github.ref_name == 'v3' && github.repository == 'canonical/microcluster' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          # A non-shallow clone is needed for the Differential ShellCheck
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Download coverage data
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: coverage-*
+          path: ${{env.GOCOVERDIR}}
+          merge-multiple: true
+
+      - name: Download TIOBE TICS dependencies
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: system-tiobe-tics-deps
+          merge-multiple: true
+          path: /home/runner/go/bin
+
+      - name: Install dependencies
+        uses: ./.github/actions/install-builddeps
+
+      - name: Install dependencies
+        run: |
+          go install github.com/axw/gocov/gocov@latest
+          go install github.com/AlekSi/gocov-xml@latest
+          go install honnef.co/go/tools/cmd/staticcheck@latest
+
+      - name: Convert coverage files
+        run: |
+          go tool covdata textfmt -i="${GOCOVERDIR}" -o "${GOCOVERDIR}"/coverage.out
+          gocov convert "${GOCOVERDIR}"/coverage.out > "${GOCOVERDIR}"/coverage.json
+          gocov-xml < "${GOCOVERDIR}"/coverage.json > "${GOCOVERDIR}"/coverage-go.xml
+          go tool covdata percent -i="${GOCOVERDIR}"
+
+      - name: Run TICS
+        uses: tiobe/tics-github-action@3300ccc8de3c938cb83dc940ec4d07096c1bf185 # v3.9.1
+        with:
+          mode: qserver
+          project: microcluster
+          viewerUrl: https://canonical.tiobe.com/tiobeweb/TICS/api/cfg?name=GoProjects
+          branchdir: ${{ github.workspace }}
+          ticsAuthToken: ${{ secrets.TICSAUTHTOKEN }}
+          installTics: true
+          calc: ALL
+          tmpdir: /tmp/tics

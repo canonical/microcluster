@@ -20,6 +20,12 @@ updates:
     schedule:
       interval: "weekly"
     target-branch: "v3"
+    cooldown:
+      default-days: 7
+    groups:
+      github-actions:
+        patterns:
+          - "*"
 
   - package-ecosystem: "gomod"
     directory: "/"
@@ -27,6 +33,12 @@ updates:
     schedule:
       interval: "weekly"
     target-branch: "v3"
+    cooldown:
+      default-days: 7
+    groups:
+      github-actions:
+        patterns:
+          - "*"
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -34,6 +46,12 @@ updates:
     schedule:
       interval: "weekly"
     target-branch: "v2"
+    cooldown:
+      default-days: 7
+    groups:
+      github-actions:
+        patterns:
+          - "*"
 
   - package-ecosystem: "gomod"
     directory: "/"
@@ -41,3 +59,9 @@ updates:
     schedule:
       interval: "weekly"
     target-branch: "v2"
+    cooldown:
+      default-days: 7
+    groups:
+      github-actions:
+        patterns:
+          - "*"

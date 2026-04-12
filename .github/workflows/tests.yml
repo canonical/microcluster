@@ -169,7 +169,7 @@ jobs:
           project: microcluster
           viewerUrl: https://canonical.tiobe.com/tiobeweb/TICS/api/cfg?name=GoProjects
           branchdir: ${{ github.workspace }}
-          ticsAuthToken: ${{ secrets.TICSAUTHTOKEN }}
+          ticsAuthToken: ${{ secrets.TICSAUTHTOKEN }} # zizmor: ignore[secrets-outside-env]
           installTics: true
           calc: ALL
           tmpdir: /tmp/tics

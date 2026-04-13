@@ -17,29 +17,9 @@ defaults:
     shell: bash
 
 jobs:
-  update-vulnerability-database:
-    name: Trivy - Update cached database
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Install Trivy
-        uses: canonical/lxd/.github/actions/install-trivy@main
-
-      - name: Download Trivy DB
-        id: db_download
-        run: trivy fs --download-db-only --cache-dir /home/runner/vuln-cache
-        continue-on-error: true
-
-      - name: Cache Trivy vulnerability database
-        if: ${{ steps.db_download.outcome == 'success' }}
-        uses: actions/cache/save@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
-        with:
-          path: /home/runner/vuln-cache
-          key: trivy-cache-${{ github.run_id }}
-
   trivy-repo:
     name: Trivy - Repository
     runs-on: ubuntu-22.04
-    needs: update-vulnerability-database
     strategy:
       matrix:
         version:
@@ -52,25 +32,15 @@ jobs:
         with:
           ref: ${{ matrix.version }}
 
-      - name: Install Trivy
-        uses: canonical/lxd/.github/actions/install-trivy@main
-
-      - name: Use previously downloaded database
-        uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
-        with:
-          path: /home/runner/vuln-cache
-          key: trivy-cache-${{ github.run_id }}
-          restore-keys: |
-            trivy-cache-
-
       - name: Run Trivy vulnerability scanner
-        run: |
-          trivy fs --skip-db-update \
-          --scanners vuln,secret,misconfig \
-          --format sarif \
-          --cache-dir /home/runner/vuln-cache \
-          --severity LOW,MEDIUM,HIGH,CRITICAL \
-          --output trivy-microcluster-repo-scan-results.sarif .
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,secret,misconfig
+          format: sarif
+          severity: LOW,MEDIUM,HIGH,CRITICAL
+          output: trivy-microcluster-repo-scan-results.sarif
 
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@c10b8064de6f491fea524254123dbe5e09572f13 # v3.29.5

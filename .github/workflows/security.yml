@@ -22,7 +22,7 @@ jobs:
     permissions:
       contents: read
       security-events: write # for uploading SARIF results to the security tab
-    if: ${{ ( github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' ) && github.ref_name == 'main' && github.repository_owner == 'canonical' }}
+    if: ${{ ( github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' ) && github.ref_name == 'v4' && github.repository_owner == 'canonical' }}
     env:
       SARIF_FILE: trivy-${{ github.event.repository.name }}-repo-scan-results.sarif
     strategy:

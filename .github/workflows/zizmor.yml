@@ -3,7 +3,6 @@ name: GHA Security Analysis
 on:
   push:
     branches:
-      - main
       - v*
   pull_request:
 

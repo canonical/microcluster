@@ -77,7 +77,7 @@ jobs:
           make -C example check-unit
 
       - name: Upload coverage data
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-unit
           path: ${{env.GOCOVERDIR}}
@@ -92,14 +92,14 @@ jobs:
           CLUSTER_VERBOSE=1 ./main.sh
 
       - name: Upload coverage data
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-example-system
           path: ${{env.GOCOVERDIR}}
         if: env.GOCOVERDIR != ''
 
       - name: Upload TIOBE TICS dependencies
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: system-tiobe-tics-deps
           path: |

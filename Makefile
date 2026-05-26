@@ -38,7 +38,7 @@ check-system:
 .PHONY: check-static
 check-static:
 ifeq ($(shell command -v golangci-lint 2> /dev/null),)
-	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $$(go env GOPATH)/bin
+	curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b $$(go env GOPATH)/bin
 endif
 	golangci-lint run --timeout 5m
 	run-parts --verbose --exit-on-error --regex '.sh' test/lint

@@ -22,7 +22,7 @@ updates:
     cooldown:
       default-days: 7
     groups:
-      github-actions:
+      gomod:
         patterns:
           - "*"
 
@@ -48,6 +48,6 @@ updates:
     cooldown:
       default-days: 7
     groups:
-      github-actions:
+      gomod:
         patterns:
           - "*"

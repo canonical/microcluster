@@ -6,6 +6,12 @@ updates:
     schedule:
       interval: "weekly"
     target-branch: "v4"
+    cooldown:
+      default-days: 7
+    groups:
+      github-actions:
+        patterns:
+          - "*"
 
   - package-ecosystem: "gomod"
     directory: "/"
@@ -13,6 +19,12 @@ updates:
     schedule:
       interval: "weekly"
     target-branch: "v4"
+    cooldown:
+      default-days: 7
+    groups:
+      gomod:
+        patterns:
+          - "*"
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -36,7 +48,7 @@ updates:
     cooldown:
       default-days: 7
     groups:
-      github-actions:
+      gomod:
         patterns:
           - "*"
 
@@ -62,6 +74,6 @@ updates:
     cooldown:
       default-days: 7
     groups:
-      github-actions:
+      gomod:
         patterns:
           - "*"

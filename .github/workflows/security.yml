@@ -6,7 +6,6 @@ on:
 
 permissions:
   contents: read
-  security-events: write # for uploading SARIF results to the security tab
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
@@ -17,32 +16,19 @@ defaults:
     shell: bash
 
 jobs:
-  update-vulnerability-database:
-    name: Trivy - Update cached database
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Install Trivy
-        uses: canonical/lxd/.github/actions/install-trivy@main
-
-      - name: Download Trivy DB
-        id: db_download
-        run: trivy fs --download-db-only --cache-dir /home/runner/vuln-cache
-        continue-on-error: true
-
-      - name: Cache Trivy vulnerability database
-        if: ${{ steps.db_download.outcome == 'success' }}
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-        with:
-          path: /home/runner/vuln-cache
-          key: trivy-cache-${{ github.run_id }}
-
   trivy-repo:
     name: Trivy - Repository
-    runs-on: ubuntu-22.04
-    needs: update-vulnerability-database
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      security-events: write # for uploading SARIF results to the security tab
+    if: ${{ ( github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' ) && github.ref_name == 'v4' && github.repository_owner == 'canonical' }}
+    env:
+      SARIF_FILE: trivy-${{ github.event.repository.name }}-repo-scan-results.sarif
     strategy:
       matrix:
         version:
+          - v4
           - v3
           - v2
     steps:
@@ -50,30 +36,21 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ matrix.version }}
-
-      - name: Install Trivy
-        uses: canonical/lxd/.github/actions/install-trivy@main
-
-      - name: Use previously downloaded database
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-        with:
-          path: /home/runner/vuln-cache
-          key: trivy-cache-${{ github.run_id }}
-          restore-keys: |
-            trivy-cache-
+          persist-credentials: false
 
       - name: Run Trivy vulnerability scanner
-        run: |
-          trivy fs --skip-db-update \
-          --scanners vuln,secret,misconfig \
-          --format sarif \
-          --cache-dir /home/runner/vuln-cache \
-          --severity LOW,MEDIUM,HIGH,CRITICAL \
-          --output trivy-microcluster-repo-scan-results.sarif .
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,secret,misconfig
+          format: sarif
+          severity: LOW,MEDIUM,HIGH,CRITICAL
+          output: ${{ env.SARIF_FILE }}
 
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@95e58e9a2cdfd71adc6e0353d5c52f41a045d225 # v3.29.5
+        uses: github/codeql-action/upload-sarif@9e0d7b8d25671d64c341c19c0152d693099fb5ba # v4.35.5
         with:
-          sarif_file: "trivy-microcluster-repo-scan-results.sarif"
+          sarif_file: ${{ env.SARIF_FILE }}
           sha: ${{ github.sha }}
           ref: refs/heads/${{ matrix.version }}

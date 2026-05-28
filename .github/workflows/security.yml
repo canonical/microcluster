@@ -1,0 +1,56 @@
+name: Vulnerability Scanning with Trivy
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * *'  # Test Trivy daily at midnight
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  trivy-repo:
+    name: Trivy - Repository
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      security-events: write # for uploading SARIF results to the security tab
+    if: ${{ ( github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' ) && github.ref_name == 'v4' && github.repository_owner == 'canonical' }}
+    env:
+      SARIF_FILE: trivy-${{ github.event.repository.name }}-repo-scan-results.sarif
+    strategy:
+      matrix:
+        version:
+          - v4
+          - v3
+          - v2
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ matrix.version }}
+          persist-credentials: false
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,secret,misconfig
+          format: sarif
+          severity: LOW,MEDIUM,HIGH,CRITICAL
+          output: ${{ env.SARIF_FILE }}
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@9e0d7b8d25671d64c341c19c0152d693099fb5ba # v4.35.5
+        with:
+          sarif_file: ${{ env.SARIF_FILE }}
+          sha: ${{ github.sha }}
+          ref: refs/heads/${{ matrix.version }}

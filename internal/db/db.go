@@ -27,8 +27,24 @@ import (
 // Returns true if we need to wait for other nodes to catch up to our version.
 func (db *DqliteDB) Open(ext types.Extensions, bootstrap bool) error {
 	// Allow dqlite up to 2 minutes to become ready when starting up.
-	// This is to allow for unready/dead nodes to time out.
-	ctx, cancel := context.WithTimeout(db.ctx, 120*time.Second)
+	// This is to allow for unready/dead nodes to time out. The timeout can be
+	// raised via the DQLITE_READY_TIMEOUT environment variable, which helps when
+	// a joining node must sync a large dqlite database over a slow link or disk
+	// and would otherwise exceed the default.
+	readyTimeout := 120 * time.Second
+	if v := os.Getenv(sys.DqliteReadyTimeout); v != "" {
+		parsed, err := time.ParseDuration(v)
+		switch {
+		case err != nil:
+			db.log().Warn("Ignoring invalid DQLITE_READY_TIMEOUT", slog.String("value", v), slog.String("error", err.Error()))
+		case parsed <= 0:
+			db.log().Warn("Ignoring non-positive DQLITE_READY_TIMEOUT", slog.String("value", v))
+		default:
+			readyTimeout = parsed
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(db.ctx, readyTimeout)
 	defer cancel()
 
 	db.statusLock.Lock()

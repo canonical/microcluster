@@ -415,13 +415,13 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 	force := r.URL.Query().Get("force") == "1"
 	name, err := url.PathUnescape(mux.Vars(r)["name"])
 	if err != nil {
-		return response.SmartError(err)
+		return response.BadRequest(err)
 	}
 
 	allRemotes := s.Remotes().RemotesByName()
 	remote, ok := allRemotes[name]
 	if !ok {
-		return response.SmartError(fmt.Errorf("No remote exists with the given name %q", name))
+		return response.NotFound(fmt.Errorf("No remote exists with the given name %q", name))
 	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*60)
@@ -533,11 +533,11 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 	}
 
 	if len(clusterMembers)-numPending < 1 {
-		return response.SmartError(fmt.Errorf("Cannot remove cluster members, there are no remaining non-pending members"))
+		return response.BadRequest(fmt.Errorf("Cannot remove cluster members, there are no remaining non-pending members"))
 	}
 
 	if len(info) < 2 {
-		return response.SmartError(fmt.Errorf("Cannot leave a cluster with %d members", len(info)))
+		return response.BadRequest(fmt.Errorf("Cannot leave a cluster with %d members", len(info)))
 	}
 
 	// If we are removing the leader of a 2-node cluster, ensure the remaining node is a voter.

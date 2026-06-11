@@ -418,7 +418,7 @@ func clusterMemberDelete(s types.State, r *http.Request) types.Response {
 	addr := r.URL.Query().Get("address")
 	name, err := url.PathUnescape(mux.Vars(r)["name"])
 	if err != nil {
-		return types.SmartError(err)
+		return types.BadRequest(err)
 	}
 
 	ctx := r.Context()
@@ -439,21 +439,21 @@ func clusterMemberDelete(s types.State, r *http.Request) types.Response {
 		addr = remote.Address.String()
 	} else if !remotePresent && addr == "" {
 		// If the remote is not present in the truststore and no address is provided, we cannot proceed.
-		return types.SmartError(fmt.Errorf("Cluster member %q not found in truststore; please provide a node address", name))
+		return types.NotFound(fmt.Errorf("Cluster member %q not found in truststore; please provide a node address", name))
 	} else if remotePresent && addr != "" && remote.Address.String() != addr {
 		// Reject if provided address doesn't match the truststore address for this remote name.
-		return types.SmartError(fmt.Errorf("Provided address %q does not match the address %q of the remote with name %q", addr, remote.Address.String(), name))
+		return types.BadRequest(fmt.Errorf("Provided address %q does not match the address %q of the remote with name %q", addr, remote.Address.String(), name))
 	} else if !remotePresent && addr != "" {
 		// Remote missing from truststore; validate the fallback address format.
 		addrPort, err := types.ParseAddrPort(addr)
 		if err != nil {
-			return types.SmartError(fmt.Errorf("Invalid address %q: %w", addr, err))
+			return types.BadRequest(fmt.Errorf("Invalid address %q: %w", addr, err))
 		}
 
 		// Ensure the fallback address isn't claimed by another remote in the truststore.
 		existingRemote := s.Truststore().RemoteByAddress(addrPort)
 		if existingRemote != nil {
-			return types.SmartError(fmt.Errorf("Address %q is already used by remote %q (address %q); address is only a fallback for %q when it is missing from the truststore", addr, existingRemote.Name, existingRemote.Address.String(), name))
+			return types.BadRequest(fmt.Errorf("Address %q is already used by remote %q (address %q); address is only a fallback for %q when it is missing from the truststore", addr, existingRemote.Name, existingRemote.Address.String(), name))
 		}
 
 		logger.Warn("Cluster member not found in truststore; proceeding with provided fallback address", slog.String("member", name), slog.String("address", addr))
@@ -568,7 +568,7 @@ func clusterMemberDelete(s types.State, r *http.Request) types.Response {
 
 	// If member not found in dqlite and not in database, return error.
 	if index < 0 && !memberInDB {
-		return types.SmartError(fmt.Errorf("Cluster member %q with address %q not found in dqlite or database", name, addr))
+		return types.NotFound(fmt.Errorf("Cluster member %q with address %q not found in dqlite or database", name, addr))
 	}
 
 	numPending := 0
@@ -579,11 +579,11 @@ func clusterMemberDelete(s types.State, r *http.Request) types.Response {
 	}
 
 	if len(clusterMembers)-numPending < 1 {
-		return types.SmartError(fmt.Errorf("Cannot remove cluster members, there are no remaining non-pending members"))
+		return types.BadRequest(fmt.Errorf("Cannot remove cluster members, there are no remaining non-pending members"))
 	}
 
 	if len(info) < 2 {
-		return types.SmartError(fmt.Errorf("Cannot leave a cluster with %d members", len(info)))
+		return types.BadRequest(fmt.Errorf("Cannot leave a cluster with %d members", len(info)))
 	}
 
 	// If we are removing the leader of a 2-node cluster, ensure the remaining node is a voter.
@@ -674,7 +674,7 @@ func clusterMemberDelete(s types.State, r *http.Request) types.Response {
 	if !remotePresent {
 		memberURL, err = url.Parse("https://" + addr)
 		if err != nil {
-			return types.SmartError(fmt.Errorf("invalid address %q: %w", addr, err))
+			return types.BadRequest(fmt.Errorf("invalid address %q: %w", addr, err))
 		}
 	} else {
 		memberURL = remote.URL()

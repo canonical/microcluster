@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"time"
 
 	"github.com/canonical/lxd/lxd/response"
 	"github.com/canonical/lxd/lxd/util"
@@ -90,8 +91,14 @@ func controlPost(state state.State, r *http.Request) response.Response {
 			return
 		}
 
+		// Use an independent context for cleanup so that it is not tied
+		// to the request context, which may already be expired (e.g. the
+		// join timed out).
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cleanupCancel()
+
 		// Run the pre-remove hook like we do for cluster node removals.
-		err := intState.Hooks.PreRemove(r.Context(), state, true)
+		err := intState.Hooks.PreRemove(cleanupCtx, state, true)
 		if err != nil {
 			logger.Error("Failed to run pre-remove hook on initialization error", logger.Ctx{"error": err})
 		}
@@ -100,7 +107,7 @@ func controlPost(state state.State, r *http.Request) response.Response {
 		// As part of this request the cluster member gets re-executed.
 		// If we don't send the request, re-exec the member manually.
 		if joinInfo == nil || req.JoinToken == "" {
-			reExec, err := resetClusterMember(r.Context(), state, true)
+			reExec, err := resetClusterMember(cleanupCtx, state, true)
 			if err != nil {
 				logger.Error("Failed to reset cluster member on bootstrap error", logger.Ctx{"error": err})
 				return
@@ -113,13 +120,15 @@ func controlPost(state state.State, r *http.Request) response.Response {
 		}
 
 		url := api.NewURL().Scheme("https").Host(joinInfo.TrustedMember.Address.String())
-		cert, err := shared.GetRemoteCertificate(r.Context(), url.String(), "")
+		cert, err := shared.GetRemoteCertificate(cleanupCtx, url.String(), "")
 		if err != nil {
+			logger.Error("Failed to get certificate of cluster member for cleanup", logger.Ctx{"address": url.String(), "error": err})
 			return
 		}
 
 		client, err := internalClient.New(*url, state.ServerCert(), cert, false)
 		if err != nil {
+			logger.Error("Failed to create client for cluster member cleanup", logger.Ctx{"address": url.String(), "error": err})
 			return
 		}
 

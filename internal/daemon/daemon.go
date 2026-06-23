@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -139,23 +140,27 @@ func NewDaemon() *Daemon {
 			}
 		}
 
+		var endpointErr error
 		if d.endpoints != nil {
 			// Stop the listeners and shutdown the underlying servers.
-			err := d.endpoints.Down(true)
-			if err != nil {
-				return err
+			endpointErr = d.endpoints.Down(true)
+			if endpointErr != nil {
+				d.log().Error("Failed shutting down endpoints", slog.String("error", endpointErr.Error()))
 			}
 		}
 
+		var onStopErr error
 		if d.hooks.OnStop != nil {
 			// Wait for any shutdown routines
-			err := d.hooks.OnStop(d.shutdownCtx, d.State())
-			if err != nil {
-				return err
+			onStopErr = d.hooks.OnStop(d.shutdownCtx, d.State())
+			if onStopErr != nil {
+				d.log().Error("Failed running OnStop hook", slog.String("error", onStopErr.Error()))
 			}
 		}
 
-		return dqliteErr
+		// Filters out nil errors if there are some.
+		// Multiple errors are separated by a newline.
+		return errors.Join(dqliteErr, endpointErr, onStopErr)
 	})
 
 	return d

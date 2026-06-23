@@ -132,6 +132,14 @@ func (c *cmdDaemon) run(cmd *cobra.Command, args []string) error {
 			return nil
 		},
 
+		OnStop: func(ctx context.Context, s types.State) error {
+			logger := m.LoggerFromContext(ctx)
+
+			logger.Info("This is a hook that runs after the daemon is stopped", slog.String("error", ctx.Err().Error()))
+
+			return nil
+		},
+
 		// PostJoin is run after the daemon is initialized and joins a cluster.
 		PostJoin: func(ctx context.Context, s types.State, initConfig map[string]string) error {
 			logger := m.LoggerFromContext(ctx)

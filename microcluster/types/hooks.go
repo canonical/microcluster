@@ -63,6 +63,10 @@ type Hooks struct {
 	// OnStart is run after the daemon is started. Its context will not be cancelled until the daemon is shutting down.
 	OnStart func(ctx context.Context, s State) error
 
+	// OnStop is run after the daemon is stopped. Its context is already cancelled but allows access to the logger.
+	// The daemon will wait for this hook to complete before exiting.
+	OnStop func(ctx context.Context, s State) error
+
 	// PostJoin is run after the daemon is initialized, joined the cluster and existing members triggered
 	// their 'OnNewMember' hooks.
 	PostJoin func(ctx context.Context, s State, initConfig map[string]string) error

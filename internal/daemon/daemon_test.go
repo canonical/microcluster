@@ -2,8 +2,13 @@ package daemon
 
 import (
 	"context"
+	"errors"
+	"io"
+	"log/slog"
 	"path/filepath"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/canonical/lxd/shared"
 	"github.com/canonical/lxd/shared/api"
@@ -259,5 +264,69 @@ func (t *daemonsSuite) Test_UpdateServers() {
 		// Close all endpoints.
 		err = daemon.endpoints.Down(true, endpoints.EndpointNetwork)
 		require.NoError(t.T(), err)
+	}
+}
+
+func (t *daemonsSuite) Test_OnStopHook() {
+	hookRanErr := errors.New("Hook ran")
+
+	tests := []struct {
+		name        string
+		hook        func(ctx context.Context, s types.State) error
+		expectedErr error
+	}{
+		{
+			name: "The OnStop hook runs after the daemon gets stopped",
+			hook: func(ctx context.Context, s types.State) error {
+				return hookRanErr
+			},
+			expectedErr: hookRanErr,
+		},
+		{
+			name: "The OnStop hook blocks the daemon from exiting until it returns",
+			hook: func(ctx context.Context, s types.State) error {
+				time.Sleep(time.Second)
+				return hookRanErr
+			},
+			expectedErr: hookRanErr,
+		},
+		{
+			name: "The OnStop hook returns silently if it returns nil",
+			hook: func(ctx context.Context, s types.State) error {
+				return nil
+			},
+			expectedErr: nil,
+		},
+	}
+
+	for i, test := range tests {
+		t.T().Logf("%s (case %d)", test.name, i)
+
+		// Suppress the log messages.
+		ctx := types.ContextWithLogger(context.Background(), slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{})))
+		ctx, cancel := context.WithCancel(ctx)
+
+		daemon := NewDaemon()
+
+		wg := sync.WaitGroup{}
+		wg.Go(func() {
+			// Blocks until the daemon's context gets cancelled.
+			err := daemon.Run(ctx, t.T().TempDir(), Args{
+				Version: "1.0.0",
+				Hooks: &types.Hooks{
+					OnStop: test.hook,
+				},
+			})
+			require.ErrorIs(t.T(), err, test.expectedErr)
+		})
+
+		// Wait for the daemon to be ready.
+		<-daemon.ReadyChan
+
+		// Shutdown the daemon.
+		cancel()
+
+		// Wait for the daemon to return.
+		wg.Wait()
 	}
 }

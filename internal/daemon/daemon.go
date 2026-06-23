@@ -147,6 +147,14 @@ func NewDaemon() *Daemon {
 			}
 		}
 
+		if d.hooks.OnStop != nil {
+			// Wait for any shutdown routines
+			err := d.hooks.OnStop(d.shutdownCtx, d.State())
+			if err != nil {
+				return err
+			}
+		}
+
 		return dqliteErr
 	})
 

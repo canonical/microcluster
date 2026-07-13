@@ -157,6 +157,10 @@ func (c *cmdDaemon) run(cmd *cobra.Command, args []string) error {
 			logger.Info("This is a hook that runs after the daemon is initialized and joins an existing cluster, before OnNewMember runs on all peers")
 			logger.Info("Here are the extra configuration keys that were passed into the init --join command", slog.Any("config", initConfig))
 
+			if os.Getenv("FAIL_PREJOIN") == "1" {
+				return fmt.Errorf("PreJoin failed: FAIL_PREJOIN is set")
+			}
+
 			return nil
 		},
 

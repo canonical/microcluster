@@ -709,8 +709,12 @@ func clusterMemberDelete(s types.State, r *http.Request) types.Response {
 	// Remove the node from dqlite, if it has a record there.
 	if index >= 0 {
 		err = leader.Remove(ctx, info[index].ID)
-		if err != nil {
+		if err != nil && !force {
 			return types.SmartError(err)
+		}
+
+		if err != nil {
+			logger.Error("Failed to remove cluster member from dqlite", slog.String("error", err.Error()), slog.Bool("force", force), slog.String("name", name))
 		}
 	}
 

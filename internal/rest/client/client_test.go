@@ -143,3 +143,17 @@ func TestQueryRawReadsDelayedBody(t *testing.T) {
 		})
 	}
 }
+
+// TestCancelOnCloseBody checks that closing the wrapped response body cancels
+// the request context, so the timeout added by rawQuery is released once the
+// caller is done with the response.
+func TestCancelOnCloseBody(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	body := &cancelOnCloseBody{ReadCloser: io.NopCloser(nil), cancel: cancel}
+
+	require.NoError(t, ctx.Err())
+	require.NoError(t, body.Close())
+	require.ErrorIs(t, ctx.Err(), context.Canceled)
+}

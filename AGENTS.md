@@ -5,7 +5,7 @@ Module: `github.com/canonical/microcluster/v4`.
 
 ## Prerequisites
 
-- Go 1.25.7 or higher.
+- Go at or above `GOMIN` in the `Makefile` (matches `go.mod`).
 - On Debian/Ubuntu, install required build dependencies first:
 
   ```bash

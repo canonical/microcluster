@@ -188,17 +188,44 @@ func IsForwardedRequest(r *http.Request) bool {
 	return r.Header.Get("User-Agent") == types.UserAgentNotifier
 }
 
-func (c *Client) rawQuery(ctx context.Context, method string, url *url.URL, data any) (*http.Response, error) {
-	var req *http.Request
-	var err error
+// cancelOnCloseBody releases a request context once its response body is closed.
+type cancelOnCloseBody struct {
+	io.ReadCloser
+	cancel context.CancelFunc
+}
 
+// Close closes the response body and then cancels the request context.
+func (b *cancelOnCloseBody) Close() error {
+	err := b.ReadCloser.Close()
+	b.cancel()
+
+	return err
+}
+
+func (c *Client) rawQuery(ctx context.Context, method string, url *url.URL, data any) (*http.Response, error) {
 	// Assign a context timeout if we don't already have one.
 	_, ok := ctx.Deadline()
-	if !ok {
-		timeoutCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-		ctx = timeoutCtx
-		defer cancel()
+	if ok {
+		return c.sendRequest(ctx, method, url, data)
 	}
+
+	timeoutCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	resp, err := c.sendRequest(timeoutCtx, method, url, data)
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+
+	// The caller reads the response body after this function returns, and cancelling
+	// the context before then aborts that read. Only cancel it once the body is closed.
+	resp.Body = &cancelOnCloseBody{ReadCloser: resp.Body, cancel: cancel}
+
+	return resp, nil
+}
+
+func (c *Client) sendRequest(ctx context.Context, method string, url *url.URL, data any) (*http.Response, error) {
+	var req *http.Request
+	var err error
 
 	// Get a new HTTP request setup
 	if data != nil {
@@ -313,12 +340,9 @@ func (c *Client) Query(ctx context.Context, method string, endpointType types.En
 }
 
 // QueryRaw is a helper for initiating a request on any endpoints defined external to microcluster.
-// Unlike Query it returns the raw HTTP response.
+// Unlike Query it returns the raw HTTP response. The caller must close the response body.
 func (c *Client) QueryRaw(ctx context.Context, method string, prefix types.EndpointPrefix, path *url.URL, in any) (*http.Response, error) {
-	queryCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	return c.QueryStructRaw(queryCtx, method, prefix, path, in)
+	return c.QueryStructRaw(ctx, method, prefix, path, in)
 }
 
 // Websocket is a helper for upgrading a request to websocket on any endpoints defined external to microcluster.

@@ -151,6 +151,10 @@ func clusterPost(s types.State, r *http.Request) types.Response {
 			return fmt.Errorf("Joining server certificate SAN does not contain join token name")
 		}
 
+		if req.Name != record.Name {
+			return fmt.Errorf("Joining cluster member name %q does not match token name %q", req.Name, record.Name)
+		}
+
 		_, err = cluster.CreateCoreClusterMember(ctx, tx, dbClusterMember)
 		if err != nil {
 			return err

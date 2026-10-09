@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/canonical/lxd/lxd/db/query"
 	"github.com/canonical/lxd/shared/api"
@@ -61,6 +62,12 @@ UPDATE core_cluster_members
 func coreClusterMemberColumns() string {
 	return "core_cluster_members.id, core_cluster_members.name, core_cluster_members.address, core_cluster_members.certificate, core_cluster_members.schema_internal, core_cluster_members.schema_external, core_cluster_members.api_extensions, core_cluster_members.heartbeat, core_cluster_members.role"
 }
+
+var coreClusterMemberUpdateHeartbeat = RegisterStmt(`
+UPDATE core_cluster_members
+  SET heartbeat = ?, role = ?
+ WHERE id = ?
+`)
 
 // getCoreClusterMembers can be used to run handwritten sql.Stmts to return a slice of objects.
 func getCoreClusterMembers(ctx context.Context, stmt *sql.Stmt, args ...any) ([]CoreClusterMember, error) {
@@ -355,6 +362,33 @@ func UpdateCoreClusterMember(ctx context.Context, tx *sql.Tx, name string, objec
 	}
 
 	if n != 1 {
+		return fmt.Errorf("Query updated %d rows instead of 1", n)
+	}
+
+	return nil
+}
+
+// UpdateCoreClusterMemberHeartbeat updates only the heartbeat and role of the core_cluster_member with the given ID.
+// Unlike UpdateCoreClusterMember, it leaves the indexed columns untouched, so their indexes are not rewritten.
+func UpdateCoreClusterMemberHeartbeat(ctx context.Context, tx *sql.Tx, id int, heartbeat time.Time, role Role) error {
+	stmt, err := Stmt(tx, coreClusterMemberUpdateHeartbeat)
+	if err != nil {
+		return fmt.Errorf("Failed to get \"coreClusterMemberUpdateHeartbeat\" prepared statement: %w", err)
+	}
+
+	result, err := stmt.ExecContext(ctx, heartbeat, role, id)
+	if err != nil {
+		return fmt.Errorf("Update \"core_cluster_members\" heartbeat failed: %w", err)
+	}
+
+	n, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("Fetch affected rows: %w", err)
+	}
+
+	if n == 0 {
+		return api.StatusErrorf(http.StatusNotFound, "CoreClusterMember not found")
+	} else if n > 1 {
 		return fmt.Errorf("Query updated %d rows instead of 1", n)
 	}
 

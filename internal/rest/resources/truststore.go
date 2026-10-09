@@ -50,55 +50,13 @@ func trustPost(s types.State, r *http.Request) types.Response {
 	defer cancel()
 
 	if !types.IsNotification(r) {
-		clients, err := s.Connect().Cluster(true)
+		err = propagateTrustStoreEntry(ctx, s, req)
 		if err != nil {
 			return types.SmartError(err)
-		}
-
-		logger, err := log.LoggerFromContext(ctx)
-		if err != nil {
-			return types.InternalError(err)
-		}
-
-		successCount := 0
-		attemptCount := 0
-		var counterMu sync.Mutex
-
-		// Try to add the truststore entry to all other nodes in the cluster.
-		// We don't fail the entire operation if some nodes are unreachable.
-		err = clients.Query(ctx, true, func(ctx context.Context, c types.Client) error {
-			// No need to send a request to ourselves, or to the node we are adding.
-			if s.Address().Host == c.URL().Host || req.Address.String() == c.URL().Host {
-				return nil
-			}
-
-			counterMu.Lock()
-			attemptCount++
-			counterMu.Unlock()
-
-			err := internalClient.AddTrustStoreEntry(ctx, c, req)
-			if err != nil {
-				// log error but continue with other nodes
-				logger.Warn("Failed adding truststore entry to node", slog.String("node", c.URL().Host), slog.String("error", err.Error()))
-				return nil
-			}
-
-			counterMu.Lock()
-			successCount++
-			counterMu.Unlock()
-			return nil
-		})
-		if err != nil {
-			return types.SmartError(err)
-		}
-
-		// Only fail if we attempted to propagate to other nodes but all failed
-		if attemptCount > 0 && successCount == 0 {
-			return types.SmartError(fmt.Errorf("Failed adding truststore entry to any cluster node"))
 		}
 	}
 
-	// At this point, the node has joined dqlite so we can add a local record for it if we haven't already from a heartbeat (or if we are the leader).
+	// Add a local record for the member if we do not have one already, from the leader accepting its join or from a heartbeat.
 	remotes := s.Truststore()
 	_, ok := remotes.RemotesByName()[newRemote.Name]
 	if !ok {
@@ -109,6 +67,59 @@ func trustPost(s types.State, r *http.Request) types.Response {
 	}
 
 	return types.EmptySyncResponse
+}
+
+// propagateTrustStoreEntry sends the truststore entry of the given member to every other cluster member, as a
+// notification so that none of them propagates it further.
+func propagateTrustStoreEntry(ctx context.Context, s types.State, req types.ClusterMemberLocal) error {
+	clients, err := s.Connect().Cluster(true)
+	if err != nil {
+		return err
+	}
+
+	logger, err := log.LoggerFromContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	successCount := 0
+	attemptCount := 0
+	var counterMu sync.Mutex
+
+	// Try to add the truststore entry to all other nodes in the cluster.
+	// We don't fail the entire operation if some nodes are unreachable.
+	err = clients.Query(ctx, true, func(ctx context.Context, c types.Client) error {
+		// No need to send a request to ourselves, or to the node we are adding.
+		if s.Address().Host == c.URL().Host || req.Address.String() == c.URL().Host {
+			return nil
+		}
+
+		counterMu.Lock()
+		attemptCount++
+		counterMu.Unlock()
+
+		err := internalClient.AddTrustStoreEntry(ctx, c, req)
+		if err != nil {
+			// log error but continue with other nodes
+			logger.Warn("Failed adding truststore entry to node", slog.String("node", c.URL().Host), slog.String("error", err.Error()))
+			return nil
+		}
+
+		counterMu.Lock()
+		successCount++
+		counterMu.Unlock()
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	// Only fail if we attempted to propagate to other nodes but all failed
+	if attemptCount > 0 && successCount == 0 {
+		return fmt.Errorf("Failed adding truststore entry to any cluster node")
+	}
+
+	return nil
 }
 
 func trustDelete(s types.State, r *http.Request) types.Response {

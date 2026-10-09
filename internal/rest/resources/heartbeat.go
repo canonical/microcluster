@@ -189,16 +189,15 @@ func beginHeartbeat(ctx context.Context, s types.State, hbReq types.HeartbeatInf
 		return types.SmartError(err)
 	}
 
-	// Use a lock to handle concurrent access to hbInfo.
-	mapLock := sync.RWMutex{}
 	// Send heartbeat to non-leader members, updating their local member cache and updating the node.
-	// If we sent a heartbeat to this node within double the request timeout, then we can skip the node this round.
+	// Each send encodes hbInfo, member map included, so only read the map here. Record the send times in a map of
+	// their own and apply them once every send has returned.
+	sentLock := sync.Mutex{}
+	sentHeartbeats := make(map[string]time.Time, len(clusterClients))
 	err = clusterClients.Query(ctx, true, func(ctx context.Context, c types.Client) error {
 		addr := c.URL().Host
 
-		mapLock.RLock()
 		currentMember, ok := hbInfo.ClusterMembers[addr]
-		mapLock.RUnlock()
 		if !ok {
 			logger.Warn(fmt.Sprintf("Skipping heartbeat cluster member record with address %v due to pending status", addr))
 			return nil
@@ -216,16 +215,20 @@ func beginHeartbeat(ctx context.Context, s types.State, hbReq types.HeartbeatInf
 			return nil
 		}
 
-		currentMember.LastHeartbeat = time.Now()
-
-		mapLock.Lock()
-		hbInfo.ClusterMembers[addr] = currentMember
-		mapLock.Unlock()
+		sentLock.Lock()
+		sentHeartbeats[addr] = time.Now()
+		sentLock.Unlock()
 
 		return nil
 	})
 	if err != nil {
 		return types.SmartError(err)
+	}
+
+	for addr, lastHeartbeat := range sentHeartbeats {
+		currentMember := hbInfo.ClusterMembers[addr]
+		currentMember.LastHeartbeat = lastHeartbeat
+		hbInfo.ClusterMembers[addr] = currentMember
 	}
 
 	// Having sent a heartbeat to each valid cluster member, update the database record of members.

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/canonical/lxd/shared/api"
 
@@ -52,6 +53,12 @@ DELETE FROM core_cluster_members WHERE address = ?
 var coreClusterMemberUpdate = clusterDB.RegisterStmt(`
 UPDATE core_cluster_members
   SET name = ?, address = ?, certificate = ?, schema_internal = ?, schema_external = ?, api_extensions = ?, heartbeat = ?, role = ?
+ WHERE id = ?
+`)
+
+var coreClusterMemberUpdateHeartbeat = clusterDB.RegisterStmt(`
+UPDATE core_cluster_members
+  SET heartbeat = ?, role = ?
  WHERE id = ?
 `)
 
@@ -341,6 +348,33 @@ func UpdateCoreClusterMember(ctx context.Context, tx *sql.Tx, name string, objec
 	}
 
 	if n != 1 {
+		return fmt.Errorf("Query updated %d rows instead of 1", n)
+	}
+
+	return nil
+}
+
+// UpdateCoreClusterMemberHeartbeat updates only the heartbeat and role of the core_cluster_member with the given ID.
+// Unlike UpdateCoreClusterMember, it leaves the indexed columns untouched, so their indexes are not rewritten.
+func UpdateCoreClusterMemberHeartbeat(ctx context.Context, tx *sql.Tx, id int, heartbeat time.Time, role Role) error {
+	stmt, err := clusterDB.Stmt(tx, coreClusterMemberUpdateHeartbeat)
+	if err != nil {
+		return fmt.Errorf("Failed to get \"coreClusterMemberUpdateHeartbeat\" prepared statement: %w", err)
+	}
+
+	result, err := stmt.ExecContext(ctx, heartbeat, role, id)
+	if err != nil {
+		return fmt.Errorf("Update \"core_cluster_members\" heartbeat failed: %w", err)
+	}
+
+	n, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("Fetch affected rows: %w", err)
+	}
+
+	if n == 0 {
+		return api.StatusErrorf(http.StatusNotFound, "CoreClusterMember not found")
+	} else if n > 1 {
 		return fmt.Errorf("Query updated %d rows instead of 1", n)
 	}
 

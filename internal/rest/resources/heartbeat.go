@@ -248,9 +248,12 @@ func beginHeartbeat(ctx context.Context, s types.State, hbReq types.HeartbeatInf
 				New: heartbeatInfo.Role,
 			}
 
-			clusterMember.Heartbeat = heartbeatInfo.LastHeartbeat
-			clusterMember.Role = cluster.Role(heartbeatInfo.Role)
-			err = cluster.UpdateCoreClusterMember(ctx, tx, clusterMember.Name, clusterMember)
+			role := cluster.Role(heartbeatInfo.Role)
+			if clusterMember.Role == role && clusterMember.Heartbeat.Equal(heartbeatInfo.LastHeartbeat) {
+				continue
+			}
+
+			err = cluster.UpdateCoreClusterMemberHeartbeat(ctx, tx, clusterMember.ID, heartbeatInfo.LastHeartbeat, role)
 			if err != nil {
 				return err
 			}

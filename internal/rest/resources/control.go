@@ -247,7 +247,9 @@ func joinWithToken(state types.State, r *http.Request, req *types.Control) (*typ
 
 		client, err := state.Connect().Member(&url.URL, false, cert)
 		if err != nil {
-			return nil, nil, err
+			logger.Warn("Failed to get client for cluster member", slog.String("address", url.String()), slog.String("error", err.Error()))
+			lastErr = err
+			continue
 		}
 
 		joinInfo, err = internalClient.AddClusterMember(context.Background(), client, newClusterMember)

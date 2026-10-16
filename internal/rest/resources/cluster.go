@@ -135,36 +135,7 @@ func clusterPost(s state.State, r *http.Request) response.Response {
 	}
 
 	err = s.Database().Transaction(r.Context(), func(ctx context.Context, tx *sql.Tx) error {
-		dbClusterMember := cluster.CoreClusterMember{
-			Name:           req.Name,
-			Address:        req.Address.String(),
-			Certificate:    req.Certificate.String(),
-			SchemaInternal: req.SchemaInternalVersion,
-			SchemaExternal: req.SchemaExternalVersion,
-			APIExtensions:  req.Extensions,
-			Heartbeat:      time.Time{},
-			Role:           cluster.Pending,
-		}
-
-		record, err := cluster.GetCoreTokenRecord(ctx, tx, req.Secret)
-		if err != nil {
-			return err
-		}
-
-		if record.Expired() {
-			return fmt.Errorf("Token expired")
-		}
-
-		if !slices.Contains(req.Certificate.DNSNames, record.Name) {
-			return fmt.Errorf("Joining server certificate SAN does not contain join token name")
-		}
-
-		_, err = cluster.CreateCoreClusterMember(ctx, tx, dbClusterMember)
-		if err != nil {
-			return err
-		}
-
-		return cluster.DeleteCoreTokenRecord(ctx, tx, record.Name)
+		return admitClusterMember(ctx, tx, req)
 	})
 	if err != nil {
 		return response.SmartError(err)
@@ -244,6 +215,72 @@ func clusterPost(s state.State, r *http.Request) response.Response {
 	}
 
 	return response.SyncResponse(true, tokenResponse)
+}
+
+// admitClusterMember validates a join request against the join tokens and
+// cluster members stored in the transaction, creating (or reusing) the pending
+// cluster member record as appropriate.
+//
+// The join token is intentionally not consumed here. It is consumed only once
+// the member's join has succeeded (its dqlite role transitions out of
+// "pending" in beginHeartbeat), so that a node whose join fails after
+// admission can retry with the same token. A token that cannot be found has
+// either been consumed (the member already joined) or expired, so a later
+// attempt with it is rejected rather than re-admitted.
+func admitClusterMember(ctx context.Context, tx *sql.Tx, req types.ClusterMember) error {
+	dbClusterMember := cluster.CoreClusterMember{
+		Name:           req.Name,
+		Address:        req.Address.String(),
+		Certificate:    req.Certificate.String(),
+		SchemaInternal: req.SchemaInternalVersion,
+		SchemaExternal: req.SchemaExternalVersion,
+		APIExtensions:  req.Extensions,
+		Heartbeat:      time.Time{},
+		Role:           cluster.Pending,
+	}
+
+	// The join token is the only credential that authorises a join. If it is
+	// missing it has already been consumed (the member joined) or expired, so
+	// the request is rejected.
+	record, err := cluster.GetCoreTokenRecord(ctx, tx, req.Secret)
+	if err != nil {
+		return err
+	}
+
+	if record.Expired() {
+		return fmt.Errorf("Token expired")
+	}
+
+	if !slices.Contains(req.Certificate.DNSNames, record.Name) {
+		return fmt.Errorf("Joining server certificate SAN does not contain join token name")
+	}
+
+	// A cluster member with this name may already exist if a previous join
+	// attempt reached this point and failed later on. Reuse the existing
+	// record rather than failing on the primary-key constraint, but only if
+	// it describes the same node.
+	exists, err := cluster.CoreClusterMemberExists(ctx, tx, req.Name)
+	if err != nil {
+		return err
+	}
+
+	if exists {
+		existing, err := cluster.GetCoreClusterMember(ctx, tx, req.Name)
+		if err != nil {
+			return err
+		}
+
+		if existing.Certificate != dbClusterMember.Certificate || existing.Address != dbClusterMember.Address {
+			return fmt.Errorf("Cluster member %q already exists with mismatched credentials", req.Name)
+		}
+	} else {
+		_, err = cluster.CreateCoreClusterMember(ctx, tx, dbClusterMember)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func clusterGet(s state.State, r *http.Request) response.Response {
@@ -632,6 +669,12 @@ func clusterMemberDelete(s state.State, r *http.Request) response.Response {
 	}
 
 	// Remove the cluster member from the database.
+	//
+	// The member's join token is deliberately left untouched here. It is
+	// consumed only once the member has joined (see beginHeartbeat), and this
+	// removal path also runs when a join fails after admission and the member
+	// rolls itself back. Deleting the token now would prevent that member from
+	// retrying its join with the same token.
 	err = s.Database().Transaction(r.Context(), func(ctx context.Context, tx *sql.Tx) error {
 		return cluster.DeleteCoreClusterMember(ctx, tx, remote.Address.String())
 	})

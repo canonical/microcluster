@@ -79,6 +79,10 @@ func Authenticate(state state.State, r *http.Request, hostAddress string, truste
 
 	switch r.Host {
 	case hostAddrPort.WithZone("").String():
+		if intState.Hooks != nil && intState.Hooks.OnAuthenticate != nil {
+			return intState.Hooks.OnAuthenticate(r.Context(), intState, r, trustedCerts)
+		}
+
 		if r.TLS != nil {
 			for _, cert := range r.TLS.PeerCertificates {
 				trusted, fingerprint := util.CheckMutualTLS(*cert, trustedCerts)

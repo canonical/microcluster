@@ -141,7 +141,7 @@ func (m *MicroCluster) Status(ctx context.Context) (*types.Status, error) {
 func (m *MicroCluster) Ready(ctx context.Context) error {
 	logger := slog.New(m.args.LogHandler)
 
-	finger := make(chan error, 1)
+	finger := make(chan struct{}, 1)
 	var errLast error
 	go func() {
 		for i := 0; ; i++ {
@@ -185,7 +185,7 @@ func (m *MicroCluster) Ready(ctx context.Context) error {
 				continue
 			}
 
-			finger <- nil
+			finger <- struct{}{}
 			return
 		}
 	}()

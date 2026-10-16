@@ -112,7 +112,7 @@ func (m *MicroCluster) Status(ctx context.Context) (*internalTypes.Server, error
 // Ready waits for the daemon to report it has finished initial setup and is ready to be bootstrapped or join an
 // existing cluster.
 func (m *MicroCluster) Ready(ctx context.Context) error {
-	finger := make(chan error, 1)
+	finger := make(chan struct{}, 1)
 	var errLast error
 	go func() {
 		for i := 0; ; i++ {
@@ -156,7 +156,7 @@ func (m *MicroCluster) Ready(ctx context.Context) error {
 				continue
 			}
 
-			finger <- nil
+			finger <- struct{}{}
 			return
 		}
 	}()

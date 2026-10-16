@@ -2,6 +2,8 @@ package state
 
 import (
 	"context"
+	"crypto/x509"
+	"net/http"
 
 	"github.com/canonical/microcluster/v2/rest/types"
 )
@@ -45,4 +47,12 @@ type Hooks struct {
 
 	// OnDaemonConfigUpdate is a post-action hook that is run on all cluster members when any cluster member receives a local configuration update.
 	OnDaemonConfigUpdate func(ctx context.Context, s State, config types.DaemonConfig) error
+
+	// OnAuthenticate is run when an incoming HTTP request needs to be authenticated.
+	// If defined it is used as a replacement for the regular mTLS check.
+	// trustedCerts contains the certs from the truststore.
+	// Returning true indicates that the request is trusted.
+	// Returning false indicates that the request is not trusted.
+	// Returning an error is optional but will always result in a forbidden request.
+	OnAuthenticate func(ctx context.Context, s State, r *http.Request, trustedCerts map[string]x509.Certificate) (bool, error)
 }

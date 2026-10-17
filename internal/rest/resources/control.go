@@ -124,17 +124,12 @@ func controlPost(state types.State, r *http.Request) types.Response {
 			return
 		}
 
-		// The cluster member also gets re-executed as part of the deletion.
-		go func() {
-			<-r.Context().Done()
-
-			// Use `force=1` to ensure the node is fully removed, in case its listener hasn't been set up.
-			// Use the background context as the original request context is already cancelled at this point.
-			err = internalClient.DeleteClusterMember(context.Background(), client, req.Name, "", true)
-			if err != nil {
-				logger.Error("Failed to clean up cluster state after join failure", slog.String("error", err.Error()))
-			}
-		}()
+		// Use `force=1` to ensure the node is fully removed, in case its listener hasn't been set up.
+		// Use the background context as the original request context is already cancelled at this point.
+		err = internalClient.DeleteClusterMember(context.Background(), client, req.Name, "", true)
+		if err != nil {
+			logger.Error("Failed to clean up cluster state after join failure", slog.String("error", err.Error()))
+		}
 	})
 
 	// Replace the server keypair if the cluster member name has changed upon initialization.

@@ -1107,6 +1107,79 @@ test_failed_join() {
   shutdown_systems
 }
 
+test_failed_join_client_timeout() {
+  echo "Testing failed join after the client timed out"
+
+  new_systems 4 --heartbeat 2s
+
+  # Bootstrap initial cluster.
+  microctl --state-dir "${test_dir}/c1" init "c1" 127.0.0.1:9001 --bootstrap
+
+  token_c2=$(microctl --state-dir "${test_dir}/c1" tokens add "c2")
+  token_c3=$(microctl --state-dir "${test_dir}/c1" tokens add "c3")
+  microctl --state-dir "${test_dir}/c2" init "c2" 127.0.0.1:9002 --token "${token_c2}"
+  microctl --state-dir "${test_dir}/c3" init "c3" 127.0.0.1:9003 --token "${token_c3}"
+
+  # Wait for cluster to stabilize
+  while [[ -n "$(microctl --state-dir "${test_dir}/c1" cluster list -f yaml | yq '.[] | select(.role == "PENDING")')" ]]; do
+    sleep 2
+  done
+
+  # A slow and then invalid schema patch makes the join of c4 fail several seconds after
+  # dqlite has already added it to the cluster, and after the client below has given up.
+  echo "  -> Testing join of c4 with a client that times out before the join fails"
+  token_c4=$(microctl --state-dir "${test_dir}/c1" tokens add "c4")
+  cat << EOF > "${test_dir}/c4/patch.global.sql"
+CREATE TEMP TABLE slow AS WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c WHERE x < 3000000) SELECT x FROM c;
+INTENTIONALLY INVALID SQL STATEMENT;
+EOF
+
+  if curl -sS --max-time 1 --unix-socket "${test_dir}/c4/control.socket" \
+    -X POST -H "Content-Type: application/json" \
+    -d "{\"bootstrap\":false,\"join_token\":\"${token_c4}\",\"address\":\"127.0.0.1:9004\",\"name\":\"c4\",\"config\":{}}" \
+    http://control.socket/core/control; then
+    echo "ERROR: Join request of c4 should have timed out"
+    exit 1
+  fi
+
+  # Make sure the join got far enough to change the cluster state before the client gave up.
+  if [ "$(microctl --state-dir "${test_dir}/c1" cluster list -f csv | wc -l)" != "4" ]; then
+    echo "ERROR: Member c4 was not added to the cluster before the join request timed out"
+    microctl --state-dir "${test_dir}/c1" cluster list
+    exit 1
+  fi
+
+  # The join failure cleanup must still run, even though the join request context has expired.
+  echo "  -> Testing c4 is removed from the remaining cluster"
+  retries=0
+  while [ "$(microctl --state-dir "${test_dir}/c1" cluster list -f csv | wc -l)" != "3" ]; do
+    retries=$((retries + 1))
+    if [ "${retries}" -gt 30 ]; then
+      echo "ERROR: Member c4 is still present on the remaining cluster"
+      microctl --state-dir "${test_dir}/c1" cluster list
+      exit 1
+    fi
+
+    sleep 2
+  done
+
+  if ! microctl --state-dir "${test_dir}/c1" tokens add "c5" > /dev/null; then
+    echo "ERROR: Cluster membership is inconsistent after the failed join"
+    exit 1
+  fi
+
+  echo "  -> Testing c4 can join after the failure is resolved"
+  microctl --state-dir "${test_dir}/c4" waitready --timeout 30
+  rm -f "${test_dir}/c4/patch.global.sql"
+  token_c4=$(microctl --state-dir "${test_dir}/c1" tokens add "c4")
+  if ! microctl --state-dir "${test_dir}/c4" init "c4" 127.0.0.1:9004 --token "${token_c4}"; then
+    echo "ERROR: Member c4 failed to join after the failure was resolved"
+    exit 1
+  fi
+
+  shutdown_systems
+}
+
 # allow for running a specific set of tests
 TEST_RESULT="success"
 if [ "${1:-"all"}" = "all" ] || [ "${1}" = "" ]; then
@@ -1122,6 +1195,7 @@ if [ "${1:-"all"}" = "all" ] || [ "${1}" = "" ]; then
   run_test parallel_joins
   run_test self_deletion
   run_test failed_join
+  run_test failed_join_client_timeout
 elif [ "${1}" = "recover" ]; then
   run_test recover
 elif [ "${1}" = "tokens" ]; then
@@ -1144,6 +1218,8 @@ elif [ "${1}" = "self-deletion" ]; then
   run_test self_deletion
 elif [ "${1}" = "failed-join" ]; then
   run_test failed_join
+elif [ "${1}" = "failed-join-client-timeout" ]; then
+  run_test failed_join_client_timeout
 elif [ "${1}" = "daemon-config" ]; then
   run_test daemon_config_api
 else

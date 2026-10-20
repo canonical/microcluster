@@ -1,4 +1,4 @@
-GOMIN=1.27.1
+GOMIN=1.27.2
 GOPATH ?= $(shell go env GOPATH)
 DQLITE_PATH=$(GOPATH)/deps/dqlite
 DQLITE_BRANCH=v1.18.x

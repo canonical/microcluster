@@ -678,37 +678,6 @@ func (d *Daemon) StartAPI(ctx context.Context, bootstrap bool, initConfig map[st
 		}
 	}
 
-	if len(joinAddresses) > 0 {
-		var lastErr error
-		var clusterConfirmation bool
-		err = clients.Query(d.shutdownCtx, true, func(ctx context.Context, c types.Client) error {
-			// No need to send a request to ourselves.
-			if d.Address().Host == c.URL().Host {
-				return nil
-			}
-
-			// Propagate trust to all reachable cluster members for fault tolerance.
-			err := internalClient.AddTrustStoreEntry(ctx, c, localMemberInfo)
-			if err != nil {
-				lastErr = err
-				// Continue trying other nodes even if this one fails
-				return nil
-			}
-
-			clusterConfirmation = true
-
-			// Continue to propagate trust to all nodes, don't stop after first success
-			return nil
-		})
-		if err != nil {
-			return err
-		}
-
-		if !clusterConfirmation {
-			return fmt.Errorf("Failed to confirm new member %q on any existing system (%d): %w", localMemberInfo.Name, len(clients)-1, lastErr)
-		}
-	}
-
 	// Tell the other nodes that this system is up.
 	remotes := d.trustStore.Remotes()
 

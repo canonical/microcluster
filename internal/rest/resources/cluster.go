@@ -199,6 +199,20 @@ func clusterPost(s types.State, r *http.Request) types.Response {
 		return types.SmartError(err)
 	}
 
+	// Add it to the store of every other member too, so that the joiner will be immediately able to communicate
+	// with its peers.
+	logger, err := log.LoggerFromContext(ctx)
+	if err != nil {
+		return types.InternalError(err)
+	}
+
+	propagateCtx, cancelPropagate := context.WithTimeout(ctx, 10*time.Second)
+	err = propagateTrustStoreEntry(propagateCtx, s, req.ClusterMemberLocal)
+	cancelPropagate()
+	if err != nil {
+		logger.Warn("Failed to propagate the truststore entry of the joining member", slog.String("member", req.Name), slog.String("error", err.Error()))
+	}
+
 	tokenResponse.ClusterAdditionalCerts = make(map[string]types.KeyPair)
 
 	// Load the list of custom certificates from its state directory.

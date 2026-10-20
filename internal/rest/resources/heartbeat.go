@@ -136,13 +136,13 @@ func beginHeartbeat(ctx context.Context, s types.State, hbReq types.HeartbeatInf
 	for _, clusterMember := range clusterMembers {
 		role, ok := dqliteMap[clusterMember.Address.String()]
 
-		// If a cluster member is pending and dqlite does not have a record for it yet, then skip it this round.
-		if !ok && clusterMember.Role == string(cluster.Pending) {
-			logger.Debug("Skipping heartbeat for pending cluster member", slog.String("address", clusterMember.Address.String()))
-			continue
+		// A pending member may not yet be known by dqlite. Keep it in the map
+		// and do not overwrite its pending role so that others retain an entry
+		// for it in the local trust store.
+		if ok || clusterMember.Role != string(cluster.Pending) {
+			clusterMember.Role = role
 		}
 
-		clusterMember.Role = role
 		clusterMap[clusterMember.Address.String()] = clusterMember
 	}
 
@@ -199,7 +199,12 @@ func beginHeartbeat(ctx context.Context, s types.State, hbReq types.HeartbeatInf
 
 		currentMember, ok := hbInfo.ClusterMembers[addr]
 		if !ok {
-			logger.Warn(fmt.Sprintf("Skipping heartbeat cluster member record with address %v due to pending status", addr))
+			logger.Warn(fmt.Sprintf("Skipping heartbeat cluster member record with address %v, it is not in the database", addr))
+			return nil
+		}
+
+		if currentMember.Role == string(cluster.Pending) {
+			logger.Debug("Skipping heartbeat to pending cluster member", slog.String("address", addr))
 			return nil
 		}
 
@@ -241,7 +246,7 @@ func beginHeartbeat(ctx context.Context, s types.State, hbReq types.HeartbeatInf
 
 		for _, clusterMember := range dbClusterMembers {
 			heartbeatInfo, ok := hbInfo.ClusterMembers[clusterMember.Address]
-			if !ok {
+			if !ok || heartbeatInfo.Role == string(cluster.Pending) {
 				continue
 			}
 

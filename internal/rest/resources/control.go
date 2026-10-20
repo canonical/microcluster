@@ -92,10 +92,10 @@ func controlPost(state types.State, r *http.Request) types.Response {
 			return
 		}
 
-		// Use an independent context for cleanup so that it is not tied
-		// to the request context, which may already be expired (e.g. the
-		// join timed out).
-		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		// Use the daemon's context for cleanup so that it is not tied to the request
+		// context, which may already be expired (e.g. the join timed out), while
+		// still stopping the cleanup if the daemon shuts down.
+		cleanupCtx, cleanupCancel := context.WithTimeout(intState.Context, 2*time.Minute)
 		defer cleanupCancel()
 
 		// Run the pre-remove hook like we do for cluster node removals.
@@ -108,7 +108,9 @@ func controlPost(state types.State, r *http.Request) types.Response {
 		// As part of this request the cluster member gets re-executed.
 		// If we don't send the request, re-exec the member manually.
 		if joinInfo == nil || req.JoinToken == "" {
-			reExec, err := resetClusterMember(cleanupCtx, state, true)
+			// Use the request context, as the re-exec waits for it to be done
+			// so that the response can be sent first.
+			reExec, err := resetClusterMember(r.Context(), state, true)
 			if err != nil {
 				logger.Error("Failed to reset cluster member on bootstrap error", slog.String("error", err.Error()))
 				return

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/canonical/lxd/lxd/response"
+	"github.com/canonical/lxd/shared/api"
 	"github.com/canonical/lxd/shared/logger"
 
 	"github.com/canonical/microcluster/v2/client"
@@ -241,11 +242,21 @@ func beginHeartbeat(ctx context.Context, s state.State, hbReq internalTypes.Hear
 				continue
 			}
 
+			wasPending := clusterMember.Role == cluster.Pending
 			clusterMember.Heartbeat = heartbeatInfo.LastHeartbeat
 			clusterMember.Role = cluster.Role(heartbeatInfo.Role)
 			err = cluster.UpdateCoreClusterMember(ctx, tx, clusterMember.Name, clusterMember)
 			if err != nil {
 				return err
+			}
+
+			// A joining member's single-use join token is no longer needed once
+			// the member is confirmed (its dqlite role is no longer "pending").
+			if wasPending && clusterMember.Role != cluster.Pending {
+				err := cluster.DeleteCoreTokenRecord(ctx, tx, clusterMember.Name)
+				if err != nil && !api.StatusErrorCheck(err, http.StatusNotFound) {
+					return err
+				}
 			}
 		}
 

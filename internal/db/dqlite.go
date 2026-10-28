@@ -70,11 +70,17 @@ const (
 // blocks for up to 10s, keeping clients "on hold" until the new dqlite
 // instance is ready, making the restart invisible to them. If there is no
 // dqlite instance at all (e.g. after a failed bootstrap or join), the
-// connection is closed after the timeout.
+// connection is closed right away, so that the other cluster members do not
+// wait on it, e.g. when probing for the dqlite leader.
 // acceptMu is held so that Restart can atomically rotate the channel.
 func (db *DqliteDB) Accept(conn net.Conn) {
 	db.acceptMu.RLock()
 	defer db.acceptMu.RUnlock()
+
+	if db.acceptCh == nil {
+		conn.Close()
+		return
+	}
 
 	select {
 	case db.acceptCh <- conn:
@@ -100,6 +106,33 @@ func (db *DqliteDB) rotateAcceptCh() {
 	if oldAcceptCh != nil {
 		close(oldAcceptCh)
 	}
+}
+
+// closeAcceptCh closes the accept channel without replacing it, for when the dqlite app is
+// closed for good (e.g. after a failed bootstrap or join), so that Accept closes incoming
+// connections right away instead of holding them for a dqlite app that will not come.
+func (db *DqliteDB) closeAcceptCh() {
+	db.acceptMu.Lock()
+	oldAcceptCh := db.acceptCh
+	db.acceptCh = nil
+	db.acceptMu.Unlock()
+
+	if oldAcceptCh != nil {
+		close(oldAcceptCh)
+	}
+}
+
+// openAcceptCh returns the accept channel for a new dqlite app, creating it if closeAcceptCh
+// closed the previous one.
+func (db *DqliteDB) openAcceptCh() chan net.Conn {
+	db.acceptMu.Lock()
+	defer db.acceptMu.Unlock()
+
+	if db.acceptCh == nil {
+		db.acceptCh = make(chan net.Conn)
+	}
+
+	return db.acceptCh
 }
 
 // NewDB creates an empty db struct with no dqlite connection.
@@ -186,7 +219,7 @@ func (db *DqliteDB) Bootstrap(extensions types.Extensions, addr *url.URL, cluste
 		dqlite.WithRolesAdjustmentFrequency(db.heartbeatInterval),
 		dqlite.WithRolesAdjustmentHook(db.heartbeat),
 		dqlite.WithConcurrentLeaderConns(&db.maxConns),
-		dqlite.WithExternalConn(db.dialFunc(), db.acceptCh),
+		dqlite.WithExternalConn(db.dialFunc(), db.openAcceptCh()),
 		dqlite.WithUnixSocket(os.Getenv(sys.DqliteSocket)))
 	if err != nil {
 		return fmt.Errorf("Failed to bootstrap dqlite: %w", err)
@@ -198,7 +231,7 @@ func (db *DqliteDB) Bootstrap(extensions types.Extensions, addr *url.URL, cluste
 	defer reverter.Fail()
 	reverter.Add(func() {
 		if db.dqlite != nil {
-			db.rotateAcceptCh()
+			db.closeAcceptCh()
 
 			closeErr := db.dqlite.Close()
 			if closeErr != nil {
@@ -240,7 +273,7 @@ func (db *DqliteDB) Join(extensions types.Extensions, addr *url.URL, joinAddress
 		dqlite.WithAddress(db.listenAddr.Host),
 		dqlite.WithFailureDomain(db.failureDomain()),
 		dqlite.WithConcurrentLeaderConns(&db.maxConns),
-		dqlite.WithExternalConn(db.dialFunc(), db.acceptCh),
+		dqlite.WithExternalConn(db.dialFunc(), db.openAcceptCh()),
 		dqlite.WithUnixSocket(os.Getenv(sys.DqliteSocket)))
 	if err != nil {
 		return fmt.Errorf("Failed to join dqlite cluster %w", err)
@@ -253,7 +286,7 @@ func (db *DqliteDB) Join(extensions types.Extensions, addr *url.URL, joinAddress
 	defer reverter.Fail()
 	reverter.Add(func() {
 		if db.dqlite != nil {
-			db.rotateAcceptCh()
+			db.closeAcceptCh()
 
 			closeErr := db.dqlite.Close()
 			if closeErr != nil {

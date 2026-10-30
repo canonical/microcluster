@@ -132,13 +132,27 @@ func trustDelete(s types.State, r *http.Request) types.Response {
 			return types.SmartError(err)
 		}
 
+		logger, err := log.LoggerFromContext(ctx)
+		if err != nil {
+			return types.InternalError(err)
+		}
+
+		// Propagate the removal to the other members on a best-effort basis: a
+		// member may legitimately not have the entry (for example when a join
+		// fails before the entry is propagated to the rest of the cluster), so
+		// a failure there must not prevent the local removal.
 		err = clients.Query(ctx, true, func(ctx context.Context, c types.Client) error {
-			// No need to send a request to ourselves, or to the node we are adding.
+			// No need to send a request to ourselves, or to the node being removed.
 			if s.Address().Host == c.URL().Host || nodeToRemove.URL().Host == c.URL().Host {
 				return nil
 			}
 
-			return internalClient.DeleteTrustStoreEntry(ctx, c, name)
+			err := internalClient.DeleteTrustStoreEntry(ctx, c, name)
+			if err != nil {
+				logger.Warn("Failed removing truststore entry from cluster member", slog.String("member", name), slog.String("node", c.URL().Host), slog.String("error", err.Error()))
+			}
+
+			return nil
 		})
 		if err != nil {
 			return types.SmartError(err)

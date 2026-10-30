@@ -1009,6 +1009,62 @@ test_extended_endpoints() {
   shutdown_systems
 }
 
+test_prejoin_failure() {
+  echo "Testing PreJoin failure cleanup"
+
+  # Start 3 systems (c4 will be started manually)
+  new_systems 3 --heartbeat 2s
+
+  # Bootstrap c1 and join c2, c3
+  microctl --state-dir "${test_dir}/c1" init "c1" 127.0.0.1:9001 --bootstrap
+  token_c2=$(microctl --state-dir "${test_dir}/c1" tokens add "c2")
+  token_c3=$(microctl --state-dir "${test_dir}/c1" tokens add "c3")
+  microctl --state-dir "${test_dir}/c2" init "c2" 127.0.0.1:9002 --token "${token_c2}"
+  microctl --state-dir "${test_dir}/c3" init "c3" 127.0.0.1:9003 --token "${token_c3}"
+
+  # Wait for cluster to stabilize
+  while [[ -n "$(microctl --state-dir "${test_dir}/c1" cluster list -f yaml | yq '.[] | select(.role == "PENDING")')" ]]; do
+    sleep 2
+  done
+
+  echo "  -> Starting c4"
+  mkdir -p "${test_dir}/c4"
+  microd --state-dir "${test_dir}/c4" --heartbeat 2s &
+  microctl --state-dir "${test_dir}/c4" waitready
+
+  # The PreJoin hook in the example daemon fails when it receives the given init
+  # config, so the first join attempt must fail.
+  token_c4=$(microctl --state-dir "${test_dir}/c1" tokens add "c4")
+  ! microctl --state-dir "${test_dir}/c4" init "c4" 127.0.0.1:9004 --token "${token_c4}" --config "fail=1" || {
+    echo "ERROR: c4 join should have failed due to PreJoin hook failure"
+    return 1
+  }
+
+  echo "  -> PreJoin failure triggered successfully, retrying without the failing config"
+
+  # The daemon is reset (re-exec'd) after the failed join; wait for it to come
+  # back up, then join again without the failing config. This verifies that the
+  # synchronous cleanup left the cluster state consistent, so token generation
+  # and rejoining both succeed.
+  microctl --state-dir "${test_dir}/c4" waitready
+
+  token_c4=$(microctl --state-dir "${test_dir}/c1" tokens add "c4")
+  microctl --state-dir "${test_dir}/c4" init "c4" 127.0.0.1:9004 --token "${token_c4}" || {
+    echo "ERROR: c4 should be able to join after failed PreJoin cleanup"
+    return 1
+  }
+
+  # Wait for cluster to stabilize
+  while [[ -n "$(microctl --state-dir "${test_dir}/c1" cluster list -f yaml | yq '.[] | select(.role == "PENDING")')" ]]; do
+    sleep 2
+  done
+
+  # Verify c4 has joined the cluster
+  [[ $(microctl --state-dir "${test_dir}/c1" cluster list -f yaml | yq '.[] | select(.clustermemberlocal.name == "c4").role') == "voter" ]]
+
+  shutdown_systems
+}
+
 test_self_deletion() {
   echo "Testing self deletion"
 
@@ -1060,6 +1116,7 @@ if [ "${1:-"all"}" = "all" ] || [ "${1}" = "" ]; then
   run_test membership_consistency
   run_test truststore_force_removal
   run_test parallel_joins
+  run_test prejoin_failure
   run_test self_deletion
 elif [ "${1}" = "recover" ]; then
   run_test recover
@@ -1079,6 +1136,8 @@ elif [ "${1}" = "force-removal" ]; then
   run_test truststore_force_removal
 elif [ "${1}" = "parallel-join" ]; then
   run_test parallel_joins
+elif [ "${1}" = "prejoin" ]; then
+  run_test prejoin_failure
 elif [ "${1}" = "self-deletion" ]; then
   run_test self_deletion
 elif [ "${1}" = "daemon-config" ]; then

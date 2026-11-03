@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/canonical/lxd/shared/revert"
 
@@ -59,6 +60,14 @@ func DialDqlite(ctx context.Context, addr string, config *tls.Config) (net.Conn,
 		_ = conn.Close()
 	})
 
+	// The context only bounds the TCP and TLS dial above. Also abort the HTTP upgrade if the
+	// context is done before the remote member answers it, e.g. if it has no dqlite app.
+	stop := context.AfterFunc(ctx, func() {
+		_ = conn.SetDeadline(time.Now())
+	})
+
+	defer stop()
+
 	err = request.Write(conn)
 	if err != nil {
 		return nil, fmt.Errorf("Failed sending HTTP request to %q: %w", request.URL, err)
@@ -93,6 +102,11 @@ func DialDqlite(ctx context.Context, addr string, config *tls.Config) (net.Conn,
 
 	if response.Header.Get("Upgrade") != "dqlite" {
 		return nil, fmt.Errorf("Missing or unexpected Upgrade header in response")
+	}
+
+	// If the context is done by now, the connection deadline may already be set.
+	if !stop() {
+		return nil, fmt.Errorf("Failed to upgrade connection to dqlite: %w", context.Cause(ctx))
 	}
 
 	reverter.Success()

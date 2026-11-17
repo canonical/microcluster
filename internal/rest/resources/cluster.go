@@ -53,6 +53,9 @@ var clusterMemberCmd = types.Endpoint{
 var clusterMemberInternalCmd = types.Endpoint{
 	Path: "cluster/{name}",
 
+	// Required to allow resetting a member whose database failed to start, e.g. after a failed join.
+	AllowedBeforeInit: true,
+
 	Put: types.EndpointAction{Handler: clusterMemberPut, AccessHandler: access.AllowAuthenticated},
 }
 

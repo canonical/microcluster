@@ -68,7 +68,9 @@ const (
 // Accept passes conn to dqlite. During normal operation the send completes
 // immediately. During a Restart the channel has no consumer yet, so the call
 // blocks for up to 10s, keeping clients "on hold" until the new dqlite
-// instance is ready, making the restart invisible to them.
+// instance is ready, making the restart invisible to them. If there is no
+// dqlite instance at all (e.g. after a failed bootstrap or join), the
+// connection is closed after the timeout.
 // acceptMu is held so that Restart can atomically rotate the channel.
 func (db *DqliteDB) Accept(conn net.Conn) {
 	db.acceptMu.RLock()
@@ -80,6 +82,23 @@ func (db *DqliteDB) Accept(conn net.Conn) {
 		conn.Close()
 	case <-db.ctx.Done():
 		conn.Close()
+	}
+}
+
+// rotateAcceptCh swaps in a fresh accept channel and closes the old one, so that the
+// go-dqlite reader ranging over it exits. This must be done before closing a dqlite app,
+// as the reader otherwise keeps accepting connections and panics when it fails to dial
+// the closed app's local socket.
+// Accept() holds acceptMu for every send, so once the write lock is held there
+// can be no remaining senders on the old channel.
+func (db *DqliteDB) rotateAcceptCh() {
+	db.acceptMu.Lock()
+	oldAcceptCh := db.acceptCh
+	db.acceptCh = make(chan net.Conn)
+	db.acceptMu.Unlock()
+
+	if oldAcceptCh != nil {
+		close(oldAcceptCh)
 	}
 }
 
@@ -179,6 +198,8 @@ func (db *DqliteDB) Bootstrap(extensions types.Extensions, addr *url.URL, cluste
 	defer reverter.Fail()
 	reverter.Add(func() {
 		if db.dqlite != nil {
+			db.rotateAcceptCh()
+
 			closeErr := db.dqlite.Close()
 			if closeErr != nil {
 				db.log().Error("Failed to close dqlite app", slog.String("address", db.listenAddr.String()), slog.String("error", closeErr.Error()))
@@ -232,6 +253,8 @@ func (db *DqliteDB) Join(extensions types.Extensions, addr *url.URL, joinAddress
 	defer reverter.Fail()
 	reverter.Add(func() {
 		if db.dqlite != nil {
+			db.rotateAcceptCh()
+
 			closeErr := db.dqlite.Close()
 			if closeErr != nil {
 				db.log().Error("Failed to close dqlite app", slog.String("address", db.listenAddr.String()), slog.String("error", closeErr.Error()))
@@ -522,18 +545,7 @@ func (db *DqliteDB) Restart(extensions types.Extensions, clusterMembers map[stri
 	db.status = types.DatabaseOffline
 	db.statusLock.Unlock()
 
-	// Swap in a fresh accept channel for the next dqlite instance and close the
-	// old one so any stale go-dqlite reader ranging over it can exit.
-	// Accept() holds acceptMu for every send, so once the write lock is held there
-	// can be no remaining senders on the old channel.
-	db.acceptMu.Lock()
-	oldAcceptCh := db.acceptCh
-	db.acceptCh = make(chan net.Conn)
-	db.acceptMu.Unlock()
-
-	if oldAcceptCh != nil {
-		close(oldAcceptCh)
-	}
+	db.rotateAcceptCh()
 
 	if db.db != nil {
 		_ = db.db.Close()

@@ -1047,6 +1047,66 @@ test_self_deletion() {
   shutdown_systems
 }
 
+test_failed_join() {
+  echo "Testing failed join"
+
+  new_systems 4 --heartbeat 2s
+
+  # Bootstrap initial cluster.
+  microctl --state-dir "${test_dir}/c1" init "c1" 127.0.0.1:9001 --bootstrap
+
+  token_c2=$(microctl --state-dir "${test_dir}/c1" tokens add "c2")
+  token_c3=$(microctl --state-dir "${test_dir}/c1" tokens add "c3")
+  microctl --state-dir "${test_dir}/c2" init "c2" 127.0.0.1:9002 --token "${token_c2}"
+  microctl --state-dir "${test_dir}/c3" init "c3" 127.0.0.1:9003 --token "${token_c3}"
+
+  # Wait for cluster to stabilize
+  while [[ -n "$(microctl --state-dir "${test_dir}/c1" cluster list -f yaml | yq '.[] | select(.role == "PENDING")')" ]]; do
+    sleep 2
+  done
+
+  # An invalid schema patch makes the join of c4 fail after dqlite has already added it to the cluster.
+  echo "  -> Testing join of c4 with a failing schema update"
+  token_c4=$(microctl --state-dir "${test_dir}/c1" tokens add "c4")
+  echo "INTENTIONALLY INVALID SQL STATEMENT;" > "${test_dir}/c4/patch.global.sql"
+  if microctl --state-dir "${test_dir}/c4" init "c4" 127.0.0.1:9004 --token "${token_c4}"; then
+    echo "ERROR: Member c4 should have failed to join"
+    exit 1
+  fi
+
+  # The remaining cluster members keep connecting to the failed joiner for a while,
+  # which must not crash its daemon after its dqlite app has been closed.
+  echo "  -> Testing c4 daemon survives the failed join"
+  sleep 5
+  if ! microctl --state-dir "${test_dir}/c4" waitready --timeout 30; then
+    echo "ERROR: Daemon of member c4 did not survive the failed join"
+    exit 1
+  fi
+
+  echo "  -> Testing c4 is no longer present on the remaining cluster"
+  if [ "$(microctl --state-dir "${test_dir}/c1" cluster list -f csv | wc -l)" != "3" ]; then
+    echo "ERROR: Member c4 is still present on the remaining cluster"
+    microctl --state-dir "${test_dir}/c1" cluster list
+    exit 1
+  fi
+
+  echo "  -> Testing c4 can join after the failure is resolved"
+  rm -f "${test_dir}/c4/patch.global.sql"
+  token_c4=$(microctl --state-dir "${test_dir}/c1" tokens add "c4")
+  if ! microctl --state-dir "${test_dir}/c4" init "c4" 127.0.0.1:9004 --token "${token_c4}"; then
+    echo "ERROR: Member c4 failed to join after the failure was resolved"
+    exit 1
+  fi
+
+  if [ "$(microctl --state-dir "${test_dir}/c1" cluster list -f csv | wc -l)" != "4" ]; then
+    echo "ERROR: Member c4 is missing from the cluster after joining"
+    microctl --state-dir "${test_dir}/c1" cluster list
+    exit 1
+  fi
+
+  shutdown_systems
+}
+
 # allow for running a specific set of tests
 TEST_RESULT="success"
 if [ "${1:-"all"}" = "all" ] || [ "${1}" = "" ]; then
@@ -1061,6 +1121,7 @@ if [ "${1:-"all"}" = "all" ] || [ "${1}" = "" ]; then
   run_test truststore_force_removal
   run_test parallel_joins
   run_test self_deletion
+  run_test failed_join
 elif [ "${1}" = "recover" ]; then
   run_test recover
 elif [ "${1}" = "tokens" ]; then
@@ -1081,6 +1142,8 @@ elif [ "${1}" = "parallel-join" ]; then
   run_test parallel_joins
 elif [ "${1}" = "self-deletion" ]; then
   run_test self_deletion
+elif [ "${1}" = "failed-join" ]; then
+  run_test failed_join
 elif [ "${1}" = "daemon-config" ]; then
   run_test daemon_config_api
 else

@@ -155,7 +155,9 @@ func (db *DqliteDB) Bootstrap(extensions extensions.Extensions, addr api.URL, cl
 	}
 
 	// Only close the dqlite app if the entire Bootstrap process fails or exits.
-	// dqlite.Close() immediately tears down all Raft connections and removes this node from the dqlite cluster.
+	// NOTE: dqlite.Close() tears down Raft connections but does NOT remove
+	// the node from the dqlite cluster. For bootstrap this is fine since
+	// the node is the sole member.
 	reverter := revert.New()
 	defer reverter.Fail()
 	reverter.Add(func() {
@@ -207,18 +209,38 @@ func (db *DqliteDB) Join(extensions extensions.Extensions, addr api.URL, joinAdd
 
 	// Only close the dqlite app if the entire Join process fails or exits.
 	// This ensures dqlite.Close() is not called on every Open() retry, but only if we fully give up joining.
-	// dqlite.Close() immediately tears down all Raft connections and removes this node from the dqlite cluster.
+	//
+	// NOTE: dqlite.Close() tears down Raft connections but does NOT remove
+	// the node from the dqlite cluster. We must explicitly ask the leader to
+	// remove us before closing; otherwise the node remains as a ghost member,
+	// which can break quorum calculations and membership consistency checks.
 	reverter := revert.New()
 	defer reverter.Fail()
 	reverter.Add(func() {
-		if db.dqlite != nil {
-			closeErr := db.dqlite.Close()
-			if closeErr != nil {
-				logger.Error("Failed to close database", logger.Ctx{"address": db.listenAddr.String(), "error": closeErr})
-			}
-
-			db.dqlite = nil
+		if db.dqlite == nil {
+			return
 		}
+
+		removeCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		cli, err := db.dqlite.Leader(removeCtx, dqliteClient.WithConcurrentLeaderConns(1))
+		if err != nil {
+			logger.Warn("Failed to connect to dqlite leader to remove ourselves from the cluster", logger.Ctx{"address": db.listenAddr.String(), "error": err})
+		} else {
+			err = cli.Remove(removeCtx, db.dqlite.ID())
+			cli.Close()
+			if err != nil {
+				logger.Warn("Failed to remove ourselves from the dqlite cluster", logger.Ctx{"id": db.dqlite.ID(), "address": db.listenAddr.String(), "error": err})
+			}
+		}
+
+		closeErr := db.dqlite.Close()
+		if closeErr != nil {
+			logger.Error("Failed to close database", logger.Ctx{"address": db.listenAddr.String(), "error": closeErr})
+		}
+
+		db.dqlite = nil
 	})
 
 	for {
